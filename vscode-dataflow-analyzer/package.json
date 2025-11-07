@@ -1,0 +1,85 @@
+{
+  "name": "vscode-dataflow-analyzer",
+  "displayName": "C++ Dataflow Analyzer",
+  "description": "Real-time incremental static/dataflow analysis for C++ with CFG visualization",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:cpp",
+    "onLanguage:c"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "dataflowAnalyzer.showCFG",
+        "title": "Show Control Flow Graph",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "dataflowAnalyzer.analyzeWorkspace",
+        "title": "Analyze Workspace"
+      },
+      {
+        "command": "dataflowAnalyzer.clearState",
+        "title": "Clear Analysis State"
+      }
+    ],
+    "configuration": {
+      "title": "Dataflow Analyzer",
+      "properties": {
+        "dataflowAnalyzer.updateMode": {
+          "type": "string",
+          "enum": [
+            "keystroke",
+            "save"
+          ],
+          "default": "save",
+          "description": "When to trigger analysis updates"
+        },
+        "dataflowAnalyzer.enableLiveness": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable liveness analysis"
+        },
+        "dataflowAnalyzer.enableReachingDefinitions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable reaching definitions analysis"
+        },
+        "dataflowAnalyzer.enableTaintAnalysis": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable taint analysis"
+        },
+        "dataflowAnalyzer.debounceDelay": {
+          "type": "number",
+          "default": 500,
+          "description": "Debounce delay in milliseconds for keystroke mode"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {}
+}
