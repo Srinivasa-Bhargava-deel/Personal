@@ -78,10 +78,10 @@ Perfect for security researchers, developers, and code reviewers who need to und
 
 ### Technical Features
 
-- **libclang Integration**
+- **Clang AST Integration (C++ only)**
   - Uses clang AST for accurate parsing
   - Automatic detection of clang installation
-  - Falls back to primitive parser if clang unavailable
+  - Note: This build uses clang-only parsing (no fallback)
 
 - **Incremental Analysis**
   - Updates only changed files
@@ -200,9 +200,10 @@ ls out/
    - This launches a new VSCode window (Extension Development Host)
 
 4. **In the Extension Development Host:**
-   - Open a folder containing C++ files
+   - Open a folder containing C++ source files (.cpp/.c)
    - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
-   - Type "Analyze Workspace" and run it
+   - Type "Analyze Workspace" (analyzes entire workspace; excludes libraries/headers by default)
+   - Or type "Analyze Active File" (analyzes only the currently open source file)
    - Type "Show Control Flow Graph" to open the visualizer
 
 #### Method 2: Watch Mode (For Active Development)
@@ -393,7 +394,8 @@ Open VSCode settings (`Ctrl+,` or `Cmd+,`) and search for "Dataflow Analyzer":
 ### Commands
 
 - `dataflowAnalyzer.showCFG` - Show Control Flow Graph visualizer
-- `dataflowAnalyzer.analyzeWorkspace` - Analyze entire workspace
+- `dataflowAnalyzer.analyzeWorkspace` - Analyze entire workspace (excludes libraries/headers by default)
+- `dataflowAnalyzer.analyzeActiveFile` - Analyze only the active C/C++ source file
 - `dataflowAnalyzer.clearState` - Clear saved analysis state
 
 ## 🏗️ Architecture

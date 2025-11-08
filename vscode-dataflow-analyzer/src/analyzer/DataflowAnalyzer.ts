@@ -13,7 +13,6 @@ import { SecurityAnalyzer } from './SecurityAnalyzer';
 import { StateManager } from '../state/StateManager';
 import { 
   CFG, 
-  FunctionCFG, 
   AnalysisState, 
   FileAnalysisState,
   AnalysisConfig 
@@ -50,6 +49,16 @@ export class DataflowAnalyzer {
    */
   async analyzeWorkspace(): Promise<AnalysisState> {
     const workspacePath = this.currentState!.workspacePath;
+    // If there's an active C/C++ editor, analyze only that file to avoid pulling in library functions
+    try {
+      const active = vscode.window.activeTextEditor;
+      if (active && (active.document.languageId === 'cpp' || active.document.languageId === 'c')) {
+        return await this.analyzeSpecificFiles([active.document.uri.fsPath]);
+      }
+    } catch {
+      // Fall through to workspace analysis
+    }
+    
     const cfg: CFG = {
       entry: 'global_entry',
       exit: 'global_exit',
@@ -129,20 +138,200 @@ export class DataflowAnalyzer {
   }
 
   /**
+   * Analyze only specific files (strict mode)
+   */
+  async analyzeSpecificFiles(filePaths: string[]): Promise<AnalysisState> {
+    const workspacePath = this.currentState!.workspacePath;
+    const cfg: CFG = {
+      entry: 'global_entry',
+      exit: 'global_exit',
+      blocks: new Map(),
+      functions: new Map()
+    };
+
+    const fileStates = new Map<string, FileAnalysisState>();
+
+    for (const filePath of filePaths) {
+      // Only allow source files
+      const ext = path.extname(filePath).toLowerCase();
+      const sourceExtensions = ['.cpp', '.cxx', '.cc', '.c'];
+      if (!sourceExtensions.includes(ext)) {
+        console.log(`Skipping non-source file: ${filePath}`);
+        continue;
+      }
+      try {
+        const fileState = await this.analyzeFile(filePath, cfg);
+        fileStates.set(filePath, fileState);
+      } catch (error) {
+        console.error(`Error analyzing ${filePath}:`, error);
+      }
+    }
+
+    // Perform analyses
+    const liveness = new Map();
+    const reachingDefinitions = new Map();
+    const taintAnalysis = new Map();
+    const vulnerabilities = new Map();
+
+    cfg.functions.forEach((funcCFG, funcName) => {
+      if (this.config.enableLiveness) {
+        const funcLiveness = this.livenessAnalyzer.analyze(funcCFG);
+        funcLiveness.forEach((info, blockId) => {
+          liveness.set(`${funcName}_${blockId}`, info);
+        });
+      }
+
+      if (this.config.enableReachingDefinitions) {
+        const funcRD = this.reachingDefinitionsAnalyzer.analyze(funcCFG);
+        funcRD.forEach((info, blockId) => {
+          reachingDefinitions.set(`${funcName}_${blockId}`, info);
+        });
+      }
+
+      if (this.config.enableTaintAnalysis) {
+        const funcRD = reachingDefinitions.get(`${funcName}_entry`) || 
+                      new Map().set('entry', { in: new Map(), out: new Map() });
+        const funcTaint = this.taintAnalyzer.analyze(funcCFG, funcRD);
+        taintAnalysis.set(funcName, Array.from(funcTaint.values()).flat());
+      }
+    });
+
+    this.currentState = {
+      workspacePath,
+      timestamp: Date.now(),
+      cfg,
+      liveness,
+      reachingDefinitions,
+      taintAnalysis,
+      vulnerabilities,
+      fileStates
+    };
+
+    this.stateManager.saveState(this.currentState);
+    return this.currentState;
+  }
+
+  /**
    * Analyze a single file
    */
   private async analyzeFile(filePath: string, cfg: CFG): Promise<FileAnalysisState> {
     const hash = this.stateManager.computeFileHash(filePath);
     const stats = fs.statSync(filePath);
 
+    console.log(`Analyzing file: ${filePath}`);
+    const normalizedSourcePath = path.resolve(filePath);
+    const sourceFileBase = path.basename(filePath);
+    const sourceFileDir = path.dirname(filePath);
+    
     const { functions, globalVars } = await this.parser.parseFile(filePath);
+    console.log(`Parser returned ${functions.length} functions from ${filePath}`);
+
     const functionNames: string[] = [];
+    let addedCount = 0;
+    let skippedCount = 0;
 
     for (const funcInfo of functions) {
-      const funcCFG = this.parser.buildCFGForFunction(funcInfo, funcInfo.name);
-      cfg.functions.set(funcInfo.name, funcCFG);
-      functionNames.push(funcInfo.name);
+      // CRITICAL: Verify function is actually from this source file
+      // IMPORTANT: Clang location.file behavior:
+      // - Builtin types: NO location or NO line
+      // - Source file nodes: location has line but NO file
+      // - Included file nodes: location has file set
+      // - CFG functions: NO location info but parsed directly from source file
+      let isFromThisFile = false;
+
+      // Special handling for CFG-based functions (parsed directly from source file)
+      if (funcInfo.cfg && (!funcInfo.astNode || !funcInfo.astNode.location)) {
+        isFromThisFile = true;
+        console.log(`ACCEPTING CFG-based function ${funcInfo.name} (no location verification needed)`);
+      } else if (funcInfo.astNode && funcInfo.astNode.location) {
+        const funcLoc = funcInfo.astNode.location;
+        const funcLocAny = funcLoc as any;
+        const funcFile = funcLoc.file;
+        
+        // Must have a line number to be a real code location
+        if (!funcLoc.line) {
+          // No line = builtin/synthetic - REJECT
+          isFromThisFile = false;
+        } else if (funcLocAny.includedFrom && funcLocAny.includedFrom.file) {
+          // Has includedFrom = from included header - REJECT
+          console.log(`SKIPPING function ${funcInfo.name} - from included file ${funcLocAny.includedFrom.file}`);
+          skippedCount++;
+          continue;
+        } else if (!funcFile) {
+          // Has line but NO file and NO includedFrom = from source file - ACCEPT
+          isFromThisFile = true;
+        } else {
+          // Has file - check if it matches
+          try {
+            const normalizedFuncPath = path.resolve(funcFile);
+            if (normalizedFuncPath === normalizedSourcePath) {
+              isFromThisFile = true;
+            } else {
+              // Check by filename and directory
+              const funcFileBase = path.basename(funcFile);
+              if (funcFileBase === sourceFileBase) {
+                const funcFileDir = path.dirname(funcFile);
+                if (path.resolve(funcFileDir) === path.resolve(sourceFileDir)) {
+                  isFromThisFile = true;
+                }
+              }
+            }
+          } catch (e) {
+            // Path resolution failed
+            isFromThisFile = false;
+          }
+        }
+      }
+      // If we cannot verify, skip the function (no astNode or location)
+      // This prevents pulling in library/system functions without precise location info
+      // No fallback based on startLine to avoid false positives
+      
+      
+      // Reject header files
+      if (funcInfo.astNode && funcInfo.astNode.location && funcInfo.astNode.location.file) {
+        const funcFile = funcInfo.astNode.location.file;
+        const headerExts = ['.h', '.hpp', '.hxx', '.hh', '.H'];
+        const fileExt = path.extname(funcFile).toLowerCase();
+        if (headerExts.includes(fileExt)) {
+          console.log(`SKIPPING function ${funcInfo.name} - from header file ${funcFile}`);
+          skippedCount++;
+          continue;
+        }
+        
+        // Reject system/library paths
+        if (funcFile.includes('/usr/') || 
+            funcFile.includes('/System/') ||
+            funcFile.includes('/Applications/') ||
+            funcFile.includes('/Library/') ||
+            funcFile.includes('/opt/') ||
+            funcFile.includes('/include/')) {
+          console.log(`SKIPPING function ${funcInfo.name} - from system/library ${funcFile}`);
+          skippedCount++;
+          continue;
+        }
+      }
+      
+      if (!isFromThisFile) {
+        console.log(`SKIPPING function ${funcInfo.name} - not from source file ${filePath}`);
+        skippedCount++;
+        continue;
+      }
+      
+      // Function is verified to be from this file - add it
+      // Use the CFG that was already built by the parser (from Clang CFG generation)
+      if (funcInfo.cfg) {
+        cfg.functions.set(funcInfo.name, funcInfo.cfg);
+        functionNames.push(funcInfo.name);
+        addedCount++;
+        console.log(`✓ Added function to CFG: ${funcInfo.name} (from ${filePath}, ${funcInfo.cfg.blocks.size} blocks)`);
+      } else {
+        console.warn(`Function ${funcInfo.name} has no CFG - skipping`);
+        skippedCount++;
+        continue;
+      }
     }
+
+    console.log(`File ${filePath}: ${addedCount} functions added, ${skippedCount} skipped, total in CFG: ${cfg.functions.size}`);
 
     return {
       path: filePath,
@@ -217,11 +406,14 @@ export class DataflowAnalyzer {
   }
 
   /**
-   * Find all C++ files in workspace
+   * Find all C++ source files in workspace (exclude headers and libraries)
    */
   private async findCppFiles(workspacePath: string): Promise<string[]> {
     const files: string[] = [];
-    const extensions = ['.cpp', '.cxx', '.cc', '.c', '.hpp', '.h'];
+    // Only analyze source files, NOT header files
+    const sourceExtensions = ['.cpp', '.cxx', '.cc', '.c'];
+    // Explicitly exclude header files
+    const headerExtensions = ['.h', '.hpp', '.hxx', '.hh'];
 
     async function walkDir(dir: string): Promise<void> {
       const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -233,7 +425,10 @@ export class DataflowAnalyzer {
         if (entry.name.startsWith('.') || 
             entry.name === 'node_modules' || 
             entry.name === 'build' ||
-            entry.name === 'out') {
+            entry.name === 'out' ||
+            entry.name === 'include' ||
+            entry.name === 'lib' ||
+            entry.name === 'libs') {
           continue;
         }
 
@@ -241,14 +436,23 @@ export class DataflowAnalyzer {
           await walkDir(fullPath);
         } else if (entry.isFile()) {
           const ext = path.extname(entry.name);
-          if (extensions.includes(ext)) {
-            files.push(fullPath);
+          // Only include source files, explicitly exclude headers
+          if (sourceExtensions.includes(ext) && !headerExtensions.includes(ext)) {
+            // Double-check: make sure it's not in a system directory
+            if (!fullPath.includes('/usr/') && 
+                !fullPath.includes('/System/') &&
+                !fullPath.includes('/Applications/') &&
+                !fullPath.includes('/Library/') &&
+                !fullPath.includes('/opt/')) {
+              files.push(fullPath);
+            }
           }
         }
       }
     }
 
     await walkDir(workspacePath);
+    console.log(`Found ${files.length} source files to analyze:`, files);
     return files;
   }
 

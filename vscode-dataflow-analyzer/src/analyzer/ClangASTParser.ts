@@ -6,6 +6,7 @@
 import * as child_process from 'child_process';
 import * as util from 'util';
 import * as path from 'path';
+import { Range, Statement } from '../types';
 
 export interface SourceLocation {
   file: string;
@@ -56,15 +57,26 @@ export enum CXCursorKind {
 }
 
 export interface ASTNode {
-  kind: CXCursorKind;
-  kindName: string;
-  spelling: string;
-  location: SourceLocation;
-  extent: { start: SourceLocation; end: SourceLocation };
-  children: ASTNode[];
-  isDefinition: boolean;
+  kind: CXCursorKind | string; // Allow string kinds for CFG nodes
+  kindName?: string;
+  spelling?: string;
+  location?: SourceLocation;
+  extent?: { start: SourceLocation; end: SourceLocation };
+  children?: ASTNode[];
+  isDefinition?: boolean;
   type?: string;
   storageClass?: string;
+  // CFG-specific properties
+  name?: string;
+  inner?: ASTNode[];
+  range?: Range;
+  id?: string;
+  label?: string;
+  statements?: Statement[];
+  successors?: string[];
+  predecessors?: string[];
+  isEntry?: boolean;
+  isExit?: boolean;
 }
 
 const exec = util.promisify(child_process.exec);
@@ -133,42 +145,505 @@ export class ClangASTParser {
 
   /**
    * Parse file using clang AST dump
+   * Uses streaming and filtering to handle large files efficiently
    */
   async parseFile(filePath: string, args: string[] = []): Promise<ASTNode | null> {
     if (!this.clangPath) {
-      return null;
+      throw new Error('Clang is not available');
     }
 
     try {
-      // Use clang -Xclang -ast-dump=json to get JSON AST
+      // Use clang CFG dump to generate control flow graphs using C++ libraries
+      // This leverages Clang's built-in CFG generation instead of manual AST traversal
       const clangArgs = [
         '-Xclang',
-        '-ast-dump=json',
+        '-analyze',
+        '-Xclang',
+        '-analyzer-checker=debug.DumpCFG',
         '-fsyntax-only',
+        '-fno-color-diagnostics',
+        '-std=c++17',
+        // Try to limit includes to reduce CFG size
+        '-Wno-everything', // Suppress warnings to reduce stderr noise
         ...args,
         filePath
       ];
 
-      const { stdout, stderr } = await exec(`${this.clangPath} ${clangArgs.join(' ')}`, {
-        maxBuffer: 10 * 1024 * 1024 // 10MB buffer
-      });
-
-      if (stderr && !stderr.includes('warning')) {
-        console.warn('Clang warnings:', stderr);
-      }
-
-      // Parse JSON AST
-      const astJson = this.extractJSONFromOutput(stdout);
-      if (!astJson) {
-        return null;
-      }
-
-      const clangAST = JSON.parse(astJson) as ClangASTNode;
-      return this.convertClangASTToASTNode(clangAST, filePath);
+      // Use streaming parser for large files
+      return await this.parseFileStreaming(filePath, clangArgs);
     } catch (error: any) {
       console.error('Error parsing with clang:', error.message);
-      return null;
+      throw error;
     }
+  }
+
+  /**
+   * Parse file using streaming approach for large ASTs
+   * Implements incremental JSON parsing and filtering to only include source file nodes
+   */
+  private async parseFileStreaming(filePath: string, clangArgs: string[]): Promise<ASTNode | null> {
+    return new Promise((resolve, reject) => {
+      const child = child_process.spawn(this.clangPath!, clangArgs);
+      let output = '';
+      let errorOutput = '';
+      const maxBufferSize = 1000 * 1024 * 1024; // 1GB max
+
+      child.stdout.on('data', (data: Buffer) => {
+        const chunk = data.toString();
+        output += chunk;
+
+        // Check buffer size
+        if (output.length > maxBufferSize) {
+          child.kill();
+          reject(new Error('CFG output exceeded maximum buffer size'));
+          return;
+        }
+      });
+
+      child.stderr.on('data', (data: Buffer) => {
+        errorOutput += data.toString();
+      });
+
+      child.on('close', (code) => {
+        // CFG dump may produce warnings, so be more lenient with error checking
+        const hasErrors = code !== 0 && errorOutput &&
+          !errorOutput.includes('warning') &&
+          !errorOutput.includes('note') &&
+          !errorOutput.includes('CFG') &&
+          !errorOutput.includes('analyzer') &&
+          errorOutput.length > 100; // Only consider it an error if there's substantial error output
+
+        if (hasErrors) {
+          reject(new Error(`Clang CFG dump exited with code ${code}: ${errorOutput}`));
+          return;
+        }
+
+        try {
+          // Parse CFG dump output into AST-like structure (CFG goes to stderr)
+          const cfgData = this.parseCFGOutput(errorOutput, filePath);
+          console.log('Parsed CFG with', cfgData ? Object.keys(cfgData).length : 0, 'functions');
+          resolve(cfgData);
+        } catch (parseError: any) {
+          reject(new Error(`Failed to parse clang CFG output: ${parseError.message}`));
+        }
+      });
+
+      child.on('error', (error) => {
+        reject(new Error(`Failed to spawn clang: ${error.message}`));
+      });
+    });
+  }
+
+  /**
+   * Parse Clang CFG dump output into AST-like structure
+   * CFG dump provides control flow graphs generated by Clang's CFG library
+   */
+  private parseCFGOutput(cfgOutput: string, sourceFilePath: string): ASTNode | null {
+    console.log('CFG Output length:', cfgOutput.length);
+    console.log('CFG Output preview:', cfgOutput.substring(0, 500));
+
+    // Actual clang CFG dump output looks like:
+    // int main()
+    //  [B5 (ENTRY)]
+    //    Succs (1): B4
+    //  [B1]
+    //    1: return 0;
+    //    Preds (2): B2 B3
+    //    Succs (1): B0
+    //  etc.
+
+    const functions: { [name: string]: ASTNode } = {};
+    const lines = cfgOutput.split('\n');
+    let currentFunction: string | null = null;
+    let currentBlocks: any[] = [];
+    let currentBlock: any = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+
+      // Check for function start - function signature on its own line
+      // Must match patterns like: "int main()" or "void factorial(int n)"
+      // But NOT CFG elements like "Succs (1): B2" or "2: [B4.1] (ImplicitCastExpr..."
+      const funcSignatureRegex = /^\s*(?:\w+\s+)+\w+\s*\([^)]*\)\s*$/;
+      if (line && funcSignatureRegex.test(line) && !line.includes('[') && !line.includes('Succs') && !line.includes('Preds') && !line.includes(':') && !line.includes('B') && line.trim().split(/\s+/).length >= 2) {
+        // Save previous function if exists
+        if (currentFunction && currentBlocks.length > 0) {
+          functions[currentFunction] = this.createASTNodeFromCFGBlocks(currentBlocks, currentFunction, sourceFilePath);
+        }
+
+        currentFunction = line;
+        currentBlocks = [];
+        currentBlock = null;
+        console.log('Found function:', currentFunction);
+        continue;
+      }
+
+      // Check for block start
+      const blockMatch = line.match(/\[B(\d+)\s*(?:\(([^)]+)\))?\]/);
+      if (blockMatch && currentFunction) {
+        // Save previous block
+        if (currentBlock) {
+          currentBlocks.push(currentBlock);
+        }
+
+        const blockId = blockMatch[1];
+        const blockType = blockMatch[2]; // ENTRY, EXIT, or number
+        const isEntry = blockType === 'ENTRY';
+        const isExit = blockType === 'EXIT';
+
+        currentBlock = {
+          id: `block_${blockId}`,
+          label: isEntry ? 'Entry' : isExit ? 'Exit' : `B${blockId}`,
+          statements: [],
+          successors: [],
+          predecessors: [],
+          isEntry,
+          isExit
+        };
+
+        console.log('Found block:', currentBlock.label);
+        continue;
+      }
+
+      // Check for successors
+      const succMatch = line.match(/Succs\s*\(\d+\):\s*(.+)/);
+      if (succMatch && currentBlock) {
+        const successors = succMatch[1].split(/\s+/).filter(s => s.trim());
+        currentBlock.successors = successors.map(s => s.replace(/B(\d+)/g, 'block_$1'));
+        continue;
+      }
+
+      // Check for predecessors
+      const predMatch = line.match(/Preds\s*\(\d+\):\s*(.+)/);
+      if (predMatch && currentBlock) {
+        const predecessors = predMatch[1].split(/\s+/).filter(s => s.trim());
+        currentBlock.predecessors = predecessors.map(s => s.replace(/B(\d+)/g, 'block_$1'));
+        continue;
+      }
+
+      // Check for statements (lines that start with numbers followed by colon)
+      const stmtMatch = line.match(/^\s*\d+:\s*(.+)/);
+      if (stmtMatch && currentBlock) {
+        const statement = stmtMatch[1].trim();
+        // Skip implicit cast expressions and other clang internals
+        if (!statement.includes('(ImplicitCastExpr') && !statement.includes('(FunctionToPointerDecay') &&
+            !statement.includes('(ArrayToPointerDecay') && !statement.includes('(LValueToRValue')) {
+          currentBlock.statements.push({
+            text: statement,
+            type: this.inferStatementType(statement),
+            range: {
+              start: { line: 0, column: 0 }, // We don't have exact line info from CFG dump
+              end: { line: 0, column: statement.length }
+            }
+          });
+        }
+      }
+    }
+
+    // Save last function
+    if (currentFunction && currentBlocks.length > 0) {
+      functions[currentFunction] = this.createASTNodeFromCFGBlocks(currentBlocks, currentFunction, sourceFilePath);
+    }
+
+    // Convert to ASTNode format
+    const translationUnit: ASTNode = {
+      kind: 'TranslationUnitDecl',
+      range: {
+        start: { line: 1, column: 0 },
+        end: { line: 1, column: 0 }
+      },
+      inner: Object.values(functions)
+    };
+
+    console.log('Created AST node with', Object.keys(functions).length, 'functions');
+    return translationUnit;
+  }
+
+  /**
+   * Create AST node from CFG blocks
+   */
+  private createASTNodeFromCFGBlocks(blocks: any[], functionName: string, sourceFilePath: string): ASTNode {
+    // Build predecessor relationships
+    const blockMap = new Map<string, any>();
+    blocks.forEach(block => {
+      blockMap.set(block.id, block);
+    });
+
+    blocks.forEach(block => {
+      block.predecessors = [];
+      blockMap.forEach((otherBlock, otherId) => {
+        if (otherBlock.successors.includes(block.id)) {
+          block.predecessors.push(otherId);
+        }
+      });
+    });
+
+    return {
+      kind: 'FunctionDecl',
+      name: functionName,
+      range: {
+        start: { line: 1, column: 0 },
+        end: { line: 1, column: 0 }
+      },
+      inner: [
+        {
+          kind: 'CompoundStmt',
+          range: {
+            start: { line: 1, column: 0 },
+            end: { line: 1, column: 0 }
+          },
+          inner: blocks.map(block => ({
+            kind: 'CFGBlock',
+            id: block.id,
+            label: block.label,
+            statements: block.statements,
+            successors: block.successors,
+            predecessors: block.predecessors,
+            isEntry: block.isEntry,
+            isExit: block.isExit,
+            range: {
+              start: { line: 1, column: 0 },
+              end: { line: 1, column: 0 }
+            },
+            inner: []
+          }))
+        }
+      ]
+    };
+  }
+
+  /**
+   * Infer statement type from code text
+   */
+  private inferStatementType(code: string): string {
+    const trimmed = code.trim();
+    if (trimmed.includes('if ')) return 'IfStmt';
+    if (trimmed.includes('while ')) return 'WhileStmt';
+    if (trimmed.includes('for ')) return 'ForStmt';
+    if (trimmed.includes('return ')) return 'ReturnStmt';
+    if (trimmed.includes('=')) return 'BinaryOperator';
+    if (trimmed.includes('int ') || trimmed.includes('char ') || trimmed.includes('float ')) return 'DeclStmt';
+    return 'Expr';
+  }
+
+  /**
+   * Filter AST to only include nodes from the source file
+   * This removes system header nodes which can be huge
+   */
+  private filterASTBySourceFile(ast: ClangASTNode, sourceFilePath: string): ClangASTNode | null {
+    // Normalize paths for comparison
+    const normalizedSourcePath = path.resolve(sourceFilePath);
+    const sourceFileBase = path.basename(sourceFilePath);
+    const sourceFileDir = path.dirname(sourceFilePath);
+    
+    // Helper to check if a node is from the source file
+    // IMPORTANT: Clang behavior for loc.file:
+    // - Builtin types: NO loc or loc.line is 0 or undefined
+    // - Source file nodes: loc has line>0, NO file, NO includedFrom
+    // - Included file nodes: loc has file field OR has includedFrom field
+    const isSourceFile = (node: ClangASTNode): boolean => {
+      const loc = node.loc as any; // Cast to any to access includedFrom
+      const filePath = loc?.file;
+      
+      // No location at all = builtin/synthetic node - REJECT
+      if (!loc) {
+        return false;
+      }
+      
+      // loc.line must be > 0 to be real code (line=0 or undefined = builtin)
+      if (!loc.line || loc.line === 0) {
+        return false;
+      }
+      
+      // CRITICAL: Check for includedFrom field - this means it's from an included file
+      if (loc.includedFrom && loc.includedFrom.file) {
+        // This node is from an included header - REJECT
+        return false;
+      }
+      
+      // Has line>0 but NO file and NO includedFrom = from source file - ACCEPT
+      if (!filePath) {
+        console.log(`  ✓ isSourceFile: ${node.kind} "${node.name || 'none'}" at line ${loc.line} (no file/includedFrom = source)`);
+        return true;
+      }
+      
+      // Reject ANY absolute path that's not the source file
+      // Also reject header files and system/library paths
+      if (filePath.startsWith('/')) {
+        // Reject system/library paths immediately
+        if (filePath.includes('/usr/') || 
+            filePath.includes('/System/') ||
+            filePath.includes('/Applications/') ||
+            filePath.includes('/Library/') ||
+            filePath.includes('/opt/') ||
+            filePath.includes('/include/')) {
+          return false;
+        }
+        
+        // Only allow if it's exactly the source file path
+        try {
+          const normalizedNodePath = path.resolve(filePath);
+          return normalizedNodePath === normalizedSourcePath;
+        } catch (e) {
+          return false;
+        }
+      }
+      
+      // Reject header files (.h, .hpp, etc.)
+      const headerExts = ['.h', '.hpp', '.hxx', '.hh', '.H'];
+      const fileExt = path.extname(filePath).toLowerCase();
+      if (headerExts.includes(fileExt)) {
+        return false;
+      }
+      
+      // For relative paths, check if they resolve to the source file
+      try {
+        const normalizedNodePath = path.resolve(filePath);
+        if (normalizedNodePath === normalizedSourcePath) {
+          return true;
+        }
+        
+        // Also check by filename and directory
+        const nodeFileBase = path.basename(filePath);
+        if (nodeFileBase === sourceFileBase) {
+          const nodeFileDir = path.dirname(filePath);
+          const normalizedNodeDir = path.resolve(nodeFileDir);
+          const normalizedSourceDir = path.resolve(sourceFileDir);
+          if (normalizedNodeDir === normalizedSourceDir) {
+            return true;
+          }
+        }
+      } catch (e) {
+        return false;
+      }
+      
+      return false;
+    };
+    
+    // Recursively filter the AST
+    const filterNode = (node: ClangASTNode, depth: number = 0, parentIsSource: boolean = false): ClangASTNode | null => {
+      const isRoot = depth === 0;
+      
+      // Root node (TranslationUnitDecl) should always be kept
+      if (isRoot) {
+        // Filter children first
+        let filteredChildren: ClangASTNode[] = [];
+        if (node.inner && node.inner.length > 0) {
+          filteredChildren = node.inner
+            .map(child => filterNode(child, depth + 1, false))
+            .filter(n => n !== null) as ClangASTNode[];
+        }
+        
+        // Root node - keep it with filtered children
+        return {
+          ...node,
+          inner: filteredChildren
+        };
+      }
+      
+      // Check if this node is from source file
+      const nodeIsFromSource = isSourceFile(node);
+      
+      // Special case: If parent is from source, keep children even if they don't pass isSourceFile
+      // This preserves function bodies (CompoundStmt, etc.) which may not have location info
+      const shouldKeep = nodeIsFromSource || (parentIsSource && (
+        node.kind === 'CompoundStmt' || 
+        node.kind === 'DeclStmt' ||
+        node.kind === 'ReturnStmt' ||
+        node.kind === 'IfStmt' ||
+        node.kind === 'ForStmt' ||
+        node.kind === 'WhileStmt' ||
+        node.kind === 'BinaryOperator' ||
+        node.kind === 'UnaryOperator' ||
+        node.kind === 'CallExpr' ||
+        node.kind === 'DeclRefExpr' ||
+        node.kind === 'IntegerLiteral' ||
+        node.kind === 'VarDecl' ||
+        node.kind === 'ParmVarDecl'
+      ));
+      
+      if (!shouldKeep) {
+        // Not from source file and not a child of source node - discard
+        return null;
+      }
+      
+      // Node should be kept - recursively filter children
+      let filteredChildren: ClangASTNode[] = [];
+      if (node.inner && node.inner.length > 0) {
+        // Pass down whether THIS node is from source
+        const passParentIsSource = nodeIsFromSource || parentIsSource;
+        filteredChildren = node.inner
+          .map(child => filterNode(child, depth + 1, passParentIsSource))
+          .filter(n => n !== null) as ClangASTNode[];
+      }
+      
+      return {
+        ...node,
+        inner: filteredChildren
+      };
+    };
+    
+    console.log(`Filtering AST for source file: ${sourceFilePath}`);
+    console.log(`Normalized source path: ${normalizedSourcePath}`);
+    console.log(`Source file base: ${sourceFileBase}, dir: ${sourceFileDir}`);
+    
+    // Debug: Log top-level nodes BEFORE filtering
+    console.log(`BEFORE FILTERING: AST has ${ast.inner?.length || 0} top-level nodes`);
+    if (ast.inner && ast.inner.length > 0) {
+      // Find and log function nodes specifically
+      const funcNodes = ast.inner.filter(n => n.kind === 'FunctionDecl' || n.kind === 'CXXMethodDecl');
+      console.log(`  Found ${funcNodes.length} function declarations in raw AST`);
+      funcNodes.slice(0, 10).forEach((node, idx) => {
+        console.log(`  Function ${idx}: name=${node.name || 'none'}, loc=${JSON.stringify(node.loc)}`);
+      });
+      
+      // Log sample of all nodes
+      ast.inner.slice(0, 5).forEach((node, idx) => {
+        console.log(`  Pre-filter node ${idx}: kind=${node.kind}, name=${node.name || 'none'}, loc.file=${node.loc?.file || 'NONE'}, loc.line=${node.loc?.line || 'NONE'}`);
+      });
+    }
+    
+    const filtered = filterNode(ast, 0, false);
+    
+    // Debug: count nodes after filtering
+    if (filtered && filtered.inner) {
+      const functionNodes = filtered.inner.filter(n => 
+        n.kind === 'FunctionDecl' || n.kind === 'CXXMethodDecl'
+      );
+      console.log(`After filtering: ${filtered.inner.length} top-level nodes, ${functionNodes.length} function declarations`);
+      
+      // Count functions from source file vs others
+      let sourceFileFunctions = 0;
+      let otherFileFunctions = 0;
+      functionNodes.forEach(node => {
+        if (isSourceFile(node)) {
+          sourceFileFunctions++;
+          console.log(`  ✓ Function from source: ${node.name || 'unnamed'} at line ${node.loc?.line}`);
+        } else {
+          otherFileFunctions++;
+          if (otherFileFunctions <= 5) { // Only log first 5 to avoid spam
+            console.log(`  ✗ Function from other file: ${node.name || 'unnamed'} at ${node.loc?.file || 'no location'}:${node.loc?.line || 0}`);
+          }
+        }
+      });
+      
+      console.log(`Function breakdown: ${sourceFileFunctions} from source file, ${otherFileFunctions} from other files`);
+      
+      // Log sample of filtered nodes
+      filtered.inner.slice(0, 10).forEach((node, idx) => {
+        console.log(`  Filtered node ${idx}: kind=${node.kind}, name=${node.name || 'none'}, loc=${node.loc?.file || 'none'}:${node.loc?.line || 0}`);
+      });
+    } else {
+      console.warn('Filtered AST is null or has no inner nodes!');
+      if (ast && ast.inner) {
+        console.log(`Original AST had ${ast.inner.length} top-level nodes`);
+        ast.inner.slice(0, 5).forEach((node, idx) => {
+          console.log(`  Original node ${idx}: kind=${node.kind}, name=${node.name || 'none'}, loc=${node.loc?.file || 'none'}:${node.loc?.line || 0}`);
+        });
+      }
+    }
+    
+    return filtered;
   }
 
   /**

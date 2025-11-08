@@ -3,6 +3,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { DataflowAnalyzer } from './analyzer/DataflowAnalyzer';
 import { CFGVisualizer } from './visualizer/CFGVisualizer';
 import { AnalysisConfig } from './types';
@@ -16,12 +17,23 @@ export function activate(context: vscode.ExtensionContext) {
   console.log('Dataflow Analyzer extension is now active');
 
   const workspaceFolders = vscode.workspace.workspaceFolders;
+  let workspacePath: string;
+  
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode.window.showWarningMessage('No workspace folder open. Please open a workspace to use the Dataflow Analyzer.');
-    return;
+    // Try to get workspace from active editor
+    const activeEditor = vscode.window.activeTextEditor;
+    if (activeEditor && activeEditor.document.uri.fsPath) {
+      const filePath = activeEditor.document.uri.fsPath;
+      // Use parent directory as workspace
+      workspacePath = path.dirname(filePath);
+      console.log('Using file directory as workspace:', workspacePath);
+    } else {
+      vscode.window.showWarningMessage('No workspace folder open. Please open a workspace or file to use the Dataflow Analyzer.');
+      return;
+    }
+  } else {
+    workspacePath = workspaceFolders[0].uri.fsPath;
   }
-
-  const workspacePath = workspaceFolders[0].uri.fsPath;
   
   // Initialize visualizer
   visualizer = new CFGVisualizer();
@@ -40,18 +52,21 @@ export function activate(context: vscode.ExtensionContext) {
   analyzer = new DataflowAnalyzer(workspacePath, analysisConfig);
 
   // Register commands
-  const showCFGCommand = vscode.commands.registerCommand('dataflowAnalyzer.showCFG', () => {
+  const showCFGCommand = vscode.commands.registerCommand('dataflowAnalyzer.showCFG', async () => {
     if (visualizer) {
-      visualizer.createOrShow(context);
+      await visualizer.createOrShow(context);
       const state = analyzer?.getState();
       if (state) {
-        visualizer.updateVisualization(state);
+        await visualizer.updateVisualization(state);
       }
     }
   });
 
   const analyzeWorkspaceCommand = vscode.commands.registerCommand('dataflowAnalyzer.analyzeWorkspace', async () => {
-    if (!analyzer) return;
+    if (!analyzer) {
+      vscode.window.showErrorMessage('Analyzer not initialized');
+      return;
+    }
     
     vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
@@ -60,23 +75,71 @@ export function activate(context: vscode.ExtensionContext) {
     }, async (progress) => {
       try {
         progress.report({ increment: 0, message: "Parsing C++ files..." });
+        console.log('Starting workspace analysis...');
         if (!analyzer) {
           vscode.window.showErrorMessage('Analyzer not initialized');
           return;
         }
         const state = await analyzer.analyzeWorkspace();
         
+        console.log(`Analysis complete. Found ${state.cfg.functions.size} functions:`, 
+          Array.from(state.cfg.functions.keys()));
+        
         progress.report({ increment: 50, message: "Building CFG..." });
         
         progress.report({ increment: 100, message: "Complete!" });
         
-        if (visualizer) {
-          visualizer.updateVisualization(state);
-        }
+        const functionCount = state.cfg.functions.size;
         
-        vscode.window.showInformationMessage(`Analysis complete! Found ${state.cfg.functions.size} functions.`);
+        if (visualizer) {
+          // Open/show the visualizer panel
+          await visualizer.createOrShow(context);
+          // Update it with the analysis results
+          await visualizer.updateVisualization(state);
+        }
+        if (functionCount === 0) {
+          vscode.window.showWarningMessage(
+            'Analysis complete but no functions found. Make sure your C++ files contain function definitions.'
+          );
+        } else {
+          vscode.window.showInformationMessage(`Analysis complete! Found ${functionCount} function(s).`);
+        }
       } catch (error) {
-        vscode.window.showErrorMessage(`Analysis failed: ${error}`);
+        console.error('Analysis error:', error);
+        vscode.window.showErrorMessage(`Analysis failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    });
+  });
+
+  const analyzeActiveFileCommand = vscode.commands.registerCommand('dataflowAnalyzer.analyzeActiveFile', async () => {
+    if (!analyzer) {
+      vscode.window.showErrorMessage('Analyzer not initialized');
+      return;
+    }
+    const active = vscode.window.activeTextEditor;
+    if (!active || (active.document.languageId !== 'cpp' && active.document.languageId !== 'c')) {
+      vscode.window.showWarningMessage('Open a C/C++ source file to analyze.');
+      return;
+    }
+    const filePath = active.document.uri.fsPath;
+    vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: "Analyzing active file...",
+      cancellable: false
+    }, async () => {
+      try {
+        const state = await analyzer!.analyzeSpecificFiles([filePath]);
+        const functionCount = state.cfg.functions.size;
+        if (visualizer) {
+          // Open/show the visualizer panel
+          await visualizer.createOrShow(context);
+          // Update it with the analysis results
+          await visualizer.updateVisualization(state);
+        }
+        vscode.window.showInformationMessage(`Analysis complete! Found ${functionCount} function(s) in active file.`);
+      } catch (error) {
+        console.error('Active-file analysis error:', error);
+        vscode.window.showErrorMessage(`Analysis failed: ${error instanceof Error ? error.message : String(error)}`);
       }
     });
   });
@@ -90,7 +153,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.showInformationMessage('Analysis state cleared.');
   });
 
-  context.subscriptions.push(showCFGCommand, analyzeWorkspaceCommand, clearStateCommand);
+  context.subscriptions.push(showCFGCommand, analyzeWorkspaceCommand, analyzeActiveFileCommand, clearStateCommand);
 
   // Set up file change listeners
   setupFileWatchers(context, analysisConfig);
@@ -146,7 +209,7 @@ function setupFileWatchers(context: vscode.ExtensionContext, config: AnalysisCon
             await analyzer.updateFile(document.fileName);
             const state = analyzer.getState();
             if (state && visualizer) {
-              visualizer.updateVisualization(state);
+              await visualizer.updateVisualization(state);
             }
           } catch (error) {
             console.error('Error updating file:', error);
@@ -170,7 +233,7 @@ function setupFileWatchers(context: vscode.ExtensionContext, config: AnalysisCon
               await analyzer.updateFile(document.fileName);
               const state = analyzer.getState();
               if (state && visualizer) {
-                visualizer.updateVisualization(state);
+                await visualizer.updateVisualization(state);
               }
             } catch (error) {
               console.error('Error updating file:', error);

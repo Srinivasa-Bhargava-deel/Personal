@@ -10,19 +10,36 @@ export class CFGVisualizer {
   private panel: vscode.WebviewPanel | undefined;
   private currentState: AnalysisState | null = null;
   private currentFunction: string | null = null;
+  private visNetworkUri: vscode.Uri | null = null;
 
   /**
    * Create or show the visualizer panel
    */
-  createOrShow(context: vscode.ExtensionContext): void {
+  async createOrShow(context: vscode.ExtensionContext): Promise<void> {
+    console.log('[CFGVisualizer] createOrShow called');
+    console.log('[CFGVisualizer] Current panel state:', this.panel ? 'exists' : 'null');
+    console.log('[CFGVisualizer] Context extension URI:', context.extensionUri.toString());
+
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
+    console.log('[CFGVisualizer] Target column:', column);
 
     if (this.panel) {
+      console.log('[CFGVisualizer] Panel already exists, revealing it');
+      console.log('[CFGVisualizer] Panel title:', this.panel.title);
+      console.log('[CFGVisualizer] Panel viewType:', this.panel.viewType);
       this.panel.reveal(column);
+      console.log('[CFGVisualizer] Panel revealed successfully');
       return;
     }
+
+    console.log('[CFGVisualizer] Creating new webview panel');
+    console.log('[CFGVisualizer] Panel options:', {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media').toString()]
+    });
 
     this.panel = vscode.window.createWebviewPanel(
       'cfgVisualizer',
@@ -30,68 +47,195 @@ export class CFGVisualizer {
       column || vscode.ViewColumn.Two,
       {
         enableScripts: true,
-        retainContextWhenHidden: true
+        retainContextWhenHidden: true,
+        localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')]
       }
     );
+
+    console.log('[CFGVisualizer] Panel created successfully');
+    console.log('[CFGVisualizer] Panel webview available:', !!this.panel.webview);
+    console.log('[CFGVisualizer] Panel webview CSP source:', this.panel.webview.cspSource);
 
     this.panel.onDidDispose(() => {
       this.panel = undefined;
     }, null, context.subscriptions);
 
-    this.updateWebview();
+    // Handle messages from webview
+    this.panel.webview.onDidReceiveMessage(
+      async message => {
+        if (message.type === 'changeFunction') {
+          console.log('[CFGVisualizer] Function changed to:', message.functionName);
+          this.currentFunction = message.functionName;
+          await this.updateWebview();
+        }
+      },
+      null,
+      context.subscriptions
+    );
+
+    // Only update webview if we have state, otherwise it will be updated when state is provided
+    if (this.currentState) {
+      console.log('[CFGVisualizer] Panel created with existing state, updating webview');
+      await this.updateWebview();
+    } else {
+      console.log('[CFGVisualizer] Panel created without state, will update when state is provided');
+    }
   }
 
   /**
    * Update the webview with current analysis state
    */
-  updateVisualization(state: AnalysisState, functionName?: string): void {
-    this.currentState = state;
+  async updateVisualization(state: AnalysisState, functionName?: string): Promise<void> {
+    console.log('[CFGVisualizer] updateVisualization called');
+    console.log('[CFGVisualizer] State analysis summary:', {
+      functionsCount: state.cfg.functions.size,
+      functionNames: Array.from(state.cfg.functions.keys()),
+      fileStatesCount: state.fileStates.size,
+      vulnerabilitiesCount: state.vulnerabilities.size,
+      livenessKeys: Object.keys(state.liveness).length,
+      reachingDefinitionsKeys: Object.keys(state.reachingDefinitions).length,
+      taintAnalysisKeys: Object.keys(state.taintAnalysis).length
+    });
+
     if (functionName) {
+      console.log('[CFGVisualizer] Requested specific function:', functionName);
       this.currentFunction = functionName;
+    } else {
+      console.log('[CFGVisualizer] No specific function requested, using current:', this.currentFunction);
     }
+
+    this.currentState = state;
+    console.log('[CFGVisualizer] State stored, checking panel...');
+
     if (this.panel) {
-      this.updateWebview();
+      console.log('[CFGVisualizer] Panel exists, calling updateWebview');
+      console.log('[CFGVisualizer] Panel is visible:', this.panel.visible);
+      console.log('[CFGVisualizer] Panel is active:', this.panel.active);
+      await this.updateWebview();
+    } else {
+      console.log('[CFGVisualizer] WARNING: Panel does not exist, cannot update');
+      console.log('[CFGVisualizer] This may indicate createOrShow was not called first');
     }
   }
 
   /**
    * Update webview content
    */
-  private updateWebview(): void {
-    if (!this.panel) return;
+  private async updateWebview(): Promise<void> {
+    console.log('[CFGVisualizer] updateWebview called');
+    if (!this.panel) {
+      console.log('[CFGVisualizer] No panel, returning');
+      return;
+    }
 
     const state = this.currentState;
     if (!state) {
-      this.panel.webview.html = this.getEmptyHtml();
+      console.log('[CFGVisualizer] No state, showing empty HTML');
+      this.panel.webview.html = this.getEmptyHtml('No analysis state available. Please run "Analyze Workspace" or "Analyze Active File" first.');
+      return;
+    }
+
+    console.log('[CFGVisualizer] State available, functions:', state.cfg.functions.size);
+
+    // Prefer functions from the active editor's file if available
+    let preferredFunction: string | null = null;
+    const active = vscode.window.activeTextEditor;
+    if (active) {
+      const activePath = active.document.uri.fsPath;
+      state.fileStates.forEach((fileState, path) => {
+        if (path === activePath && fileState.functions.length > 0) {
+          preferredFunction = fileState.functions[0];
+        }
+      });
+    }
+
+    // Check if any functions were found
+    if (state.cfg.functions.size === 0) {
+      console.log('[CFGVisualizer] No functions in state, showing empty HTML');
+      this.panel.webview.html = this.getEmptyHtml(
+        'No functions found in the analysis. Make sure your C++ files contain function definitions and that the analysis completed successfully.'
+      );
       return;
     }
 
     // Get function to display
     let funcCFG: FunctionCFG | null = null;
-    if (this.currentFunction && state.cfg.functions.has(this.currentFunction)) {
+    if (preferredFunction && state.cfg.functions.has(preferredFunction)) {
+      funcCFG = state.cfg.functions.get(preferredFunction)!;
+      this.currentFunction = preferredFunction;
+      console.log('[CFGVisualizer] Using preferred function:', preferredFunction);
+    } else if (this.currentFunction && state.cfg.functions.has(this.currentFunction)) {
       funcCFG = state.cfg.functions.get(this.currentFunction)!;
+      console.log('[CFGVisualizer] Using current function:', this.currentFunction);
     } else if (state.cfg.functions.size > 0) {
       // Show first function by default
       const firstFunc = Array.from(state.cfg.functions.keys())[0];
       funcCFG = state.cfg.functions.get(firstFunc)!;
       this.currentFunction = firstFunc;
+      console.log('[CFGVisualizer] Using first function:', firstFunc);
     }
 
     if (!funcCFG) {
-      this.panel.webview.html = this.getEmptyHtml();
+      console.log('[CFGVisualizer] Could not find funcCFG, showing empty HTML');
+      this.panel.webview.html = this.getEmptyHtml('Could not find function CFG to display.');
       return;
     }
 
-    // Prepare data for visualization
-    const graphData = this.prepareGraphData(funcCFG, state);
+    // Check if function has blocks
+    if (funcCFG.blocks.size === 0) {
+      console.log('[CFGVisualizer] Function has no blocks:', funcCFG.name);
+      this.panel.webview.html = this.getEmptyHtml(
+        `Function "${funcCFG.name}" has no basic blocks. This might indicate a parsing issue.`
+      );
+      return;
+    }
+
+    console.log('[CFGVisualizer] Function', funcCFG.name, 'has', funcCFG.blocks.size, 'blocks');
     
-    this.panel.webview.html = this.getWebviewContent(graphData, state, funcCFG.name);
+    // Prepare data for visualization
+    const graphData = await this.prepareGraphData(funcCFG, state);
+    
+    console.log('[CFGVisualizer] Setting webview HTML with graph data');
+    console.log('[CFGVisualizer] Graph data summary:', {
+      functionName: funcCFG.name,
+      nodesCount: graphData.nodes.length,
+      edgesCount: graphData.edges.length,
+      nodeLabels: graphData.nodes.map((n: any) => n.label),
+      edgeConnections: graphData.edges.map((e: any) => `${e.from}->${e.to}`)
+    });
+
+    const htmlContent = this.getWebviewContent(
+      graphData,
+      state,
+      funcCFG.name,
+      this.panel.webview.cspSource
+    );
+
+    console.log('[CFGVisualizer] Generated HTML length:', htmlContent.length);
+    console.log('[CFGVisualizer] Number of script tags:', (htmlContent.match(/<script/g) || []).length);
+    console.log('[CFGVisualizer] Number of JSON script tags:', (htmlContent.match(/<script[^>]*type="application\/json"/g) || []).length);
+    console.log('[CFGVisualizer] CSP Source:', this.panel.webview.cspSource);
+    console.log('[CFGVisualizer] First 500 chars of HTML:', htmlContent.substring(0, 500));
+    console.log('[CFGVisualizer] Last 500 chars of HTML:', htmlContent.substring(htmlContent.length - 500));
+
+    // Check for any potential issues
+    if (htmlContent.includes('undefined')) {
+      console.warn('[CFGVisualizer] WARNING: HTML contains "undefined" - possible template issue');
+    }
+    if (htmlContent.includes('null')) {
+      console.warn('[CFGVisualizer] WARNING: HTML contains "null" - possible data issue');
+    }
+
+    this.panel.webview.html = htmlContent;
+    console.log('[CFGVisualizer] Webview HTML set successfully');
+    console.log('[CFGVisualizer] Panel visibility state:', this.panel.visible);
+    console.log('[CFGVisualizer] Panel active state:', this.panel.active);
   }
 
   /**
    * Prepare graph data for visualization
    */
-  private prepareGraphData(funcCFG: FunctionCFG, state: AnalysisState): any {
+  private async prepareGraphData(funcCFG: FunctionCFG, state: AnalysisState): Promise<any> {
     const nodes: any[] = [];
     const edges: any[] = [];
 
@@ -126,12 +270,14 @@ export class CFGVisualizer {
       }
     });
 
-    funcCFG.blocks.forEach((block, blockId) => {
+    for (const [blockId, block] of funcCFG.blocks) {
       // Get analysis info
       const livenessKey = `${funcCFG.name}_${blockId}`;
       const liveness = state.liveness.get(livenessKey);
       const rdKey = `${funcCFG.name}_${blockId}`;
       const rd = state.reachingDefinitions.get(rdKey);
+      
+      console.log(`Preparing node for block ${blockId}, label: ${block.label}, statements: ${block.statements.length}`);
 
       // Find tainted variables used/defined in this block
       const blockTaintedVars: string[] = [];
@@ -178,8 +324,8 @@ export class CFGVisualizer {
           out: Array.from(liveness.out)
         } : null,
         reachingDefinitions: rd ? {
-          in: this.serializeRD(rd.in),
-          out: this.serializeRD(rd.out)
+          in: await this.serializeRD(rd.in, state),
+          out: await this.serializeRD(rd.out, state)
         } : null,
         taintInfo: {
           isTainted: taintedBlocks.has(blockId),
@@ -226,8 +372,10 @@ export class CFGVisualizer {
           dashes: false
         });
       });
-    });
+    }
 
+    console.log(`Prepared graph data: ${nodes.length} nodes, ${edges.length} edges for function ${funcCFG.name}`);
+    
     return { 
       nodes, 
       edges, 
@@ -259,29 +407,78 @@ export class CFGVisualizer {
   /**
    * Serialize reaching definitions for display
    */
-  private serializeRD(rdMap: Map<string, any[]>): any {
+  private async serializeRD(rdMap: Map<string, any[]>, state: AnalysisState): Promise<any> {
     const result: any = {};
+
+    // Read source files content for extracting actual code
+    const fileContents = new Map<string, string>();
+
+    // Collect all unique file paths that have definitions
+    const filePaths = new Set<string>();
     rdMap.forEach((defs, varName) => {
-      result[varName] = defs.map(d => ({
-        variable: d.variable,
-        definitionId: d.definitionId,
-        blockId: d.blockId
-      }));
+      defs.forEach(def => {
+        if (def.range && def.range.file) {
+          filePaths.add(def.range.file);
+        }
+      });
     });
+
+    // Read all source files
+    for (const filePath of filePaths) {
+      try {
+        const uri = vscode.Uri.file(filePath);
+        const content = await vscode.workspace.fs.readFile(uri);
+        fileContents.set(filePath, content.toString());
+      } catch (error) {
+        console.warn(`Could not read source file ${filePath}:`, error);
+      }
+    }
+
+    rdMap.forEach((defs, varName) => {
+      result[varName] = defs.map(d => {
+        let sourceCode = d.definitionId; // fallback
+
+        // Try to extract actual source code
+        if (d.range && d.range.file && fileContents.has(d.range.file)) {
+          const content = fileContents.get(d.range.file)!;
+          const lines = content.split('\n');
+          const line = lines[d.range.start.line - 1]; // lines are 1-indexed in range
+
+          if (line) {
+            const startCol = d.range.start.character || 0;
+            const endCol = d.range.end.character || line.length;
+            const code = line.substring(startCol, endCol).trim();
+
+            if (code) {
+              const filename = vscode.workspace.asRelativePath(d.range.file);
+              sourceCode = `[${filename}:${d.range.start.line}, ${code}]`;
+            }
+          }
+        }
+
+        return {
+          variable: d.variable,
+          definitionId: d.definitionId,
+          blockId: d.blockId,
+          sourceCode: sourceCode
+        };
+      });
+    });
+
     return result;
   }
 
   /**
    * Get webview HTML content
    */
-  private getWebviewContent(graphData: any, state: AnalysisState, functionName: string): string {
+  private getWebviewContent(graphData: any, state: AnalysisState, functionName: string, cspSource: string): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' ${cspSource} https://unpkg.com; style-src 'unsafe-inline'; img-src ${cspSource} data:;">
     <title>CFG Visualizer</title>
-    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <style>
         body {
             font-family: var(--vscode-font-family);
@@ -460,430 +657,220 @@ export class CFGVisualizer {
         </div>
     </div>
     
-    <div id="network"></div>
+    <div id="network" style="width: 100%; height: 600px; border: 1px solid #ccc;"></div>
     
-    <div class="info-panel">
-        <div class="tab-container">
-            <div class="tab active" onclick="showTab('block')">Block Details</div>
-            <div class="tab" onclick="showTab('summary')">Analysis Summary</div>
-            <div class="tab" onclick="showTab('vulnerabilities')">Vulnerabilities</div>
-            <div class="tab" onclick="showTab('attackPaths')">Attack Paths</div>
-        </div>
-        
-        <div id="blockTab" class="tab-content active">
-            <h3>Block Information</h3>
-            <div id="analysisInfo"></div>
-        </div>
-        
-        <div id="summaryTab" class="tab-content">
-            <h3>Analysis Summary</h3>
-            <div id="summaryInfo"></div>
-        </div>
-        
-        <div id="vulnerabilitiesTab" class="tab-content">
-            <h3>Security Vulnerabilities</h3>
-            <div id="vulnerabilitiesInfo"></div>
-        </div>
-        
-        <div id="attackPathsTab" class="tab-content">
-            <h3>Attack Paths</h3>
-            <div id="attackPathsInfo"></div>
+    <div id="blockInfo" style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; color: black;">
+        <h3 style="color: black;">Block Information</h3>
+        <p style="color: black;">Hover over a node in the graph above to see its details here.</p>
+    </div>
+
+    <div id="debug-panel" style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px;">
+        <h3 style="color: #856404;">Debug Information</h3>
+        <div id="debug-logs" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; background: white; padding: 10px; border-radius: 3px;">
+            <div style="color: #007bff;">✓ HTML loaded</div>
+            <div style="color: #28a745;">✓ vis-network loading from CDN...</div>
         </div>
     </div>
 
+
+    <script type="application/json" id="graph-data-json">
+${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
+    </script>
+    
     <script>
-        const graphData = ${JSON.stringify(graphData)};
-        
-        let highlightedPathId = null;
-        
-        const nodes = new vis.DataSet(graphData.nodes.map(node => {
-            let bgColor = '#e8f4f8';
-            let borderColor = '#2e7d32';
-            let fontColor = '#333';
-            
-            if (node.attackPath) {
-                if (node.attackPath.isSource) {
-                    bgColor = '#e8f8f5';
-                    borderColor = '#4ecdc4';
-                } else if (node.attackPath.isSink) {
-                    bgColor = '#ffe0e0';
-                    borderColor = '#ff0000';
-                    fontColor = '#cc0000';
-                } else {
-                    bgColor = '#fff4e6';
-                    borderColor = '#ffa500';
-                }
-            } else if (node.taintInfo && node.taintInfo.isTainted) {
-                bgColor = '#ffe0e0';
-                borderColor = '#ff6b6b';
-                fontColor = '#cc0000';
+        // Simple debugging
+        function logDebug(message) {
+            var debugDiv = document.getElementById('debug-logs');
+            if (debugDiv) {
+                var timestamp = new Date().toLocaleTimeString();
+                debugDiv.innerHTML += '<div style="color: #007bff; margin: 2px 0; font-size: 11px;">[' + timestamp + '] ' + message + '</div>';
+                debugDiv.scrollTop = debugDiv.scrollHeight;
             }
-            
-            return {
-                id: node.id,
-                label: node.label + '\\n' + node.statements.slice(0, 2).map(s => typeof s === 'string' ? s : s.text).join('\\n'),
-                shape: 'box',
-                color: {
-                    background: bgColor,
-                    border: borderColor
-                },
-                font: {
-                    color: fontColor,
-                    size: node.attackPath ? 13 : 12,
-                    bold: node.attackPath ? true : false
-                },
-                borderWidth: node.attackPath ? 3 : 1
-            };
-        }));
-        
-        const edges = new vis.DataSet(graphData.edges);
-        
-        const data = { nodes, edges };
-        const options = {
-            nodes: {
-                shape: 'box',
-                font: {
-                    size: 12,
-                    color: '#333'
-                },
-                margin: 10,
-                widthConstraint: {
-                    maximum: 200
-                }
-            },
-            edges: {
-                arrows: {
-                    to: {
-                        enabled: true,
-                        scaleFactor: 1.2
-                    }
-                },
-                smooth: {
-                    type: 'cubicBezier',
-                    forceDirection: 'vertical',
-                    roundness: 0.4
-                }
-            },
-            layout: {
-                hierarchical: {
-                    direction: 'UD',
-                    sortMethod: 'directed',
-                    levelSeparation: 100,
-                    nodeSpacing: 150
-                }
-            },
-            physics: {
-                enabled: false
+        }
+
+        logDebug('Starting initialization...');
+
+        function initNetwork() {
+            if (typeof vis === 'undefined') {
+                setTimeout(initNetwork, 100);
+                return;
             }
-        };
-        
-        const container = document.getElementById('network');
-        const network = new vis.Network(container, data, options);
-        
-        let selectedNode = null;
-        network.on('click', function(params) {
-            if (params.nodes.length > 0) {
-                selectedNode = params.nodes[0];
-                updateAnalysisInfo(selectedNode);
-            }
-        });
-        
-        function updateAnalysisInfo(nodeId) {
-            const node = graphData.nodes.find(n => n.id === nodeId);
-            if (!node) return;
-            
-            let html = '<div class="block-info">';
-            html += '<h4>Block: ' + node.label + '</h4>';
-            if (node.taintInfo && node.taintInfo.isTainted) {
-                html += '<div class="taint-warning">⚠ Tainted Block</div>';
-            }
-            html += '<div><strong>Statements:</strong><ul>';
-            node.statements.forEach(stmt => {
-                const stmtText = typeof stmt === 'string' ? stmt : stmt.text;
-                html += '<li>' + stmtText + '</li>';
-            });
-            html += '</ul></div>';
-            
-            if (node.liveness) {
-                html += '<div class="liveness-info">';
-                html += '<strong>Live In:</strong> ';
-                if (node.liveness.in.length === 0) {
-                    html += '<em>none</em>';
-                } else {
-                    node.liveness.in.forEach(v => {
-                        html += '<span>' + v + '</span>';
-                    });
-                }
-                html += '<br><strong>Live Out:</strong> ';
-                if (node.liveness.out.length === 0) {
-                    html += '<em>none</em>';
-                } else {
-                    node.liveness.out.forEach(v => {
-                        html += '<span>' + v + '</span>';
-                    });
-                }
-                html += '</div>';
-            }
-            
-            if (node.reachingDefinitions) {
-                html += '<div class="rd-info">';
-                html += '<strong>Reaching Definitions:</strong><br>';
-                const rdKeys = Object.keys(node.reachingDefinitions.out);
-                if (rdKeys.length === 0) {
-                    html += '<em>none</em>';
-                } else {
-                    rdKeys.forEach(varName => {
-                        html += '<strong>' + varName + ':</strong> ';
-                        node.reachingDefinitions.out[varName].forEach(def => {
-                            html += '<span>' + def.definitionId + '</span>';
+
+            logDebug('vis-network loaded, initializing...');
+
+            const vscode = acquireVsCodeApi();
+            const graphDataElement = document.getElementById('graph-data-json');
+            const graphData = JSON.parse(graphDataElement.textContent);
+
+            logDebug('Parsed graph data: ' + graphData.nodes.length + ' nodes, ' + graphData.edges.length + ' edges');
+
+                // Create the network
+                const nodes = new vis.DataSet(graphData.nodes.map(function(node) {
+                    // Create a more detailed label showing the block type and key statements
+                    let label = node.label;
+                    if (node.statements && node.statements.length > 0) {
+                        // Show first 2 statements in the block
+                        const statements = node.statements.slice(0, 2).map(function(s) {
+                            const stmtText = typeof s === 'string' ? s : s.text;
+                            // Truncate long statements
+                            return stmtText.length > 30 ? stmtText.substring(0, 27) + '...' : stmtText;
                         });
-                        html += '<br>';
-                    });
-                }
-                html += '</div>';
-            }
-            
-            if (node.taintInfo && node.taintInfo.taintedVariables.length > 0) {
-                html += '<div class="taint-info">';
-                html += '<strong class="taint-warning">Tainted Variables:</strong> ';
-                node.taintInfo.taintedVariables.forEach(v => {
-                    html += '<span style="background-color: #ff6b6b; color: white;">' + v + '</span>';
-                });
-                html += '</div>';
-            }
-            
-            html += '</div>';
-            document.getElementById('analysisInfo').innerHTML = html;
-            
-            // Update summary
-            updateSummary();
-        }
-        
-        function updateSummary() {
-            let html = '';
-            
-            // Liveness Summary
-            html += '<div class="summary-section">';
-            html += '<h4>Liveness Analysis</h4>';
-            const allLiveVars = new Set();
-            graphData.nodes.forEach(node => {
-                if (node.liveness) {
-                    node.liveness.in.forEach(v => allLiveVars.add(v));
-                    node.liveness.out.forEach(v => allLiveVars.add(v));
-                }
-            });
-            if (allLiveVars.size === 0) {
-                html += '<em>No live variables detected</em>';
-            } else {
-                html += '<p>Variables that are live at some point: ';
-                Array.from(allLiveVars).forEach(v => {
-                    html += '<span>' + v + '</span>';
-                });
-                html += '</p>';
-            }
-            html += '</div>';
-            
-            // Reaching Definitions Summary
-            html += '<div class="summary-section">';
-            html += '<h4>Reaching Definitions</h4>';
-            const allDefs = new Set();
-            graphData.nodes.forEach(node => {
-                if (node.reachingDefinitions) {
-                    Object.keys(node.reachingDefinitions.out).forEach(varName => {
-                        allDefs.add(varName);
-                    });
-                }
-            });
-            if (allDefs.size === 0) {
-                html += '<em>No reaching definitions detected</em>';
-            } else {
-                html += '<p>Variables with reaching definitions: ';
-                Array.from(allDefs).forEach(v => {
-                    html += '<span>' + v + '</span>';
-                });
-                html += '</p>';
-            }
-            html += '</div>';
-            
-            // Taint Analysis Summary
-            html += '<div class="summary-section">';
-            html += '<h4>Taint Analysis</h4>';
-            if (!graphData.taintSummary || graphData.taintSummary.length === 0) {
-                html += '<em>No tainted variables detected</em>';
-            } else {
-                const taintedVars = graphData.taintSummary.filter(t => t.tainted);
-                if (taintedVars.length === 0) {
-                    html += '<em>No tainted variables detected</em>';
-                } else {
-                    html += '<p class="taint-warning">⚠ Found ' + taintedVars.length + ' tainted variable(s):</p>';
-                    html += '<ul>';
-                    taintedVars.forEach(taint => {
-                        html += '<li>';
-                        html += '<strong>' + taint.variable + '</strong>';
-                        html += ' (source: ' + taint.source + ')';
-                        html += '<div class="taint-path">Path: ' + taint.propagationPath.join(' → ') + '</div>';
-                        html += '</li>';
-                    });
-                    html += '</ul>';
-                }
-            }
-            html += '</div>';
-            
-            document.getElementById('summaryInfo').innerHTML = html;
-        }
-        
-        function showTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Show selected tab
-            document.getElementById(tabName + 'Tab').classList.add('active');
-            event.target.classList.add('active');
-            
-            if (tabName === 'summary') {
-                updateSummary();
-            }
-        }
-        
-        // Initial summary update
-        updateSummary();
-        updateVulnerabilities();
-        updateAttackPaths();
-        
-        function updateVulnerabilities() {
-            const vulns = ${JSON.stringify(Array.from((state.vulnerabilities.get(functionName) || [])))};
-            let html = '';
-            
-            if (vulns.length === 0) {
-                html = '<p><em>No vulnerabilities detected in this function.</em></p>';
-            } else {
-                html += '<div class="vulnerability-list">';
-                vulns.forEach(vuln => {
-                    html += '<div class="vulnerability-item ' + vuln.severity.toLowerCase() + '" onclick="highlightAttackPath(\\'' + vuln.id + '\\')">';
-                    html += '<h4>' + vuln.type + ' <span style="color: ' + getSeverityColor(vuln.severity) + '">(' + vuln.severity + ')</span></h4>';
-                    html += '<p><strong>Location:</strong> Line ' + vuln.location.line + ', Column ' + vuln.location.column + '</p>';
-                    html += '<p><strong>Description:</strong> ' + vuln.description + '</p>';
-                    html += '<p><strong>Exploitability:</strong> ' + vuln.exploitability + '</p>';
-                    if (vuln.cweId) {
-                        html += '<p><strong>CWE:</strong> <a href="https://cwe.mitre.org/data/definitions/' + vuln.cweId.split('-')[1] + '.html" target="_blank">' + vuln.cweId + '</a></p>';
+                        label += '\\n' + statements.join('\\n');
                     }
-                    if (vuln.recommendation) {
-                        html += '<p><strong>Recommendation:</strong> ' + vuln.recommendation + '</p>';
-                    }
-                    html += '<button class="show-path-btn" onclick="highlightAttackPath(\\'' + vuln.id + '\\'); event.stopPropagation();">Show Attack Path</button>';
-                    html += '</div>';
-                });
-                html += '</div>';
-            }
-            
-            document.getElementById('vulnerabilitiesInfo').innerHTML = html;
-        }
-        
-        function updateAttackPaths() {
-            const paths = ${JSON.stringify(graphData.attackPaths || [])};
-            let html = '';
-            
-            if (paths.length === 0) {
-                html = '<p><em>No attack paths detected.</em></p>';
-            } else {
-                paths.forEach(path => {
-                    html += '<div class="attack-path-panel">';
-                    html += '<h4>Attack Path: ' + path.vulnerability.type + '</h4>';
-                    html += '<p><strong>Severity:</strong> <span style="color: ' + getSeverityColor(path.vulnerability.severity) + '">' + path.vulnerability.severity + '</span></p>';
-                    html += '<p><strong>Description:</strong> ' + path.vulnerability.description + '</p>';
-                    html += '<h5>Path Steps:</h5>';
-                    path.blocks.forEach((blockId, index) => {
-                        const node = graphData.nodes.find(n => n.id === blockId);
-                        const stepClass = index === 0 ? 'source' : (index === path.blocks.length - 1 ? 'sink' : '');
-                        html += '<div class="attack-path-step ' + stepClass + '">';
-                        html += '<strong>Step ' + (index + 1) + ':</strong> ' + (index === 0 ? 'SOURCE' : (index === path.blocks.length - 1 ? 'SINK' : 'Propagation')) + '<br>';
-                        html += '<strong>Block:</strong> ' + (node ? node.label : blockId) + '<br>';
-                        if (node && node.statements.length > 0) {
-                            html += '<strong>Statement:</strong> ' + node.statements[0].text;
-                        }
-                        html += '</div>';
-                    });
-                    html += '<button class="show-path-btn" onclick="highlightAttackPath(\\'' + path.id + '\\')">Highlight in Graph</button>';
-                    html += '</div>';
-                });
-            }
-            
-            document.getElementById('attackPathsInfo').innerHTML = html;
-        }
-        
-        function getSeverityColor(severity) {
-            switch(severity) {
-                case 'Critical': return '#ff0000';
-                case 'High': return '#ff6b6b';
-                case 'Medium': return '#ffa500';
-                case 'Low': return '#ffd700';
-                default: return '#333';
-            }
-        }
-        
-        function highlightAttackPath(pathId) {
-            highlightedPathId = pathId;
-            const path = graphData.attackPaths.find(p => p.id === pathId);
-            if (!path) return;
-            
-            // Update node colors
-            const nodeUpdates = graphData.nodes.map(node => {
-                const index = path.blocks.indexOf(node.id);
-                if (index !== -1) {
+
                     return {
                         id: node.id,
+                        label: label,
+                        shape: 'box',
                         color: {
-                            background: index === 0 ? '#4ecdc4' : (index === path.blocks.length - 1 ? '#ff0000' : '#ffa500'),
-                            border: index === 0 ? '#2ecc71' : (index === path.blocks.length - 1 ? '#cc0000' : '#ff8c00')
+                            background: node.taintInfo && node.taintInfo.isTainted ? '#ffeaa7' : '#e8f4f8',
+                            border: node.taintInfo && node.taintInfo.isTainted ? '#d63031' : '#2e7d32',
+                            highlight: { background: '#74b9ff', border: '#0984e3' }
                         },
-                        font: { size: 14, bold: true },
-                        borderWidth: 4
+                        font: {
+                            color: node.taintInfo && node.taintInfo.isTainted ? '#d63031' : '#333',
+                            size: 11,
+                            face: 'Monaco, Menlo, "Ubuntu Mono", monospace'
+                        },
+                        margin: 10,
+                        widthConstraint: { minimum: 120, maximum: 200 }
                     };
-                }
-                return null;
-            }).filter(n => n !== null);
-            
-            nodes.update(nodeUpdates);
-            
-            // Update edge colors
-            const edgeUpdates: any[] = [];
-            graphData.edges.forEach(edge => {
-                const fromIndex = path.blocks.indexOf(edge.from);
-                const toIndex = path.blocks.indexOf(edge.to);
-                if (fromIndex !== -1 && toIndex !== -1 && toIndex === fromIndex + 1) {
-                    edgeUpdates.push({
-                        id: edge.id || (edge.from + '-' + edge.to),
-                        color: { color: '#ff0000', highlight: '#ff0000' },
-                        width: 4
+                }));
+
+            const edges = new vis.DataSet(graphData.edges);
+
+            const container = document.getElementById('network');
+            const data = { nodes, edges };
+                const options = {
+                    nodes: {
+                        shape: 'box',
+                        font: { size: 11, face: 'Monaco, Menlo, "Ubuntu Mono", monospace' },
+                        margin: 10,
+                        widthConstraint: { minimum: 120, maximum: 200 },
+                        heightConstraint: { minimum: 40 }
+                    },
+                    edges: {
+                        arrows: { to: { enabled: true, scaleFactor: 0.8 } },
+                        smooth: { type: 'cubicBezier', forceDirection: 'vertical' },
+                        color: { color: '#666', highlight: '#0984e3' },
+                        width: 2,
+                        font: { size: 10, align: 'top' }
+                    },
+                    layout: {
+                        hierarchical: {
+                            direction: 'UD',
+                            sortMethod: 'directed',
+                            nodeSpacing: 120,
+                            levelSeparation: 150,
+                            edgeMinimization: false
+                        }
+                    },
+                    physics: { enabled: false },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 200,
+                        multiselect: false
+                    }
+                };
+
+            const network = new vis.Network(container, data, options);
+            logDebug('vis.Network created successfully');
+
+            // Handle function selector changes
+            const functionSelect = document.getElementById('functionSelect');
+            if (functionSelect) {
+                functionSelect.addEventListener('change', function(event) {
+                    const selectedFunction = event.target.value;
+                    logDebug('Function selector changed to: ' + selectedFunction);
+
+                    // Send message to extension to update visualization
+                    vscode.postMessage({
+                        type: 'changeFunction',
+                        functionName: selectedFunction
                     });
+                });
+                logDebug('Function selector event listener attached');
+            } else {
+                logDebug('ERROR: functionSelect element not found');
+            }
+
+            // Handle node hover (show info on hover)
+            network.on('hoverNode', function(params) {
+                const nodeId = params.node;
+                const node = graphData.nodes.find(function(n) { return n.id === nodeId; });
+                if (node) {
+                    const infoDiv = document.getElementById('blockInfo');
+                    if (infoDiv) {
+                        let html = '<h4 style="color: black;">Block: ' + node.label + '</h4>';
+                        html += '<div style="color: black;"><strong>Statements:</strong><ul style="color: black;">';
+                        node.statements.forEach(function(stmt) {
+                            const stmtText = typeof stmt === 'string' ? stmt : stmt.text;
+                            html += '<li style="color: black;">' + stmtText + '</li>';
+                        });
+                        html += '</ul></div>';
+
+                        // Add additional node information
+                        if (node.liveness) {
+                            html += '<div style="color: black; margin-top: 10px;"><strong>Live Variables In:</strong> ' +
+                                (node.liveness.in.length > 0 ? node.liveness.in.join(', ') : 'none') + '</div>';
+                            html += '<div style="color: black;"><strong>Live Variables Out:</strong> ' +
+                                (node.liveness.out.length > 0 ? node.liveness.out.join(', ') : 'none') + '</div>';
+                        }
+
+                        if (node.reachingDefinitions && node.reachingDefinitions.out) {
+                            html += '<div style="color: black; margin-top: 10px;"><strong>Reaching Definitions:</strong><br>';
+                            Object.keys(node.reachingDefinitions.out).forEach(function(varName) {
+                                html += '<span style="color: black; margin-right: 10px;">' + varName + ': ' +
+                                    node.reachingDefinitions.out[varName].map(function(def) { return def.sourceCode; }).join('<br>') + '</span><br>';
+                            });
+                            html += '</div>';
+                        }
+
+                        if (node.taintInfo && node.taintInfo.taintedVariables && node.taintInfo.taintedVariables.length > 0) {
+                            html += '<div style="color: #d9534f; margin-top: 10px;"><strong>⚠ Tainted Variables:</strong> ' +
+                                node.taintInfo.taintedVariables.join(', ') + '</div>';
+                        }
+
+                        infoDiv.innerHTML = html;
+                    }
                 }
             });
-            
-            if (edgeUpdates.length > 0) {
-                edges.update(edgeUpdates);
-            }
-            
-            // Focus on the path
-            network.focus(path.blocks[0], {
-                scale: 1.5,
-                animation: true
+
+            // Handle mouse leaving node (clear info)
+            network.on('blurNode', function(params) {
+                const infoDiv = document.getElementById('blockInfo');
+                if (infoDiv) {
+                    infoDiv.innerHTML = '<h3 style="color: black;">Block Information</h3><p style="color: black;">Hover over a node in the graph above to see its details here.</p>';
+                }
             });
         }
-        
-        document.getElementById('functionSelect').addEventListener('change', function(e) {
-            const funcName = e.target.value;
-            vscode.postMessage({
-                command: 'changeFunction',
-                functionName: funcName
-            });
+
+        // Load vis-network from CDN
+        logDebug('Loading vis-network from CDN...');
+        var script = document.createElement('script');
+        script.src = 'https://unpkg.com/vis-network/standalone/umd/vis-network.min.js';
+        script.onload = function() {
+            logDebug('vis-network loaded from CDN');
+            initNetwork();
+        };
+        script.onerror = function() {
+            logDebug('ERROR: Failed to load vis-network');
+        };
+        document.head.appendChild(script);
+
+        // Handle messages from extension
+        window.addEventListener('message', function(event) {
+            const message = event.data;
+            logDebug('Received message from extension: ' + JSON.stringify(message));
+
+            if (message.type === 'updateVisualization') {
+                logDebug('Updating visualization with new data');
+                // This would require reloading the graph data, for now just log
+                logDebug('Visualization update requested but not implemented in webview');
+            }
         });
-        
-        const vscode = acquireVsCodeApi();
+
+        logDebug('Initialization script completed, waiting for vis-network to load');
     </script>
 </body>
 </html>`;
@@ -892,7 +879,8 @@ export class CFGVisualizer {
   /**
    * Get empty HTML when no state available
    */
-  private getEmptyHtml(): string {
+  private getEmptyHtml(message?: string): string {
+    const defaultMessage = 'No analysis data available. Run workspace analysis to generate CFG visualization.';
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -907,15 +895,52 @@ export class CFGVisualizer {
             align-items: center;
             height: 100vh;
             margin: 0;
+            padding: 20px;
             background-color: var(--vscode-editor-background);
             color: var(--vscode-editor-foreground);
+        }
+        .message-container {
+            text-align: center;
+            max-width: 600px;
+        }
+        .message-container h2 {
+            color: var(--vscode-textLink-foreground);
+            margin-bottom: 15px;
+        }
+        .message-container p {
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        .steps {
+            text-align: left;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: var(--vscode-editor-selectionBackground);
+            border-radius: 5px;
+        }
+        .steps ol {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        .steps li {
+            margin: 8px 0;
         }
     </style>
 </head>
 <body>
-    <div>
-        <h2>No analysis data available</h2>
-        <p>Run workspace analysis to generate CFG visualization.</p>
+    <div class="message-container">
+        <h2>No CFG Data Available</h2>
+        <p>${message || defaultMessage}</p>
+        <div class="steps">
+            <strong>To generate CFG visualization:</strong>
+            <ol>
+                <li>Make sure you have C++ files (.cpp, .c, .hpp, .h) in your workspace</li>
+                <li>Press <code>Cmd+Shift+P</code> (Mac) or <code>Ctrl+Shift+P</code> (Windows/Linux)</li>
+                <li>Type "Analyze Workspace" and select the command</li>
+                <li>Wait for the analysis to complete</li>
+                <li>Then open this visualizer again</li>
+            </ol>
+        </div>
     </div>
 </body>
 </html>`;

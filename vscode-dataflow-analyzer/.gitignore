@@ -4,3 +4,8 @@ node_modules/
 *.vsix
 .DS_Store
 
+# Generated analysis state and logs
+.vscode/dataflow-state.json
+.vscode/logs.txt
+.vscode/.vscode/
+

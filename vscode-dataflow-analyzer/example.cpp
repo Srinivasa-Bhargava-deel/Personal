@@ -3,6 +3,10 @@
 #include <iostream>
 using namespace std;
 
+// Function declarations
+int factorial(int n);
+void processArray(int arr[], int size);
+
 int main() {
     int x, y;
     scanf("%d %d", &x, &y);
@@ -14,7 +18,7 @@ int main() {
         int w = x - y;
         printf("%d\n", w);
     }
-    
+    printf("%d\n", factorial(5));
     return 0;
 }
 

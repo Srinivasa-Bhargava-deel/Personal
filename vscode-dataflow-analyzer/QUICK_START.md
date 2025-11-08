@@ -28,10 +28,10 @@ npm run compile
 3. A new VSCode window will open (Extension Development Host)
 
 4. In the new window:
-   - Open a folder with C++ files
+   - Open a folder with C++ source files (.cpp/.c)
    - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
-   - Type "Analyze Workspace" and select it
-   - Wait for analysis to complete
+   - Type "Analyze Workspace" to analyze the whole workspace (libraries/headers excluded)
+   - Or type "Analyze Active File" to analyze only the open source file
    - Type "Show Control Flow Graph" to open the visualizer
 
 ## 📋 Detailed Instructions
@@ -103,11 +103,9 @@ clang --version
 
 4. **In Extension Development Host:**
    - File → Open Folder
-   - Select a folder containing C++ files (.cpp, .c, .hpp, .h)
+   - Select a folder containing C++ source files (.cpp/.c)
    - Press `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (macOS)
-   - Type: `Analyze Workspace`
-   - Press Enter
-   - Wait for "Analysis complete!" message
+   - Type: `Analyze Workspace` (full workspace) or `Analyze Active File` (current file)
    - Type: `Show Control Flow Graph`
    - Press Enter
 
@@ -214,11 +212,11 @@ npm run compile
 - Run "Analyze Workspace" again
 - Check console for errors (Help → Toggle Developer Tools)
 
-### Clang not found warning
+### Clang requirement
 
-**This is OK!** Extension will use primitive parser.
+This build uses clang-only parsing (no fallback).
 
-**To use clang (recommended):**
+**To use clang:**
 - macOS: `xcode-select --install`
 - Linux: `sudo apt-get install clang`
 - Windows: Download from llvm.org
