@@ -661,7 +661,7 @@ export class CFGVisualizer {
     
     <div id="blockInfo" style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; color: black;">
         <h3 style="color: black;">Block Information</h3>
-        <p style="color: black;">Hover over a node in the graph above to see its details here.</p>
+        <p style="color: black;">Click on a node in the graph above to see its details here.</p>
     </div>
 
     <div id="debug-panel" style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px;">
@@ -794,53 +794,54 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                 logDebug('ERROR: functionSelect element not found');
             }
 
-            // Handle node hover (show info on hover)
-            network.on('hoverNode', function(params) {
-                const nodeId = params.node;
-                const node = graphData.nodes.find(function(n) { return n.id === nodeId; });
-                if (node) {
+            // Handle node click (show info on click)
+            network.on('click', function(params) {
+                if (params.nodes.length > 0) {
+                    // Clicked on a node - show its info
+                    const nodeId = params.nodes[0];
+                    const node = graphData.nodes.find(function(n) { return n.id === nodeId; });
+                    if (node) {
+                        const infoDiv = document.getElementById('blockInfo');
+                        if (infoDiv) {
+                            let html = '<h4 style="color: black;">Block: ' + node.label + '</h4>';
+                            html += '<div style="color: black;"><strong>Statements:</strong><ul style="color: black;">';
+                            node.statements.forEach(function(stmt) {
+                                const stmtText = typeof stmt === 'string' ? stmt : stmt.text;
+                                html += '<li style="color: black;">' + stmtText + '</li>';
+                            });
+                            html += '</ul></div>';
+
+                            // Add additional node information
+                            if (node.liveness) {
+                                html += '<div style="color: black; margin-top: 10px;"><strong>Live Variables In:</strong> ' +
+                                    (node.liveness.in.length > 0 ? node.liveness.in.join(', ') : 'none') + '</div>';
+                                html += '<div style="color: black;"><strong>Live Variables Out:</strong> ' +
+                                    (node.liveness.out.length > 0 ? node.liveness.out.join(', ') : 'none') + '</div>';
+                            }
+
+                            if (node.reachingDefinitions && node.reachingDefinitions.out) {
+                                html += '<div style="color: black; margin-top: 10px;"><strong>Reaching Definitions:</strong><br>';
+                                Object.keys(node.reachingDefinitions.out).forEach(function(varName) {
+                                    html += '<span style="color: black; margin-right: 10px;">' + varName + ': ' +
+                                        node.reachingDefinitions.out[varName].map(function(def) { return def.sourceCode; }).join('<br>') + '</span><br>';
+                                });
+                                html += '</div>';
+                            }
+
+                            if (node.taintInfo && node.taintInfo.taintedVariables && node.taintInfo.taintedVariables.length > 0) {
+                                html += '<div style="color: #d9534f; margin-top: 10px;"><strong>⚠ Tainted Variables:</strong> ' +
+                                    node.taintInfo.taintedVariables.join(', ') + '</div>';
+                            }
+
+                            infoDiv.innerHTML = html;
+                        }
+                    }
+                } else {
+                    // Clicked on empty space - clear info
                     const infoDiv = document.getElementById('blockInfo');
                     if (infoDiv) {
-                        let html = '<h4 style="color: black;">Block: ' + node.label + '</h4>';
-                        html += '<div style="color: black;"><strong>Statements:</strong><ul style="color: black;">';
-                        node.statements.forEach(function(stmt) {
-                            const stmtText = typeof stmt === 'string' ? stmt : stmt.text;
-                            html += '<li style="color: black;">' + stmtText + '</li>';
-                        });
-                        html += '</ul></div>';
-
-                        // Add additional node information
-                        if (node.liveness) {
-                            html += '<div style="color: black; margin-top: 10px;"><strong>Live Variables In:</strong> ' +
-                                (node.liveness.in.length > 0 ? node.liveness.in.join(', ') : 'none') + '</div>';
-                            html += '<div style="color: black;"><strong>Live Variables Out:</strong> ' +
-                                (node.liveness.out.length > 0 ? node.liveness.out.join(', ') : 'none') + '</div>';
-                        }
-
-                        if (node.reachingDefinitions && node.reachingDefinitions.out) {
-                            html += '<div style="color: black; margin-top: 10px;"><strong>Reaching Definitions:</strong><br>';
-                            Object.keys(node.reachingDefinitions.out).forEach(function(varName) {
-                                html += '<span style="color: black; margin-right: 10px;">' + varName + ': ' +
-                                    node.reachingDefinitions.out[varName].map(function(def) { return def.sourceCode; }).join('<br>') + '</span><br>';
-                            });
-                            html += '</div>';
-                        }
-
-                        if (node.taintInfo && node.taintInfo.taintedVariables && node.taintInfo.taintedVariables.length > 0) {
-                            html += '<div style="color: #d9534f; margin-top: 10px;"><strong>⚠ Tainted Variables:</strong> ' +
-                                node.taintInfo.taintedVariables.join(', ') + '</div>';
-                        }
-
-                        infoDiv.innerHTML = html;
+                        infoDiv.innerHTML = '<h3 style="color: black;">Block Information</h3><p style="color: black;">Click on a node in the graph above to see its details here.</p>';
                     }
-                }
-            });
-
-            // Handle mouse leaving node (clear info)
-            network.on('blurNode', function(params) {
-                const infoDiv = document.getElementById('blockInfo');
-                if (infoDiv) {
-                    infoDiv.innerHTML = '<h3 style="color: black;">Block Information</h3><p style="color: black;">Hover over a node in the graph above to see its details here.</p>';
                 }
             });
         }

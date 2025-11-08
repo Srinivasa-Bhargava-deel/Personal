@@ -68,7 +68,7 @@ export interface ASTNode {
   storageClass?: string;
   // CFG-specific properties
   name?: string;
-  inner?: ASTNode[];
+  inner?: ASTNode[] | { [name: string]: ASTNode };
   range?: Range;
   id?: string;
   label?: string;
@@ -219,9 +219,11 @@ export class ClangASTParser {
         }
 
         try {
-          // Parse CFG dump output into AST-like structure (CFG goes to stderr)
+          // Parse CFG dump output into AST-like structure
+          console.log('errorOutput length:', errorOutput.length);
+          console.log('errorOutput preview:', errorOutput.substring(0, 200));
           const cfgData = this.parseCFGOutput(errorOutput, filePath);
-          console.log('Parsed CFG with', cfgData ? Object.keys(cfgData).length : 0, 'functions');
+          console.log('Parsed CFG with', cfgData ? Object.keys(cfgData.inner || {}).length : 0, 'functions');
           resolve(cfgData);
         } catch (parseError: any) {
           reject(new Error(`Failed to parse clang CFG output: ${parseError.message}`));
@@ -261,11 +263,18 @@ export class ClangASTParser {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
 
+      // DEBUG: Log ALL lines with parentheses to see what's in the output
+      if (line.includes('(') && line.includes(')')) {
+        console.log('LINE WITH PARENTHESES:', JSON.stringify(line));
+      }
+
       // Check for function start - function signature on its own line
       // Must match patterns like: "int main()" or "void factorial(int n)"
       // But NOT CFG elements like "Succs (1): B2" or "2: [B4.1] (ImplicitCastExpr..."
       const funcSignatureRegex = /^\s*(?:\w+\s+)+\w+\s*\([^)]*\)\s*$/;
-      if (line && funcSignatureRegex.test(line) && !line.includes('[') && !line.includes('Succs') && !line.includes('Preds') && !line.includes(':') && !line.includes('B') && line.trim().split(/\s+/).length >= 2) {
+      if (line && funcSignatureRegex.test(line) && !line.startsWith('[') && !line.includes('Succs') && !line.includes('Preds') && !line.includes(':') && !line.includes('B') && line.trim().split(/\s+/).length >= 2) {
+        console.log('ACCEPTED AS FUNCTION:', line);
+
         // Save previous function if exists
         if (currentFunction && currentBlocks.length > 0) {
           functions[currentFunction] = this.createASTNodeFromCFGBlocks(currentBlocks, currentFunction, sourceFilePath);
@@ -341,18 +350,21 @@ export class ClangASTParser {
     }
 
     // Save last function
+    console.log('END OF PARSING - currentFunction:', currentFunction, 'blocks:', currentBlocks.length);
     if (currentFunction && currentBlocks.length > 0) {
+      console.log('Saving last function:', currentFunction);
       functions[currentFunction] = this.createASTNodeFromCFGBlocks(currentBlocks, currentFunction, sourceFilePath);
+      console.log('Saved function with', functions[currentFunction].inner ? Object.keys(functions[currentFunction].inner!).length : 0, 'CFG blocks');
     }
 
-    // Convert to ASTNode format
+    // Convert to ASTNode format - preserve function names as keys
     const translationUnit: ASTNode = {
       kind: 'TranslationUnitDecl',
       range: {
         start: { line: 1, column: 0 },
         end: { line: 1, column: 0 }
       },
-      inner: Object.values(functions)
+      inner: functions  // Keep as object with function names as keys
     };
 
     console.log('Created AST node with', Object.keys(functions).length, 'functions');

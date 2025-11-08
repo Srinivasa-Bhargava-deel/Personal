@@ -84,8 +84,16 @@ export class EnhancedCPPParser {
     callback(node);
 
     if (node.inner) {
-      for (const child of node.inner) {
-        this.traverseCFG(child, callback);
+      if (Array.isArray(node.inner)) {
+        // Handle array format
+        for (const child of node.inner) {
+          this.traverseCFG(child, callback);
+        }
+      } else {
+        // Handle object format (functions as named keys)
+        for (const key in node.inner) {
+          this.traverseCFG(node.inner[key], callback);
+        }
       }
     }
   }
@@ -94,12 +102,30 @@ export class EnhancedCPPParser {
    * Extract CFG from function node
    */
   private extractCFGFromFunctionNode(funcNode: ASTNode): FunctionCFG | null {
-    if (!funcNode.inner || funcNode.inner.length === 0) {
+    if (!funcNode.inner) {
       return null;
     }
 
-    // Find the CompoundStmt that contains CFG blocks
-    const compoundStmt = funcNode.inner.find(child => child.kind === 'CompoundStmt');
+    let compoundStmt: ASTNode | null = null;
+
+    if (Array.isArray(funcNode.inner)) {
+      // Handle array format
+      if (funcNode.inner.length === 0) {
+        return null;
+      }
+      compoundStmt = funcNode.inner.find(child => child.kind === 'CompoundStmt') || null;
+    } else {
+      // Handle object format - look for CFGBlock nodes directly
+      // In CFG format, function nodes may contain CFGBlock nodes directly
+      const cfgBlocks = Object.values(funcNode.inner).filter(node => node.kind === 'CFGBlock');
+      if (cfgBlocks.length > 0) {
+        compoundStmt = {
+          kind: 'CompoundStmt',
+          inner: cfgBlocks
+        };
+      }
+    }
+
     if (!compoundStmt || !compoundStmt.inner) {
       return null;
     }
@@ -107,7 +133,8 @@ export class EnhancedCPPParser {
     const blocks = new Map<string, BasicBlock>();
 
     // Process each CFG block
-    for (const blockNode of compoundStmt.inner) {
+    const innerNodes = Array.isArray(compoundStmt.inner) ? compoundStmt.inner : Object.values(compoundStmt.inner);
+    for (const blockNode of innerNodes) {
       if (blockNode.kind === 'CFGBlock') {
         const block: BasicBlock = {
           id: blockNode.id || `block_${Math.random()}`,
