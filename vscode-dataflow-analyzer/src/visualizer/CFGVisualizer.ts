@@ -191,7 +191,7 @@ export class CFGVisualizer {
     }
 
     console.log('[CFGVisualizer] Function', funcCFG.name, 'has', funcCFG.blocks.size, 'blocks');
-    
+
     // Prepare data for visualization
     const graphData = await this.prepareGraphData(funcCFG, state);
     
@@ -274,6 +274,10 @@ export class CFGVisualizer {
       // Get analysis info
       const livenessKey = `${funcCFG.name}_${blockId}`;
       const liveness = state.liveness.get(livenessKey);
+      console.log(`Looking up liveness for key: ${livenessKey}, found: ${!!liveness}`);
+      if (liveness) {
+        console.log(`Liveness data: in=[${Array.from(liveness.in).join(', ')}], out=[${Array.from(liveness.out).join(', ')}]`);
+      }
       const rdKey = `${funcCFG.name}_${blockId}`;
       const rd = state.reachingDefinitions.get(rdKey);
       
@@ -375,7 +379,7 @@ export class CFGVisualizer {
     }
 
     console.log(`Prepared graph data: ${nodes.length} nodes, ${edges.length} edges for function ${funcCFG.name}`);
-    
+
     return { 
       nodes, 
       edges, 
@@ -454,15 +458,20 @@ export class CFGVisualizer {
               sourceCode = `[${filename}:${d.range.start.line}, ${code}]`;
             }
           }
+        } else {
+          // For CFG-based definitions without source locations,
+          // provide a more readable format
+          const [blockId, stmtId] = d.definitionId.split('_');
+          sourceCode = `[${d.variable} defined in block ${blockId}]`;
         }
 
         return {
-          variable: d.variable,
-          definitionId: d.definitionId,
+        variable: d.variable,
+        definitionId: d.definitionId,
           blockId: d.blockId,
           sourceCode: sourceCode
         };
-      });
+    });
     });
 
     return result;
@@ -662,21 +671,21 @@ export class CFGVisualizer {
     <div id="blockInfo" style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; color: black;">
         <h3 style="color: black;">Block Information</h3>
         <p style="color: black;">Click on a node in the graph above to see its details here.</p>
-    </div>
-
+        </div>
+        
     <div id="debug-panel" style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px;">
         <h3 style="color: #856404;">Debug Information</h3>
         <div id="debug-logs" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; background: white; padding: 10px; border-radius: 3px;">
             <div style="color: #007bff;">✓ HTML loaded</div>
             <div style="color: #28a745;">✓ vis-network loading from CDN...</div>
         </div>
-    </div>
-
+        </div>
+        
 
     <script type="application/json" id="graph-data-json">
 ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
     </script>
-    
+
     <script>
         // Simple debugging
         function logDebug(message) {
@@ -716,50 +725,50 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                             return stmtText.length > 30 ? stmtText.substring(0, 27) + '...' : stmtText;
                         });
                         label += '\\n' + statements.join('\\n');
-                    }
-
-                    return {
-                        id: node.id,
+            }
+            
+            return {
+                id: node.id,
                         label: label,
-                        shape: 'box',
-                        color: {
+                shape: 'box',
+                color: {
                             background: node.taintInfo && node.taintInfo.isTainted ? '#ffeaa7' : '#e8f4f8',
                             border: node.taintInfo && node.taintInfo.isTainted ? '#d63031' : '#2e7d32',
                             highlight: { background: '#74b9ff', border: '#0984e3' }
-                        },
-                        font: {
+                },
+                font: {
                             color: node.taintInfo && node.taintInfo.isTainted ? '#d63031' : '#333',
                             size: 11,
                             face: 'Monaco, Menlo, "Ubuntu Mono", monospace'
                         },
                         margin: 10,
                         widthConstraint: { minimum: 120, maximum: 200 }
-                    };
-                }));
-
-            const edges = new vis.DataSet(graphData.edges);
-
+            };
+        }));
+        
+        const edges = new vis.DataSet(graphData.edges);
+        
             const container = document.getElementById('network');
-            const data = { nodes, edges };
-                const options = {
-                    nodes: {
-                        shape: 'box',
+        const data = { nodes, edges };
+        const options = {
+            nodes: {
+                shape: 'box',
                         font: { size: 11, face: 'Monaco, Menlo, "Ubuntu Mono", monospace' },
-                        margin: 10,
+                margin: 10,
                         widthConstraint: { minimum: 120, maximum: 200 },
                         heightConstraint: { minimum: 40 }
-                    },
-                    edges: {
+            },
+            edges: {
                         arrows: { to: { enabled: true, scaleFactor: 0.8 } },
                         smooth: { type: 'cubicBezier', forceDirection: 'vertical' },
                         color: { color: '#666', highlight: '#0984e3' },
                         width: 2,
                         font: { size: 10, align: 'top' }
-                    },
-                    layout: {
-                        hierarchical: {
-                            direction: 'UD',
-                            sortMethod: 'directed',
+            },
+            layout: {
+                hierarchical: {
+                    direction: 'UD',
+                    sortMethod: 'directed',
                             nodeSpacing: 120,
                             levelSeparation: 150,
                             edgeMinimization: false
@@ -773,7 +782,7 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                     }
                 };
 
-            const network = new vis.Network(container, data, options);
+        const network = new vis.Network(container, data, options);
             logDebug('vis.Network created successfully');
 
             // Handle function selector changes
@@ -790,7 +799,7 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                     });
                 });
                 logDebug('Function selector event listener attached');
-            } else {
+                } else {
                 logDebug('ERROR: functionSelect element not found');
             }
 
@@ -812,7 +821,7 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                             html += '</ul></div>';
 
                             // Add additional node information
-                            if (node.liveness) {
+                if (node.liveness) {
                                 html += '<div style="color: black; margin-top: 10px;"><strong>Live Variables In:</strong> ' +
                                     (node.liveness.in.length > 0 ? node.liveness.in.join(', ') : 'none') + '</div>';
                                 html += '<div style="color: black;"><strong>Live Variables Out:</strong> ' +
@@ -825,7 +834,7 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                                     html += '<span style="color: black; margin-right: 10px;">' + varName + ': ' +
                                         node.reachingDefinitions.out[varName].map(function(def) { return def.sourceCode; }).join('<br>') + '</span><br>';
                                 });
-                                html += '</div>';
+            html += '</div>';
                             }
 
                             if (node.taintInfo && node.taintInfo.taintedVariables && node.taintInfo.taintedVariables.length > 0) {
@@ -836,7 +845,7 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                             infoDiv.innerHTML = html;
                         }
                     }
-                } else {
+            } else {
                     // Clicked on empty space - clear info
                     const infoDiv = document.getElementById('blockInfo');
                     if (infoDiv) {

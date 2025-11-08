@@ -11,11 +11,12 @@ import { ReachingDefinitionsAnalyzer } from './ReachingDefinitionsAnalyzer';
 import { TaintAnalyzer } from './TaintAnalyzer';
 import { SecurityAnalyzer } from './SecurityAnalyzer';
 import { StateManager } from '../state/StateManager';
-import { 
-  CFG, 
-  AnalysisState, 
+import {
+  CFG,
+  FunctionCFG,
+  AnalysisState,
   FileAnalysisState,
-  AnalysisConfig 
+  AnalysisConfig
 } from '../types';
 
 export class DataflowAnalyzer {
@@ -88,9 +89,13 @@ export class DataflowAnalyzer {
 
     cfg.functions.forEach((funcCFG, funcName) => {
       if (this.config.enableLiveness) {
+        console.log(`Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcLiveness = this.livenessAnalyzer.analyze(funcCFG);
+        console.log(`Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
         funcLiveness.forEach((info, blockId) => {
-          liveness.set(`${funcName}_${blockId}`, info);
+          const key = `${funcName}_${blockId}`;
+          liveness.set(key, info);
+          console.log(`Set liveness for key: ${key}, in: ${Array.from(info.in).join(', ')}, out: ${Array.from(info.out).join(', ')}`);
         });
       }
 
@@ -175,9 +180,13 @@ export class DataflowAnalyzer {
 
     cfg.functions.forEach((funcCFG, funcName) => {
       if (this.config.enableLiveness) {
+        console.log(`Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcLiveness = this.livenessAnalyzer.analyze(funcCFG);
+        console.log(`Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
         funcLiveness.forEach((info, blockId) => {
-          liveness.set(`${funcName}_${blockId}`, info);
+          const key = `${funcName}_${blockId}`;
+          liveness.set(key, info);
+          console.log(`Set liveness for key: ${key}, in: ${Array.from(info.in).join(', ')}, out: ${Array.from(info.out).join(', ')}`);
         });
       }
 
@@ -320,6 +329,8 @@ export class DataflowAnalyzer {
       // Function is verified to be from this file - add it
       // Use the CFG that was already built by the parser (from Clang CFG generation)
       if (funcInfo.cfg) {
+        // Populate variable information for statements in the CFG
+        this.populateStatementVariables(funcInfo.cfg);
         cfg.functions.set(funcInfo.name, funcInfo.cfg);
         functionNames.push(funcInfo.name);
         addedCount++;
@@ -376,9 +387,13 @@ export class DataflowAnalyzer {
 
     this.currentState.cfg.functions.forEach((funcCFG, funcName) => {
       if (this.config.enableLiveness) {
+        console.log(`Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcLiveness = this.livenessAnalyzer.analyze(funcCFG);
+        console.log(`Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
         funcLiveness.forEach((info, blockId) => {
-          liveness.set(`${funcName}_${blockId}`, info);
+          const key = `${funcName}_${blockId}`;
+          liveness.set(key, info);
+          console.log(`Set liveness for key: ${key}, in: ${Array.from(info.in).join(', ')}, out: ${Array.from(info.out).join(', ')}`);
         });
       }
 
@@ -482,6 +497,155 @@ export class DataflowAnalyzer {
    */
   getState(): AnalysisState | null {
     return this.currentState;
+  }
+
+  /**
+   * Populate variable information for statements in a CFG
+   */
+  private populateStatementVariables(funcCFG: FunctionCFG): void {
+    funcCFG.blocks.forEach((block: any, blockId: string) => {
+      block.statements.forEach((stmt: any, stmtIndex: number) => {
+        if (!stmt.variables) {
+          // Use the same variable analysis logic as CPPParser
+          const variables = this.analyzeStatementVariables(stmt.text);
+          stmt.variables = variables;
+        }
+      });
+    });
+  }
+
+  /**
+   * Analyze variables in a statement (academic program analysis approach)
+   * Based on standard compiler construction and data flow analysis principles
+   */
+  private analyzeStatementVariables(content: string): { defined: string[]; used: string[] } {
+    const trimmed = content.trim();
+    const variables = { defined: [] as string[], used: [] as string[] };
+
+    // Extract the actual statement content from clang CFG format
+    // Format: "1: statement" or just "statement"
+    let cleanContent = trimmed;
+
+    // Remove statement numbers: "1: statement" -> "statement"
+    cleanContent = cleanContent.replace(/^\d+:\s*/, '');
+
+    // For clang CFG statements, we need to identify the actual variable/operation
+    // Remove clang-specific artifacts but preserve the core statement
+    if (cleanContent.includes('[B') && cleanContent.includes(']')) {
+      // Handle complex expressions like "[B1.6]([B1.7])" - extract the core operation
+      const bracketMatch = cleanContent.match(/\[B\d+\.\d+\]\s*\(([^)]*)\)/);
+      if (bracketMatch) {
+        const inner = bracketMatch[1];
+        // Check for implicit casts
+        if (inner.includes('ImplicitCastExpr') || inner.includes('LValueToRValue') || inner.includes('FunctionToPointerDecay') || inner.includes('ArrayToPointerDecay')) {
+          // This is just a cast/pointer operation, remove it
+          cleanContent = '';
+        } else {
+          // This might be an actual operation, keep the inner content
+          cleanContent = inner;
+        }
+      } else {
+        // Remove bracket references but keep the actual identifier
+        cleanContent = cleanContent.replace(/\[B\d+\.\d+\]/g, '').trim();
+      }
+    }
+
+    // Remove quotes from string literals but keep the content type
+    cleanContent = cleanContent.replace(/^"([^"]*)"$/, '$1');
+
+    // Remove remaining clang artifacts
+    cleanContent = cleanContent.replace(/\(ImplicitCastExpr[^)]*\)/g, '');
+    cleanContent = cleanContent.replace(/\(LValueToRValue[^)]*\)/g, '');
+    cleanContent = cleanContent.replace(/\(FunctionToPointerDecay[^)]*\)/g, '');
+    cleanContent = cleanContent.replace(/\(ArrayToPointerDecay[^)]*\)/g, '');
+
+    cleanContent = cleanContent.trim();
+
+    console.log(`Analyzing statement: "${trimmed}" -> cleaned: "${cleanContent}"`);
+
+    // Assignment statement: identifier = expression
+    if (cleanContent.includes('=') && !cleanContent.includes('==') && !cleanContent.includes('!=')) {
+      // Split on '=' to get LHS (defined) and RHS (used)
+      const parts = cleanContent.split('=');
+      if (parts.length >= 2) {
+        const lhs = parts[0].trim();
+        const rhs = parts.slice(1).join('=').trim(); // Handle multiple '='
+
+        // LHS should be a single variable (academic: only simple assignments)
+        const lhsVar = lhs.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*$/);
+        if (lhsVar) {
+          variables.defined.push(lhsVar[1]);
+          console.log(`Defined variable: ${lhsVar[1]}`);
+        }
+
+        // RHS: extract variables (academic approach)
+        this.extractVariablesFromExpression(rhs, variables.used);
+      }
+    }
+    // Declaration with initialization: int x = value
+    else if (cleanContent.match(/\b(int|float|double|char)\b/)) {
+      const declMatch = cleanContent.match(/\b(int|float|double|char)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(=\s*(.+))?/);
+      if (declMatch) {
+        variables.defined.push(declMatch[2]); // Variable name
+        console.log(`Declared variable: ${declMatch[2]}`);
+
+        if (declMatch[4]) { // Has initialization
+          this.extractVariablesFromExpression(declMatch[4], variables.used);
+        }
+      }
+    }
+    // Function call: func(arg1, arg2, ...)
+    else if (cleanContent.includes('(') && cleanContent.includes(')')) {
+      // Extract arguments from function call
+      const callMatch = cleanContent.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)/);
+      if (callMatch) {
+        const args = callMatch[2];
+        this.extractVariablesFromExpression(args, variables.used);
+      }
+    }
+    // Return statement: return expression
+    else if (cleanContent.startsWith('return')) {
+      const returnMatch = cleanContent.match(/return\s+(.+)/);
+      if (returnMatch) {
+        this.extractVariablesFromExpression(returnMatch[1], variables.used);
+      }
+    }
+    // Variable reference (standalone variable)
+    else {
+      const varMatch = cleanContent.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*$/);
+      if (varMatch) {
+        variables.used.push(varMatch[1]);
+        console.log(`Used variable: ${varMatch[1]}`);
+      }
+    }
+
+    // Remove duplicates and filter out keywords
+    const keywords = new Set(['int', 'float', 'double', 'char', 'void', 'return', 'if', 'else', 'for', 'while', 'scanf', 'printf']);
+    variables.defined = [...new Set(variables.defined)].filter(v => !keywords.has(v) && v.length > 0);
+    variables.used = [...new Set(variables.used)].filter(v => !keywords.has(v) && !variables.defined.includes(v) && v.length > 0);
+
+    console.log(`Final analysis - defined: [${variables.defined.join(', ')}], used: [${variables.used.join(', ')}]`);
+    return variables;
+  }
+
+  /**
+   * Extract variables from an expression (academic approach)
+   */
+  private extractVariablesFromExpression(expression: string, usedVars: string[]): void {
+    if (!expression) return;
+
+    // Split on operators and punctuation, keeping variable names
+    const tokens = expression.split(/[\s+\-*/=<>!&|(),;]+/).filter(token => token.length > 0);
+
+    for (const token of tokens) {
+      // Valid variable name: starts with letter/underscore, contains letters/digits/underscores
+      if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(token)) {
+        // Skip numeric literals
+        if (!/^\d+$/.test(token)) {
+          usedVars.push(token);
+        }
+      }
+    }
   }
 
   /**
