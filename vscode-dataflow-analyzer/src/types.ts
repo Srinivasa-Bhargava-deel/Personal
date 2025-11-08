@@ -86,27 +86,67 @@ export interface ReachingDefinitionsInfo {
   out: Map<string, ReachingDefinition[]>;
 }
 
+// Phase 4: Enhanced Taint Propagation - Taint Labels
+export enum TaintLabel {
+  USER_INPUT = 'user_input',      // Direct user input
+  FILE_CONTENT = 'file_content',  // File contents
+  NETWORK_DATA = 'network_data',  // Network data
+  ENVIRONMENT = 'environment',    // Environment variables
+  COMMAND_LINE = 'command_line',  // Command line arguments
+  DATABASE = 'database',          // Database query results
+  CONFIGURATION = 'configuration', // Configuration files
+  DERIVED = 'derived'             // Derived from tainted data
+}
+
 export interface TaintInfo {
   variable: string;
   source: string;
   tainted: boolean;
   propagationPath: string[];
+  // Enhanced fields for Phase 1+
+  sourceCategory?: 'user_input' | 'file_io' | 'network' | 'environment' | 'command_line' | 'database' | 'configuration';
+  taintType?: 'string' | 'buffer' | 'integer' | 'pointer';
+  sourceFunction?: string;
+  sourceLocation?: {
+    blockId: string;
+    statementId?: string;
+    range?: Range;
+  };
+  // Phase 3: Sanitization tracking
+  sanitized?: boolean;
+  sanitizationPoints?: Array<{ location: string; type: string }>;
+  // Phase 4: Enhanced propagation - taint labels
+  labels?: TaintLabel[]; // Multiple labels per variable (tainted from multiple sources)
 }
 
-export interface AnalysisState {
-  workspacePath: string;
-  timestamp: number;
-  cfg: CFG;
-  liveness: Map<string, LivenessInfo>;
-  reachingDefinitions: Map<string, ReachingDefinitionsInfo>;
-  taintAnalysis: Map<string, TaintInfo[]>;
-  vulnerabilities: Map<string, any[]>; // functionName -> Vulnerability[]
-  fileStates: Map<string, FileAnalysisState>;
-  // IPA (Inter-Procedural Analysis) features (v1.2+)
-  callGraph?: any; // CallGraph from Phase 1 & 2
-  interProceduralRD?: Map<string, Map<string, ReachingDefinitionsInfo>>; // Phase 3
-  parameterAnalysis?: Map<string, any[]>; // Phase 4: functionName -> ParameterMapping[]
-  returnValueAnalysis?: Map<string, any[]>; // Phase 4: functionName -> ReturnValueInfo[]
+export interface TaintVulnerability {
+  id: string;
+  type: 'sql_injection' | 'command_injection' | 'format_string' | 'path_traversal' | 'buffer_overflow' | 'code_injection' | 'integer_overflow';
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  source: {
+    file: string;
+    line: number;
+    function: string;
+    statement: string;
+    variable: string;
+  };
+  sink: {
+    file: string;
+    line: number;
+    function: string;
+    statement: string;
+    argumentIndex: number;
+  };
+  propagationPath: Array<{
+    file: string;
+    function: string;
+    blockId: string;
+    statementId: string;
+  }>;
+  sanitized: boolean;
+  sanitizationPoints: Array<{ location: string; type: string }>;
+  cweId?: string;
+  description?: string;
 }
 
 export interface FileAnalysisState {
@@ -123,5 +163,21 @@ export interface AnalysisConfig {
   enableTaintAnalysis: boolean;
   debounceDelay: number;
   enableInterProcedural?: boolean; // Enable IPA features (v1.2+)
+}
+
+export interface AnalysisState {
+  workspacePath: string;
+  timestamp: number;
+  cfg: CFG;
+  liveness: Map<string, LivenessInfo>;
+  reachingDefinitions: Map<string, ReachingDefinitionsInfo>;
+  taintAnalysis: Map<string, TaintInfo[]>;
+  vulnerabilities: Map<string, any[]>; // Can contain Vulnerability or TaintVulnerability
+  fileStates: Map<string, FileAnalysisState>;
+  // IPA features (optional, v1.2+)
+  callGraph?: any;
+  interProceduralRD?: Map<string, Map<string, ReachingDefinitionsInfo>>;
+  parameterAnalysis?: Map<string, any>;
+  returnValueAnalysis?: Map<string, any>;
 }
 

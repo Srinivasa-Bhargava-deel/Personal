@@ -29,7 +29,8 @@
 import * as child_process from 'child_process';
 import * as util from 'util';
 import * as path from 'path';
-import { Range, Statement } from '../types';
+import { Range, Statement, StatementType } from '../types';
+import { FunctionCallExtractor } from './FunctionCallExtractor';
 
 /**
  * Represents a source code location (file, line, column, offset).
@@ -419,8 +420,14 @@ export class ClangASTParser {
 
           // Convert statements from the JSON
           for (const stmtData of (blockData.statements || [])) {
+            const stmtText = stmtData.text || '';
+            // Detect function calls using CFG-aware extraction
+            const hasFunctionCall = this.detectFunctionCallInStatement(stmtText);
+            
             const stmt: Statement = {
-              text: stmtData.text || '',
+              text: stmtText,
+              content: stmtText, // Alias for compatibility
+              type: hasFunctionCall ? StatementType.FUNCTION_CALL : undefined,
               range: this.convertSourceRange(stmtData.range) || {
                 start: { line: 0, column: 0 },
                 end: { line: 0, column: 0 }
@@ -450,6 +457,18 @@ export class ClangASTParser {
       console.error('Error parsing cfg-exporter JSON:', error.message);
       return null;
     }
+  }
+
+  /**
+   * Detect if a statement contains a function call
+   * Uses CFG-aware extraction instead of regex
+   */
+  private detectFunctionCallInStatement(stmtText: string): boolean {
+    if (!stmtText) return false;
+    
+    // Create a temporary statement object for the extractor
+    const tempStmt: Statement = { text: stmtText };
+    return FunctionCallExtractor.hasFunctionCall(tempStmt);
   }
 
   /**

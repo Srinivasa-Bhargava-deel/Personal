@@ -25,6 +25,7 @@ import { CallGraphAnalyzer } from './CallGraphAnalyzer';
 import { InterProceduralReachingDefinitions } from './InterProceduralReachingDefinitions';
 import { ParameterAnalyzer } from './ParameterAnalyzer';
 import { ReturnValueAnalyzer } from './ReturnValueAnalyzer';
+import { FunctionCallExtractor } from './FunctionCallExtractor';
 import { StateManager } from '../state/StateManager';
 import {
   CFG,
@@ -200,17 +201,24 @@ export class DataflowAnalyzer {
       if (this.config.enableTaintAnalysis) {
         const funcRD = reachingDefinitions.get(`${funcName}_entry`) || 
                       new Map().set('entry', { in: new Map(), out: new Map() });
-        const funcTaint = this.taintAnalyzer.analyze(funcCFG, funcRD);
-        taintAnalysis.set(funcName, Array.from(funcTaint.values()).flat());
+        const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
+        taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
+        
+        // Add taint vulnerabilities to vulnerabilities map
+        if (taintResult.vulnerabilities.length > 0) {
+          const existingVulns = vulnerabilities.get(funcName) || [];
+          vulnerabilities.set(funcName, [...existingVulns, ...taintResult.vulnerabilities]);
+        }
         
         // Run security analysis
         const funcVulns = this.securityAnalyzer.analyzeVulnerabilities(
           funcCFG,
-          funcTaint,
+          taintResult.taintMap,
           Array.from(fileStates.keys())[0] || ''
         );
         if (funcVulns.length > 0) {
-          vulnerabilities.set(funcName, funcVulns);
+          const existingVulns = vulnerabilities.get(funcName) || [];
+          vulnerabilities.set(funcName, [...existingVulns, ...funcVulns]);
         }
       }
     });
@@ -364,8 +372,14 @@ export class DataflowAnalyzer {
       if (this.config.enableTaintAnalysis) {
         const funcRD = reachingDefinitions.get(`${funcName}_entry`) || 
                       new Map().set('entry', { in: new Map(), out: new Map() });
-        const funcTaint = this.taintAnalyzer.analyze(funcCFG, funcRD);
-        taintAnalysis.set(funcName, Array.from(funcTaint.values()).flat());
+        const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
+        taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
+        
+        // Add taint vulnerabilities to vulnerabilities map
+        if (taintResult.vulnerabilities.length > 0) {
+          const existingVulns = vulnerabilities.get(funcName) || [];
+          vulnerabilities.set(funcName, [...existingVulns, ...taintResult.vulnerabilities]);
+        }
       }
     });
 
@@ -608,7 +622,7 @@ export class DataflowAnalyzer {
 
     // Remove old function CFGs from this file
     if (existingState) {
-      existingState.functions.forEach(funcName => {
+      existingState.functions.forEach((funcName: string) => {
         this.currentState!.cfg.functions.delete(funcName);
       });
     }
@@ -621,8 +635,9 @@ export class DataflowAnalyzer {
     const liveness = new Map();
     const reachingDefinitions = new Map();
     const taintAnalysis = new Map();
+    const vulnerabilities = new Map<string, any[]>();
 
-    this.currentState.cfg.functions.forEach((funcCFG, funcName) => {
+    this.currentState.cfg.functions.forEach((funcCFG: FunctionCFG, funcName: string) => {
       if (this.config.enableLiveness) {
         console.log(`Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcLiveness = this.livenessAnalyzer.analyze(funcCFG);
@@ -644,14 +659,21 @@ export class DataflowAnalyzer {
       if (this.config.enableTaintAnalysis) {
         const funcRD = reachingDefinitions.get(`${funcName}_entry`) || 
                       new Map().set('entry', { in: new Map(), out: new Map() });
-        const funcTaint = this.taintAnalyzer.analyze(funcCFG, funcRD);
-        taintAnalysis.set(funcName, Array.from(funcTaint.values()).flat());
+        const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
+        taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
+        
+        // Add taint vulnerabilities to vulnerabilities map
+        if (taintResult.vulnerabilities.length > 0) {
+          const existingVulns = vulnerabilities.get(funcName) || [];
+          vulnerabilities.set(funcName, [...existingVulns, ...taintResult.vulnerabilities]);
+        }
       }
     });
 
     this.currentState.liveness = liveness;
     this.currentState.reachingDefinitions = reachingDefinitions;
     this.currentState.taintAnalysis = taintAnalysis;
+    this.currentState.vulnerabilities = vulnerabilities;
     this.currentState.timestamp = Date.now();
 
     this.stateManager.saveState(this.currentState);
@@ -816,6 +838,21 @@ export class DataflowAnalyzer {
     cleanContent = cleanContent.replace(/\(LValueToRValue[^)]*\)/g, '');
     cleanContent = cleanContent.replace(/\(FunctionToPointerDecay[^)]*\)/g, '');
     cleanContent = cleanContent.replace(/\(ArrayToPointerDecay[^)]*\)/g, '');
+    
+    // STEP 3.5: Handle recovery-expr patterns using FunctionCallExtractor
+    // This handles: <recovery-expr>(func, arg1, arg2) -> func(arg1, arg2)
+    if (cleanContent.includes('<recovery-expr>')) {
+      const tempStmt = { text: cleanContent };
+      const calls = FunctionCallExtractor.extractFunctionCalls(tempStmt);
+      if (calls.length > 0) {
+        // Reconstruct clean call expression from extracted call
+        const call = calls[0];
+        cleanContent = `${call.name}(${call.arguments.join(', ')})`;
+      } else {
+        // Fallback: simple recovery-expr removal
+        cleanContent = cleanContent.replace(/<recovery-expr>\s*\(([^,]+),\s*(.+)\)/g, '$1($2)');
+      }
+    }
 
     cleanContent = cleanContent.trim();
 
@@ -858,12 +895,25 @@ export class DataflowAnalyzer {
       }
     }
     // Function call: func(arg1, arg2, ...)
+    // Use FunctionCallExtractor for reliable extraction (handles recovery-expr, nested calls, etc.)
     else if (cleanContent.includes('(') && cleanContent.includes(')')) {
-      // Extract arguments from function call
-      const callMatch = cleanContent.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)/);
-      if (callMatch) {
-        const args = callMatch[2];
-        this.extractVariablesFromExpression(args, variables.used);
+      const tempStmt = { text: cleanContent };
+      const calls = FunctionCallExtractor.extractFunctionCalls(tempStmt);
+      
+      if (calls.length > 0) {
+        // Extract variables from all function call arguments
+        for (const call of calls) {
+          call.arguments.forEach(arg => {
+            this.extractVariablesFromExpression(arg, variables.used);
+          });
+        }
+      } else {
+        // Fallback to regex-based extraction
+        const callMatch = cleanContent.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)/);
+        if (callMatch) {
+          const args = callMatch[2];
+          this.extractVariablesFromExpression(args, variables.used);
+        }
       }
     }
     // Return statement: return expression

@@ -3,7 +3,7 @@
  */
 
 import * as vscode from 'vscode';
-import { CFG, FunctionCFG, AnalysisState, LivenessInfo, ReachingDefinitionsInfo, TaintInfo } from '../types';
+import { CFG, FunctionCFG, AnalysisState, FileAnalysisState, LivenessInfo, ReachingDefinitionsInfo, TaintInfo } from '../types';
 import { Vulnerability } from '../analyzer/SecurityAnalyzer';
 
 export class CFGVisualizer {
@@ -142,7 +142,7 @@ export class CFGVisualizer {
     const active = vscode.window.activeTextEditor;
     if (active) {
       const activePath = active.document.uri.fsPath;
-      state.fileStates.forEach((fileState, path) => {
+      state.fileStates.forEach((fileState: FileAnalysisState, path: string) => {
         if (path === activePath && fileState.functions.length > 0) {
           preferredFunction = fileState.functions[0];
         }
@@ -169,7 +169,7 @@ export class CFGVisualizer {
       console.log('[CFGVisualizer] Using current function:', this.currentFunction);
     } else if (state.cfg.functions.size > 0) {
       // Show first function by default
-      const firstFunc = Array.from(state.cfg.functions.keys())[0];
+      const firstFunc = Array.from(state.cfg.functions.keys())[0] as string;
       funcCFG = state.cfg.functions.get(firstFunc)!;
       this.currentFunction = firstFunc;
       console.log('[CFGVisualizer] Using first function:', firstFunc);
@@ -198,6 +198,16 @@ export class CFGVisualizer {
     // Prepare IPA data if available
     const callGraphData = state.callGraph ? this.prepareCallGraphData(state.callGraph) : null;
     const ipaData = this.prepareIPAData(state, funcCFG.name);
+    const taintData = this.prepareTaintData(state, funcCFG.name);
+    
+    console.log('[CFGVisualizer] Taint data for', funcCFG.name, ':', {
+      totalTaintedVariables: taintData.totalTaintedVariables,
+      totalVulnerabilities: taintData.totalVulnerabilities,
+      taintedVariablesCount: taintData.taintedVariables?.length || 0,
+      vulnerabilitiesCount: taintData.vulnerabilities?.length || 0,
+      taintInfoFromState: state.taintAnalysis.get(funcCFG.name)?.length || 0,
+      vulnerabilitiesFromState: state.vulnerabilities.get(funcCFG.name)?.length || 0
+    });
     
     console.log('[CFGVisualizer] Setting webview HTML with graph data');
     console.log('[CFGVisualizer] Graph data summary:', {
@@ -205,7 +215,8 @@ export class CFGVisualizer {
       nodesCount: graphData.nodes.length,
       edgesCount: graphData.edges.length,
       hasCallGraph: !!callGraphData,
-      hasIPAData: !!ipaData
+      hasIPAData: !!ipaData,
+      hasTaintData: taintData.totalTaintedVariables > 0 || taintData.totalVulnerabilities > 0
     });
 
     const htmlContent = this.getWebviewContent(
@@ -214,7 +225,8 @@ export class CFGVisualizer {
       funcCFG.name,
       this.panel.webview.cspSource,
       callGraphData,
-      ipaData
+      ipaData,
+      taintData
     );
 
     console.log('[CFGVisualizer] Generated HTML length:', htmlContent.length);
@@ -322,11 +334,11 @@ export class CFGVisualizer {
     const taintedVars = new Set<string>();
     const taintedBlocks = new Set<string>();
     
-    taintInfo.forEach(taint => {
+    taintInfo.forEach((taint: TaintInfo) => {
       if (taint.tainted) {
         taintedVars.add(taint.variable);
         // Mark blocks in propagation path as tainted
-        taint.propagationPath.forEach(path => {
+        taint.propagationPath.forEach((path: string) => {
           const blockId = path.split(':')[0];
           taintedBlocks.add(blockId);
         });
@@ -467,7 +479,7 @@ export class CFGVisualizer {
       nodes, 
       edges, 
       taintSummary: taintInfo,
-      attackPaths: Array.from(attackPaths.entries()).map(([id, info]) => ({
+      attackPaths: Array.from(attackPaths.entries()).map(([id, info]: [string, any]) => ({
         id,
         blocks: info.blocks,
         vulnerability: info.vulnerability,
@@ -615,9 +627,9 @@ export class CFGVisualizer {
     // Get inter-procedural reaching definitions
     if (state.interProceduralRD && state.interProceduralRD.has(functionName)) {
       const funcRD = state.interProceduralRD.get(functionName);
-      ipaData.interProceduralRD = Array.from(funcRD!.entries()).map(([blockId, rdInfo]) => ({
+      ipaData.interProceduralRD = Array.from(funcRD!.entries()).map(([blockId, rdInfo]: [string, any]) => ({
         blockId,
-        in: Array.from(rdInfo.in.entries()).map(([varName, defs]) => ({
+        in: Array.from(rdInfo.in.entries() as Iterable<[string, any[]]>).map(([varName, defs]: [string, any[]]) => ({
           variable: varName,
           definitions: defs.map((d: any) => ({
             definitionId: d.definitionId,
@@ -625,7 +637,7 @@ export class CFGVisualizer {
             propagationPath: d.propagationPath || []
           }))
         })),
-        out: Array.from(rdInfo.out.entries()).map(([varName, defs]) => ({
+        out: Array.from(rdInfo.out.entries() as Iterable<[string, any[]]>).map(([varName, defs]: [string, any[]]) => ({
           variable: varName,
           definitions: defs.map((d: any) => ({
             definitionId: d.definitionId,
@@ -640,6 +652,91 @@ export class CFGVisualizer {
   }
 
   /**
+   * Prepare taint analysis data for display
+   */
+  private prepareTaintData(state: AnalysisState, functionName: string): any {
+    const taintInfo = state.taintAnalysis.get(functionName) || [];
+    const vulnerabilities = state.vulnerabilities.get(functionName) || [];
+    
+    console.log(`[CFGVisualizer] prepareTaintData for ${functionName}:`, {
+      taintInfoCount: taintInfo.length,
+      vulnerabilitiesCount: vulnerabilities.length,
+      taintInfoSample: taintInfo.length > 0 ? taintInfo[0] : null,
+      vulnerabilitiesSample: vulnerabilities.length > 0 ? vulnerabilities[0] : null
+    });
+    
+    // Separate TaintVulnerability from other Vulnerability types
+    const taintVulnerabilities = vulnerabilities.filter((v: any) => 
+      v.type && ['sql_injection', 'command_injection', 'format_string', 'path_traversal', 
+                  'buffer_overflow', 'code_injection', 'integer_overflow'].includes(v.type)
+    );
+    
+    console.log(`[CFGVisualizer] Filtered taint vulnerabilities: ${taintVulnerabilities.length} out of ${vulnerabilities.length}`);
+    
+    // Group taint info by variable
+    const taintByVariable = new Map<string, TaintInfo[]>();
+    taintInfo.forEach((taint: TaintInfo) => {
+      if (taint.tainted) {
+        const existing = taintByVariable.get(taint.variable) || [];
+        existing.push(taint);
+        taintByVariable.set(taint.variable, existing);
+      }
+    });
+    
+    console.log(`[CFGVisualizer] Tainted variables found: ${taintByVariable.size}`);
+    
+    // Prepare taint sources summary
+    const sourcesByCategory = new Map<string, number>();
+    taintInfo.forEach((taint: TaintInfo) => {
+      if (taint.tainted && taint.sourceCategory) {
+        const count = sourcesByCategory.get(taint.sourceCategory) || 0;
+        sourcesByCategory.set(taint.sourceCategory, count + 1);
+      }
+    });
+    
+    const result = {
+      taintedVariables: Array.from(taintByVariable.entries()).map(([varName, taints]) => ({
+        variable: varName,
+        sources: taints.map(t => ({
+          source: t.source,
+          category: t.sourceCategory || 'unknown',
+          taintType: t.taintType || 'unknown',
+          sourceFunction: t.sourceFunction,
+          propagationPath: t.propagationPath,
+          sourceLocation: t.sourceLocation
+        })),
+        isTainted: true
+      })),
+      vulnerabilities: taintVulnerabilities.map((vuln: any) => ({
+        id: vuln.id,
+        type: vuln.type,
+        severity: vuln.severity,
+        source: vuln.source,
+        sink: vuln.sink,
+        propagationPath: vuln.propagationPath,
+        sanitized: vuln.sanitized,
+        sanitizationPoints: vuln.sanitizationPoints || [],
+        cweId: vuln.cweId,
+        description: vuln.description
+      })),
+      sourcesByCategory: Array.from(sourcesByCategory.entries()).map(([category, count]) => ({
+        category,
+        count
+      })),
+      totalTaintedVariables: taintByVariable.size,
+      totalVulnerabilities: taintVulnerabilities.length
+    };
+    
+    console.log(`[CFGVisualizer] prepareTaintData result:`, {
+      totalTaintedVariables: result.totalTaintedVariables,
+      totalVulnerabilities: result.totalVulnerabilities,
+      taintedVariablesArrayLength: result.taintedVariables.length
+    });
+    
+    return result;
+  }
+
+  /**
    * Get webview HTML content
    */
   private getWebviewContent(
@@ -648,8 +745,14 @@ export class CFGVisualizer {
     functionName: string,
     cspSource: string,
     callGraphData?: any,
-    ipaData?: any
+    ipaData?: any,
+    taintData?: any
   ): string {
+    // Helper function to format vulnerability type names
+    const formatVulnType = (type: string): string => {
+      return type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    };
+    
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -875,6 +978,7 @@ export class CFGVisualizer {
         ${callGraphData ? '<div class="tab" data-tab="callgraph">Call Graph</div>' : ''}
         ${ipaData && (ipaData.parameterAnalysis || ipaData.returnValueAnalysis) ? '<div class="tab" data-tab="params">Parameters & Returns</div>' : ''}
         ${ipaData && ipaData.interProceduralRD ? '<div class="tab" data-tab="ipa">Inter-Procedural</div>' : ''}
+        ${taintData ? '<div class="tab" data-tab="taint">Taint Analysis</div>' : ''}
     </div>
     
     <!-- CFG Tab Content -->
@@ -967,6 +1071,154 @@ export class CFGVisualizer {
     </div>
     ` : ''}
     
+    <!-- Taint Analysis Tab Content -->
+    ${taintData ? `
+    <div class="tab-content" id="taint-tab">
+        ${(taintData.totalTaintedVariables > 0 || taintData.totalVulnerabilities > 0) ? `
+        <!-- Summary Statistics -->
+        <div style="margin-bottom: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 5px;">
+            <h3 style="color: #856404; margin-top: 0;">Taint Analysis Summary</h3>
+            <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                <div>
+                    <strong style="color: #856404;">Tainted Variables:</strong> 
+                    <span style="color: #333333; font-size: 1.2em; font-weight: bold;">${taintData.totalTaintedVariables}</span>
+                </div>
+                <div>
+                    <strong style="color: #856404;">Vulnerabilities:</strong> 
+                    <span style="color: #dc3545; font-size: 1.2em; font-weight: bold;">${taintData.totalVulnerabilities}</span>
+                </div>
+            </div>
+            ${taintData.sourcesByCategory && taintData.sourcesByCategory.length > 0 ? `
+            <div style="margin-top: 10px;">
+                <strong style="color: #856404;">Source Categories:</strong>
+                ${taintData.sourcesByCategory.map((cat: any) => `
+                    <span style="margin-left: 10px; padding: 3px 8px; background: #fff; border-radius: 3px; color: #333333;">
+                        ${cat.category}: ${cat.count}
+                    </span>
+                `).join('')}
+            </div>
+            ` : ''}
+        </div>
+        
+        <!-- Tainted Variables Section -->
+        ${taintData.taintedVariables && taintData.taintedVariables.length > 0 ? `
+        <div style="margin-bottom: 30px;">
+            <h3 style="color: #333333;">Tainted Variables</h3>
+            <div id="tainted-variables">
+                ${taintData.taintedVariables.map((varInfo: any) => `
+                    <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;">
+                        <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                            <strong style="color: #333333; font-size: 1.1em;">Variable: ${varInfo.variable}</strong>
+                            <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.85em;">TAINTED</span>
+                        </div>
+                        ${varInfo.sources && varInfo.sources.length > 0 ? `
+                        <div style="margin-top: 10px;">
+                            <strong style="color: #333333;">Sources:</strong>
+                            ${varInfo.sources.map((source: any) => `
+                                <div style="margin-left: 15px; margin-top: 8px; padding: 8px; background: #fff; border-radius: 3px;">
+                                    <div style="color: #333333;">
+                                        <strong>${source.source}</strong>
+                                        ${source.sourceFunction ? `<span style="color: #666666; margin-left: 10px;">(${source.sourceFunction})</span>` : ''}
+                                    </div>
+                                    <div style="margin-top: 5px; font-size: 0.9em; color: #666666;">
+                                        <span style="padding: 2px 6px; background: #e8f4f8; border-radius: 3px; margin-right: 5px;">
+                                            Category: ${source.category}
+                                        </span>
+                                        <span style="padding: 2px 6px; background: #e8f4f8; border-radius: 3px;">
+                                            Type: ${source.taintType}
+                                        </span>
+                                    </div>
+                                    ${source.propagationPath && source.propagationPath.length > 0 ? `
+                                    <div style="margin-top: 5px; font-size: 0.85em; color: #666666;">
+                                        <strong>Path:</strong> ${source.propagationPath.join(' → ')}
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : ''}
+        
+        <!-- Vulnerabilities Section -->
+        ${taintData.vulnerabilities && taintData.vulnerabilities.length > 0 ? `
+        <div>
+            <h3 style="color: #333333;">Detected Vulnerabilities</h3>
+            <div id="taint-vulnerabilities">
+                ${taintData.vulnerabilities.map((vuln: any) => `
+                    <div class="vulnerability-item ${vuln.severity}" style="padding: 15px; margin: 10px 0; background: ${vuln.severity === 'critical' ? '#ffe0e0' : vuln.severity === 'high' ? '#ffe8e8' : '#fff3cd'}; border-radius: 5px; cursor: pointer;" onclick="highlightVulnerabilityPath('${vuln.id}')">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                                    <strong style="color: #333333; font-size: 1.1em;">${formatVulnType(vuln.type)}</strong>
+                                    <span style="margin-left: 10px; padding: 2px 8px; background: ${vuln.severity === 'critical' ? '#dc3545' : vuln.severity === 'high' ? '#ff6b6b' : '#ffa500'}; color: white; border-radius: 3px; font-size: 0.85em; text-transform: uppercase;">
+                                        ${vuln.severity}
+                                    </span>
+                                    ${vuln.cweId ? `<span style="margin-left: 10px; padding: 2px 8px; background: #e8f4f8; border-radius: 3px; font-size: 0.85em; color: #333333;">${vuln.cweId}</span>` : ''}
+                                </div>
+                                ${vuln.description ? `<p style="color: #333333; margin: 5px 0;">${vuln.description}</p>` : ''}
+                                <div style="margin-top: 10px; font-size: 0.9em;">
+                                    <div style="color: #333333; margin: 5px 0;">
+                                        <strong>Source:</strong> ${vuln.source.variable} in ${vuln.source.function} (${vuln.source.statement})
+                                    </div>
+                                    <div style="color: #333333; margin: 5px 0;">
+                                        <strong>Sink:</strong> ${vuln.sink.function}(${vuln.sink.argumentIndex >= 0 ? `arg[${vuln.sink.argumentIndex}]` : 'unknown'}) - ${vuln.sink.statement}
+                                    </div>
+                                    ${vuln.propagationPath && vuln.propagationPath.length > 0 ? `
+                                    <div style="margin-top: 8px; padding: 8px; background: #fff; border-radius: 3px;">
+                                        <strong style="color: #333333;">Propagation Path:</strong>
+                                        <div style="margin-top: 5px; color: #666666; font-size: 0.85em;">
+                                            ${vuln.propagationPath.map((step: any) => `${step.function}:${step.blockId}`).join(' → ')}
+                                        </div>
+                                    </div>
+                                    ` : ''}
+                                    ${vuln.sanitized ? `
+                                    <div style="margin-top: 8px; padding: 5px; background: #d4edda; border-radius: 3px; color: #155724;">
+                                        ✓ Sanitized: ${vuln.sanitizationPoints && vuln.sanitizationPoints.length > 0 ? vuln.sanitizationPoints.map((sp: any) => sp.location).join(', ') : 'Yes'}
+                                    </div>
+                                    ` : `
+                                    <div style="margin-top: 8px; padding: 5px; background: #f8d7da; border-radius: 3px; color: #721c24;">
+                                        ⚠ Not Sanitized
+                                    </div>
+                                    `}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : `
+        <div style="padding: 20px; text-align: center; color: #666666;">
+            <p>No vulnerabilities detected. All tainted data flows are safe.</p>
+        </div>
+        `}
+        ` : `
+        <!-- No Taint Data Message -->
+        <div style="padding: 30px; text-align: center;">
+            <h3 style="color: #333333; margin-bottom: 15px;">Taint Analysis</h3>
+            <div style="padding: 20px; background: #e8f4f8; border-radius: 5px; color: #333333;">
+                <p style="margin-bottom: 10px;">No taint analysis data found for this function.</p>
+                <p style="font-size: 0.9em; color: #666666;">
+                    This could mean:
+                </p>
+                <ul style="text-align: left; display: inline-block; margin-top: 10px; color: #666666;">
+                    <li>No taint sources were detected in this function</li>
+                    <li>Taint analysis may not have run yet</li>
+                    <li>Make sure taint analysis is enabled in settings</li>
+                </ul>
+                <p style="margin-top: 15px; font-size: 0.9em; color: #666666;">
+                    To test taint analysis, try using functions like <code>scanf</code>, <code>gets</code>, or <code>fgets</code> in your code.
+                </p>
+            </div>
+        </div>
+        `}
+    </div>
+    ` : ''}
+    
     <!-- Debug Panel (initially visible, can be toggled) -->
     <div id="debug-panel" style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px;">
         <h3 style="color: #856404;">Debug Information</h3>
@@ -987,6 +1239,10 @@ ${callGraphData ? JSON.stringify(callGraphData).replace(/<\//g, '<\\/') : '{}'}
     
     <script type="application/json" id="ipa-data-json">
 ${ipaData ? JSON.stringify(ipaData).replace(/<\//g, '<\\/') : '{}'}
+    </script>
+    
+    <script type="application/json" id="taint-data-json">
+${taintData ? JSON.stringify(taintData).replace(/<\//g, '<\\/') : '{}'}
     </script>
 
     <script>
@@ -1201,14 +1457,70 @@ ${ipaData ? JSON.stringify(ipaData).replace(/<\//g, '<\\/') : '{}'}
                 const targetContent = document.getElementById(targetTab + '-tab');
                 if (targetContent) {
                     targetContent.classList.add('active');
+                    logDebug('Switched to tab: ' + targetTab + ', content element: ' + targetContent.id);
                     
                     // Initialize call graph if switching to call graph tab
                     if (targetTab === 'callgraph' && typeof vis !== 'undefined') {
                         initCallGraph();
                     }
+                } else {
+                    logDebug('WARNING: Tab content element not found for: ' + targetTab + '-tab');
                 }
             });
         });
+        
+        // Function to highlight vulnerability path in CFG
+        function highlightVulnerabilityPath(vulnId) {
+            const taintDataElement = document.getElementById('taint-data-json');
+            if (!taintDataElement) return;
+            
+            try {
+                const taintData = JSON.parse(taintDataElement.textContent);
+                const vuln = taintData.vulnerabilities.find(function(v) { return v.id === vulnId; });
+                if (!vuln || !vuln.propagationPath) return;
+                
+                // Switch to CFG tab
+                const cfgTab = document.querySelector('.tab[data-tab="cfg"]');
+                if (cfgTab) {
+                    cfgTab.click();
+                }
+                
+                // Highlight blocks in the path after a short delay
+                setTimeout(function() {
+                    const graphDataElement = document.getElementById('graph-data-json');
+                    if (!graphDataElement || typeof vis === 'undefined') return;
+                    
+                    const graphData = JSON.parse(graphDataElement.textContent);
+                    const pathBlocks = vuln.propagationPath.map(function(step) { return step.blockId; });
+                    
+                    // Update node colors to highlight path
+                    if (window.network) {
+                        const updatedNodes = graphData.nodes.map(function(node) {
+                            if (pathBlocks.includes(node.id)) {
+                                var newNode = {};
+                                for (var key in node) {
+                                    newNode[key] = node[key];
+                                }
+                                newNode.color = { background: '#ff6b6b', border: '#dc3545' };
+                                newNode.font = { color: '#fff', size: 14, face: 'Arial', bold: true };
+                                return newNode;
+                            }
+                            return node;
+                        });
+                        
+                        window.network.setData({ 
+                            nodes: new vis.DataSet(updatedNodes), 
+                            edges: new vis.DataSet(graphData.edges) 
+                        });
+                    }
+                }, 200);
+            } catch (e) {
+                console.error('Error highlighting vulnerability path:', e);
+            }
+        }
+        
+        // Make highlightVulnerabilityPath available globally
+        window.highlightVulnerabilityPath = highlightVulnerabilityPath;
 
         // Initialize call graph visualization
         function initCallGraph() {

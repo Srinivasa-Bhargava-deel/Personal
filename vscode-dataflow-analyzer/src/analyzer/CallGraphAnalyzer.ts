@@ -21,6 +21,7 @@
  */
 
 import { FunctionCFG, BasicBlock, Statement } from '../types';
+import { FunctionCallExtractor } from './FunctionCallExtractor';
 
 /**
  * Represents a single function call in the program.
@@ -312,8 +313,7 @@ export class CallGraphAnalyzer {
   /**
    * Find all function calls within a single statement.
    * 
-   * A statement might contain multiple calls, e.g.:
-   * "x = foo(bar(y), z)"  // Two calls: bar() and foo()
+   * Uses CFG-aware extraction instead of regex patterns.
    * 
    * @param stmt - Statement to analyze
    * @param callerName - Function containing this statement
@@ -326,28 +326,25 @@ export class CallGraphAnalyzer {
     blockId: string
   ): FunctionCall[] {
     const calls: FunctionCall[] = [];
-    const content = stmt.content || stmt.text;
-
-    // PATTERN: functionName(args)
-    // Match identifier followed by opening parenthesis
-    const callPattern = /([a-zA-Z_]\w*)\s*\(/g;
-    let match;
-
-    while ((match = callPattern.exec(content)) !== null) {
-      const calleeId = match[1];
-
-      // STEP 1: Skip if it's a keyword (not a function)
+    
+    // Use CFG-aware function call extractor
+    const extractedCalls = FunctionCallExtractor.extractFunctionCalls(stmt);
+    
+    for (const extractedCall of extractedCalls) {
+      const calleeId = extractedCall.name;
+      
+      // Skip if it's a keyword (not a function)
       if (this.keywords.has(calleeId)) {
         continue;
       }
-
-      // STEP 2: Extract arguments for this call
-      const args = this.extractArguments(content, calleeId);
-
-      // STEP 3: Check if return value is used
-      const returnUsed = this.isReturnValueUsed(content, calleeId);
-
-      // STEP 4: Create FunctionCall record
+      
+      // Extract arguments for this call
+      const args = extractedCall.arguments;
+      
+      // Check if return value is used
+      const returnUsed = this.isReturnValueUsed(extractedCall.callExpression, calleeId);
+      
+      // Create FunctionCall record
       const call: FunctionCall = {
         callerId: callerName,
         calleeId,
@@ -363,10 +360,10 @@ export class CallGraphAnalyzer {
         },
         returnValueUsed: returnUsed
       };
-
+      
       calls.push(call);
     }
-
+    
     return calls;
   }
 
