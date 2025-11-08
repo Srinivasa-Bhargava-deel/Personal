@@ -1,0 +1,87 @@
+Below is a single, self-contained prompt you can paste into a new Cursor window (v1.0.3 codebase). It captures the full task sequence plus the exact todo list:
+
+```
+You are working on the “vscode-dataflow-analyzer” project (VS Code extension). The repo is currently at version 1.0.3, and clang/clang++ are installed via Homebrew with `/opt/homebrew/opt/llvm/bin` on PATH. Your mission is to evolve the project using the steps below, in order. After each major step, test and verify the extension behaves as expected (e.g., `npm run compile`, run the analyzer, etc.).
+
+1. Confirm environment:
+   - `clang --version` and `clang++ --version` return 21.1.5 (Homebrew LLVM).
+   - No extra PATH edits needed; these are already exported by ~/.bash_profile.
+
+2. Build the libclang CFG exporter from this repo:
+   - Use the C++ tool under `cpp-tools/cfg-exporter/`.
+   - Commands:
+     ```bash
+     cd cpp-tools/cfg-exporter
+     mkdir -p build && cd build
+     cmake ..
+     cmake --build .
+     ```
+   - Result: `build/cfg-exporter`.
+
+3. Integrate the exporter with the TypeScript pipeline:
+   - Update `ClangASTParser.ts` to run `cfg-exporter` (rather than `clang -analyze -Xclang -analyzer-checker=debug.DumpCFG`) and parse its JSON output to build `FunctionCFG` data.
+   - Adjust interfaces to include block ids, labels, statements, and successors/predessors as provided by the exporter, so no manual statement cleanup is needed.
+
+4. Simplify dataflow analysis:
+   - Remove string-heuristic post-processing (`transformStatements`, etc.).
+   - Ensure `populateStatementVariables` operates on clean statements; either leverage data from the C++ tool or a simple parse, since statements are now already pretty-printed by clang.
+   - Run `npm run compile` and verify no TypeScript errors.
+
+5. Test the VS Code extension:
+   - Launch (`F5`) or run extension tests.
+   - Run “Analyze Active File” on `example.cpp`. Confirm the CFG visualizer shows textbook blocks:
+     ```
+     Entry -> if block (decls + condition) -> then/else -> join -> exit
+     ```
+   - Ensure block info lists clean statements, correct liveness in/out, readable reaching definitions.
+
+6. Update cloning/building docs:
+   - Provide instructions in README/HOW_TO_RUN: building the exporter, prerequisites (`brew install llvm`), etc.
+
+7. Run `npm run compile` and full analyzer once more to confirm.
+
+8. Prepare git commit:
+   - Add new C++ files, TypeScript changes, documentation updates.
+   - Commit message suggestion: “Integrate libclang CFG exporter for accurate CFG/dataflow (v1.1.0)”
+   - Push to the main branch when ready.
+
+During all edits, keep the open TODO list in mind:
+
+“Fix CFG visualizer display and functionality issues (in progress)”
+“Fix liveness analysis display - Liveness information not showing in block details”
+“Fix reaching definitions display - Source code locations not appearing in blocks”
+“Fix/add taint analysis display - Tainted variables not highlighted properly”
+“Review project docs without deleting - Update README.md, QUICK_START.md, etc. to reflect current capabilities”
+“Add progress documentation - Document what's working vs. what needs work”
+“Add pending features to todo list - After documentation review, identify next development priorities”
+“Successfully pushed v1.0.3 to GitHub with enhanced dataflow analysis (completed)”
+
+Follow these steps in order, verifying each change builds and runs cleanly, and use the todo items to help track remaining work.
+```
+
+Copy, paste, and give that prompt to the next Cursor instance to continue development from v1.0.3 onward.
+
+=========
+FINAL MERGED TODO LIST
+PHASE 1: ENVIRONMENT & BUILD
+COMPLETED - GPT - Confirm environment: verify clang --version and clang++ --version return Homebrew LLVM 21.1.5
+COMPLETED - GPT - Build cpp-tools/cfg-exporter using CMake to produce build/cfg-exporter binary
+PHASE 2: INTEGRATION & CODE
+COMPLETED - GPT - Integrate cfg-exporter with ClangASTParser.ts and update interfaces for JSON-based CFG
+COMPLETED - GPT - Simplify dataflow analysis to rely on exporter statements and clean populateStatementVariables
+PHASE 3: TESTING & VALIDATION
+IN PROGRESS - human+GPT - Test VS Code extension on example.cpp ensuring CFG visualizer and analyses look correct
+IN PROGRESS - human+GPT - Fix CFG visualizer display and functionality issues
+PHASE 4: DATAFLOW ANALYSIS FIXES
+PENDING - GPT - Fix liveness analysis display - Liveness information not showing in block details
+PENDING - GPT - Fix reaching definitions display - Source code locations not appearing in blocks
+PENDING - GPT - Fix/add taint analysis display - Tainted variables not highlighted properly
+PHASE 5: DOCUMENTATION
+PENDING - GPT - Update README/HOW_TO_RUN with exporter build and prerequisite instructions
+PENDING - GPT - Review project docs without deleting - Update README.md, QUICK_START.md, etc. to reflect current capabilities
+PENDING - GPT - Add progress documentation - Document what's working vs. what needs work
+PENDING - GPT - Add pending features to todo list - After documentation review, identify next development priorities
+PHASE 6: FINAL CHECKS & RELEASE
+PENDING - GPT - Run npm run compile and analyzer once more to confirm everything passes
+PENDING - GPT - Prepare git commit and push (v1.1.0) with all code and documentation changes
+COMPLETED - GPT - Successfully pushed v1.0.3 to GitHub with enhanced dataflow analysis

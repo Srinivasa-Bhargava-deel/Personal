@@ -1,5 +1,16 @@
 /**
- * Main analyzer orchestrator
+ * Main analyzer orchestrator for the dataflow analysis pipeline.
+ * 
+ * This class coordinates all dataflow analysis components:
+ * - Parsing C++ code using the enhanced CPP parser
+ * - Running liveness analysis (backward dataflow)
+ * - Running reaching definitions analysis (forward dataflow)
+ * - Running taint analysis (forward propagation)
+ * - Running security vulnerability detection
+ * - Managing and persisting analysis state
+ * 
+ * The analyzer follows the academic dataflow analysis theory from
+ * "Engineering a Compiler" (Cooper & Torczon) and the "Dragon Book" (Aho, Sethi, Ullman).
  */
 
 import * as vscode from 'vscode';
@@ -19,17 +30,49 @@ import {
   AnalysisConfig
 } from '../types';
 
+/**
+ * DataflowAnalyzer orchestrates all static analysis components.
+ * 
+ * Responsibilities:
+ * 1. Parse C++ source files into Control Flow Graphs (CFGs)
+ * 2. Execute dataflow analyses on CFGs
+ * 3. Aggregate analysis results
+ * 4. Manage and persist analysis state
+ * 5. Report security vulnerabilities
+ */
 export class DataflowAnalyzer {
+  // Parser for converting C++ source into CFG structure
   private parser: EnhancedCPPParser;
+  
+  // Liveness analysis: determines which variables are "live" at each program point
   private livenessAnalyzer: LivenessAnalyzer;
+  
+  // Reaching definitions analysis: tracks where variable definitions propagate
   private reachingDefinitionsAnalyzer: ReachingDefinitionsAnalyzer;
+  
+  // Taint analysis: tracks flow of potentially malicious/unsafe data
   private taintAnalyzer: TaintAnalyzer;
+  
+  // Security analysis: detects vulnerable code patterns
   private securityAnalyzer: SecurityAnalyzer;
+  
+  // State persistence layer: saves/loads analysis results
   private stateManager: StateManager;
+  
+  // User-provided configuration for analysis behavior
   private config: AnalysisConfig;
+  
+  // Current analysis results cached in memory
   private currentState: AnalysisState | null = null;
 
+  /**
+   * Initialize the analyzer with workspace context and configuration.
+   * 
+   * @param workspacePath - Absolute path to the workspace root
+   * @param config - Analysis configuration options (enable/disable specific analyses)
+   */
   constructor(workspacePath: string, config: AnalysisConfig) {
+    // Initialize all analysis components
     this.parser = new EnhancedCPPParser();
     this.livenessAnalyzer = new LivenessAnalyzer();
     this.reachingDefinitionsAnalyzer = new ReachingDefinitionsAnalyzer();
@@ -38,7 +81,7 @@ export class DataflowAnalyzer {
     this.stateManager = new StateManager(workspacePath);
     this.config = config;
     
-    // Load existing state
+    // Load existing state from disk, or create empty state if none exists
     this.currentState = this.stateManager.loadState();
     if (!this.currentState) {
       this.currentState = this.createEmptyState(workspacePath);
@@ -46,32 +89,46 @@ export class DataflowAnalyzer {
   }
 
   /**
-   * Analyze entire workspace
+   * Analyze entire workspace for dataflow vulnerabilities.
+   * 
+   * This method orchestrates the full analysis pipeline:
+   * 1. Find all C++ source files in the workspace
+   * 2. Parse each file and extract Control Flow Graphs (CFGs)
+   * 3. Run dataflow analyses (liveness, reaching definitions, taint)
+   * 4. Detect security vulnerabilities
+   * 5. Aggregate results and persist state
+   * 
+   * @returns Promise<AnalysisState> - Complete analysis results for the workspace
    */
   async analyzeWorkspace(): Promise<AnalysisState> {
     const workspacePath = this.currentState!.workspacePath;
-    // If there's an active C/C++ editor, analyze only that file to avoid pulling in library functions
+    
+    // Optimization: If there's an active C/C++ editor, analyze only that file
+    // This avoids pulling in library headers which clutter the analysis
     try {
       const active = vscode.window.activeTextEditor;
       if (active && (active.document.languageId === 'cpp' || active.document.languageId === 'c')) {
         return await this.analyzeSpecificFiles([active.document.uri.fsPath]);
       }
     } catch {
-      // Fall through to workspace analysis
+      // Fall through to workspace analysis if single-file analysis fails
     }
     
+    // Initialize global CFG structure for all functions across all files
     const cfg: CFG = {
-      entry: 'global_entry',
-      exit: 'global_exit',
-      blocks: new Map(),
-      functions: new Map()
+      entry: 'global_entry',      // Global entry point
+      exit: 'global_exit',        // Global exit point
+      blocks: new Map(),          // All basic blocks in workspace
+      functions: new Map()        // All function CFGs: funcName -> FunctionCFG
     };
 
+    // Track analysis state for each file in workspace
     const fileStates = new Map<string, FileAnalysisState>();
 
-    // Find all C++ files
+    // STEP 1: Find all C++ files in workspace
     const cppFiles = await this.findCppFiles(workspacePath);
     
+    // STEP 2: Parse each file and extract CFGs
     for (const filePath of cppFiles) {
       try {
         const fileState = await this.analyzeFile(filePath, cfg);
@@ -81,11 +138,12 @@ export class DataflowAnalyzer {
       }
     }
 
-    // Perform analyses
-    const liveness = new Map();
-    const reachingDefinitions = new Map();
-    const taintAnalysis = new Map();
-    const vulnerabilities = new Map();
+    // STEP 3: Initialize analysis result maps
+    // Each analysis computes results for each block in each function
+    const liveness = new Map();                    // Block liveness: IN/OUT sets
+    const reachingDefinitions = new Map();         // Definition propagation: IN/OUT sets
+    const taintAnalysis = new Map();               // Taint propagation results
+    const vulnerabilities = new Map();             // Detected security vulnerabilities
 
     cfg.functions.forEach((funcCFG, funcName) => {
       if (this.config.enableLiveness) {
@@ -544,45 +602,61 @@ export class DataflowAnalyzer {
   }
 
   /**
-   * Analyze variables in a statement (academic program analysis approach)
-   * Based on standard compiler construction and data flow analysis principles
+   * Analyze a single statement to extract defined and used variables.
+   * 
+   * This method is critical for reaching definitions analysis.
+   * It identifies:
+   * - Variables DEFINED by this statement (appear on LHS of assignment or in declaration)
+   * - Variables USED by this statement (appear on RHS or in expressions)
+   * 
+   * Academic Definition:
+   * - DEF[S]: Set of variables assigned values by statement S
+   * - USE[S]: Set of variables whose values are read by statement S
+   * 
+   * For reaching definitions analysis:
+   * - GEN[B] = union of DEF[S] for all statements S in block B
+   * - KILL[B] = all definitions of variables that appear in GEN[B]
+   * 
+   * @param content - Raw statement from CFG output
+   * @returns Object with 'defined' and 'used' variable arrays
    */
   private analyzeStatementVariables(content: string): { defined: string[]; used: string[] } {
     const trimmed = content.trim();
     const variables = { defined: [] as string[], used: [] as string[] };
 
     // Extract the actual statement content from clang CFG format
-    // Format: "1: statement" or just "statement"
+    // CFG statements have format: "1: statement" or just "statement"
     let cleanContent = trimmed;
 
-    // Remove statement numbers: "1: statement" -> "statement"
+    // STEP 1: Remove statement numbers
+    // Example: "1: int x = 5;" becomes "int x = 5;"
     cleanContent = cleanContent.replace(/^\d+:\s*/, '');
 
-    // For clang CFG statements, we need to identify the actual variable/operation
-    // Remove clang-specific artifacts but preserve the core statement
+    // STEP 2: Remove clang-specific CFG artifacts
+    // Clang wraps expressions with implicit casts and type conversions
+    // We need to extract the actual operation while ignoring type machinery
     if (cleanContent.includes('[B') && cleanContent.includes(']')) {
-      // Handle complex expressions like "[B1.6]([B1.7])" - extract the core operation
+      // Handle complex expressions like "[B1.6]([B1.7])"
       const bracketMatch = cleanContent.match(/\[B\d+\.\d+\]\s*\(([^)]*)\)/);
       if (bracketMatch) {
         const inner = bracketMatch[1];
-        // Check for implicit casts
-        if (inner.includes('ImplicitCastExpr') || inner.includes('LValueToRValue') || inner.includes('FunctionToPointerDecay') || inner.includes('ArrayToPointerDecay')) {
-          // This is just a cast/pointer operation, remove it
+        // Check if inner is just type casting (not real operation)
+        if (inner.includes('ImplicitCastExpr') || inner.includes('LValueToRValue') || 
+            inner.includes('FunctionToPointerDecay') || inner.includes('ArrayToPointerDecay')) {
+          // Discard - this is just a cast, no real operation
           cleanContent = '';
         } else {
-          // This might be an actual operation, keep the inner content
+          // Keep the inner content - it's a real operation
           cleanContent = inner;
         }
       } else {
-        // Remove bracket references but keep the actual identifier
+        // Remove bracket references like [B1.6] but keep the rest
         cleanContent = cleanContent.replace(/\[B\d+\.\d+\]/g, '').trim();
       }
     }
 
-    // Remove quotes from string literals but keep the content type
+    // STEP 3: Remove string literals and remaining clang artifacts
     cleanContent = cleanContent.replace(/^"([^"]*)"$/, '$1');
-
-    // Remove remaining clang artifacts
     cleanContent = cleanContent.replace(/\(ImplicitCastExpr[^)]*\)/g, '');
     cleanContent = cleanContent.replace(/\(LValueToRValue[^)]*\)/g, '');
     cleanContent = cleanContent.replace(/\(FunctionToPointerDecay[^)]*\)/g, '');
@@ -592,17 +666,24 @@ export class DataflowAnalyzer {
 
     console.log(`Analyzing statement: "${trimmed}" -> cleaned: "${cleanContent}"`);
 
-    // First, check if this is a declaration statement: int x = value or int x;
+    // STEP 4: Check for DECLARATION statement first
+    // Critical fix (v1.1): Declarations must be checked BEFORE assignments
+    // because "int x = 5" contains '=' but should be handled as a declaration
+    // Example match: "int result = n * factorial(n - 1);"
+    // Groups: 1=type, 2=varname, 3=initializer
     const declMatch = cleanContent.match(/\b(int|float|double|char|bool|long|short|unsigned)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=\s*(.+))?/);
     if (declMatch) {
-      variables.defined.push(declMatch[2]); // Variable name
+      // Variable is DEFINED by this declaration
+      variables.defined.push(declMatch[2]); // Group 2 = variable name
       console.log(`Declared variable: ${declMatch[2]}`);
 
-      if (declMatch[3]) { // Has initialization
+      // If there's an initializer expression, extract variables USED in it
+      if (declMatch[3]) { // Group 3 = initializer expression
         this.extractVariablesFromExpression(declMatch[3], variables.used);
       }
     }
-    // Assignment statement: identifier = expression (but NOT a declaration)
+    // STEP 5: Check for plain ASSIGNMENT statement
+    // Only reached if NOT a declaration statement
     else if (cleanContent.includes('=') && !cleanContent.includes('==') && !cleanContent.includes('!=')) {
       // Split on '=' to get LHS (defined) and RHS (used)
       const parts = cleanContent.split('=');

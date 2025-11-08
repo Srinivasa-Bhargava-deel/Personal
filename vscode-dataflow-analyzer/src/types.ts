@@ -22,10 +22,10 @@ export interface BasicBlock {
 }
 
 export interface Statement {
-  id: string;
-  type: StatementType;
+  id?: string;
+  type?: StatementType;
   text: string;
-  range: Range;
+  range?: Range;
   variables?: {
     defined: string[];
     used: string[];
@@ -67,8 +67,12 @@ export interface ReachingDefinition {
   variable: string;
   definitionId: string;
   blockId: string;
-  statementId: string;
-  range: Range;
+  statementId?: string;
+  range?: Range;
+  // History tracking: shows the path of this definition through the CFG
+  sourceBlock?: string;        // Original block where definition was created
+  propagationPath?: string[];  // Path from source to current block: [B0 -> B1 -> B2]
+  killed?: boolean;            // Whether this definition was killed
 }
 
 export interface ReachingDefinitionsInfo {

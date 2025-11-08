@@ -168,7 +168,7 @@ export class SecurityAnalyzer {
             const taintInfo = taintAnalysis.get(varName);
             if (taintInfo && taintInfo.some(t => t.tainted)) {
               const taint = taintInfo.find(t => t.tainted)!;
-              const sourceToSinkPath = [...taint.propagationPath, `${blockId}:${stmt.id}`];
+              const sourceToSinkPath = [...taint.propagationPath, `${blockId}:${stmt.id || 'unknown'}`];
 
               vulnerabilities.push({
                 id: `vuln_${vulnId++}`,
@@ -176,10 +176,10 @@ export class SecurityAnalyzer {
                 severity: this.getSeverityForType(vulnType),
                 location: {
                   file: filePath,
-                  line: stmt.range.start.line,
-                  column: stmt.range.start.column,
+                  line: stmt.range?.start.line || 0,
+                  column: stmt.range?.start.column || 0,
                   blockId,
-                  statementId: stmt.id
+                  statementId: stmt.id || `stmt_${blockId}`
                 },
                 description: `Tainted data from "${taint.source}" reaches unsafe function "${funcName}"`,
                 sourceToSinkPath,
@@ -221,13 +221,13 @@ export class SecurityAnalyzer {
                 severity: Severity.HIGH,
                 location: {
                   file: filePath,
-                  line: stmt.range.start.line,
-                  column: stmt.range.start.column,
+                  line: stmt.range?.start.line || 0,
+                  column: stmt.range?.start.column || 0,
                   blockId,
-                  statementId: stmt.id
+                  statementId: stmt.id || `stmt_${blockId}`
                 },
                 description: `Unsafe buffer operation "${funcName}" without bounds checking`,
-                sourceToSinkPath: [`${blockId}:${stmt.id}`],
+                sourceToSinkPath: [`${blockId}:${stmt.id || 'unknown'}`],
                 exploitability: Exploitability.PROBABLY_EXPLOITABLE,
                 cweId: 'CWE-120',
                 recommendation: `Replace ${funcName} with safer alternative (e.g., strncpy, snprintf) or add bounds checking`
@@ -271,13 +271,13 @@ export class SecurityAnalyzer {
                   severity: Severity.CRITICAL,
                   location: {
                     file: filePath,
-                    line: stmt.range.start.line,
-                    column: stmt.range.start.column,
+                    line: stmt.range?.start.line || 0,
+                    column: stmt.range?.start.column || 0,
                     blockId,
-                    statementId: stmt.id
+                    statementId: stmt.id || `stmt_${blockId}`
                   },
                   description: `Use of pointer "${varName}" after it was freed at block ${freedAt}`,
-                  sourceToSinkPath: [freedAt, `${blockId}:${stmt.id}`],
+                  sourceToSinkPath: [freedAt, `${blockId}:${stmt.id || 'unknown'}`],
                   exploitability: Exploitability.EXPLOITABLE,
                   cweId: 'CWE-416',
                   recommendation: 'Set pointer to NULL after free() and check for NULL before use'
@@ -311,13 +311,13 @@ export class SecurityAnalyzer {
                 severity: Severity.HIGH,
                 location: {
                   file: filePath,
-                  line: stmt.range.start.line,
-                  column: stmt.range.start.column,
+                  line: stmt.range?.start.line || 0,
+                  column: stmt.range?.start.column || 0,
                   blockId,
-                  statementId: stmt.id
+                  statementId: stmt.id || `stmt_${blockId}`
                 },
                 description: `Double free detected for pointer "${ptrVar}"`,
-                sourceToSinkPath: [`${blockId}:${stmt.id}`],
+                sourceToSinkPath: [`${blockId}:${stmt.id || 'unknown'}`],
                 exploitability: Exploitability.EXPLOITABLE,
                 cweId: 'CWE-415',
                 recommendation: 'Set pointer to NULL after free() to prevent double free'
@@ -362,13 +362,13 @@ export class SecurityAnalyzer {
                 severity: Severity.HIGH,
                 location: {
                   file: filePath,
-                  line: stmt.range.start.line,
-                  column: stmt.range.start.column,
+                  line: stmt.range?.start.line || 0,
+                  column: stmt.range?.start.column || 0,
                   blockId,
-                  statementId: stmt.id
+                  statementId: stmt.id || `stmt_${blockId}`
                 },
                 description: `Format string in "${funcName}" may be controlled by user input`,
-                sourceToSinkPath: [`${blockId}:${stmt.id}`],
+                sourceToSinkPath: [`${blockId}:${stmt.id || 'unknown'}`],
                 exploitability: Exploitability.EXPLOITABLE,
                 cweId: 'CWE-134',
                 recommendation: 'Use format string literals or validate format string input'
@@ -403,13 +403,13 @@ export class SecurityAnalyzer {
               severity: Severity.MEDIUM,
               location: {
                 file: filePath,
-                line: stmt.range.start.line,
-                column: stmt.range.start.column,
+                line: stmt.range?.start.line || 0,
+                column: stmt.range?.start.column || 0,
                 blockId,
-                statementId: stmt.id
+                statementId: stmt.id || `stmt_${blockId}`
               },
               description: `Unsafe function "${funcName}" detected`,
-              sourceToSinkPath: [`${blockId}:${stmt.id}`],
+              sourceToSinkPath: [`${blockId}:${stmt.id || 'unknown'}`],
               exploitability: Exploitability.UNKNOWN,
               cweId: this.getCWEForType(vulnType),
               recommendation: `Consider using safer alternative for ${funcName}`
@@ -447,13 +447,13 @@ export class SecurityAnalyzer {
                 severity: Severity.MEDIUM,
                 location: {
                   file: filePath,
-                  line: stmt.range.start.line,
-                  column: stmt.range.start.column,
+                  line: stmt.range?.start.line || 0,
+                  column: stmt.range?.start.column || 0,
                   blockId,
-                  statementId: stmt.id
+                  statementId: stmt.id || `stmt_${blockId}`
                 },
                 description: `Use of potentially uninitialized variable "${varName}"`,
-                sourceToSinkPath: [`${blockId}:${stmt.id}`],
+                sourceToSinkPath: [`${blockId}:${stmt.id || 'unknown'}`],
                 exploitability: Exploitability.PROBABLY_NOT_EXPLOITABLE,
                 cweId: 'CWE-457',
                 recommendation: 'Initialize variable before use'

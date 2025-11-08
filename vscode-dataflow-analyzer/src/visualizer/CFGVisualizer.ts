@@ -233,6 +233,78 @@ export class CFGVisualizer {
   }
 
   /**
+   * Get blocks in topological order (academic CFG standard)
+   * Entry block first, then all other blocks in BFS order, Exit block last
+   */
+  private getTopologicalOrder(funcCFG: FunctionCFG): string[] {
+    const ordered: string[] = [];
+    const visited = new Set<string>();
+    const queue: string[] = [];
+
+    // Find entry block
+    let entryBlockId = funcCFG.entry;
+    if (!entryBlockId && funcCFG.blocks.size > 0) {
+      // Fallback: find block with no predecessors
+      for (const [id, block] of funcCFG.blocks) {
+        if (block.predecessors.length === 0) {
+          entryBlockId = id;
+          break;
+        }
+      }
+    }
+
+    // Start BFS from entry block
+    if (entryBlockId) {
+      queue.push(entryBlockId);
+      visited.add(entryBlockId);
+      ordered.push(entryBlockId);
+
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        const block = funcCFG.blocks.get(current);
+        
+        if (block) {
+          // Add successors to queue in a deterministic order
+          const successors = [...block.successors].sort();
+          for (const succId of successors) {
+            if (!visited.has(succId)) {
+              visited.add(succId);
+              queue.push(succId);
+              
+              // Add non-exit blocks to ordered list
+              const succBlock = funcCFG.blocks.get(succId);
+              if (succBlock && !succBlock.label.includes('Exit')) {
+                ordered.push(succId);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Add any unvisited blocks (shouldn't happen in well-formed CFG)
+    for (const [id, block] of funcCFG.blocks) {
+      if (!visited.has(id)) {
+        ordered.push(id);
+      }
+    }
+
+    // Ensure exit block is last
+    const exitBlockId = funcCFG.exit;
+    if (exitBlockId && ordered.includes(exitBlockId)) {
+      // Remove exit block and re-add at end
+      const index = ordered.indexOf(exitBlockId);
+      ordered.splice(index, 1);
+    }
+    if (exitBlockId) {
+      ordered.push(exitBlockId);
+    }
+
+    console.log(`[CFGVisualizer] Topological order for ${funcCFG.name}: [${ordered.join(', ')}]`);
+    return ordered;
+  }
+
+  /**
    * Prepare graph data for visualization
    */
   private async prepareGraphData(funcCFG: FunctionCFG, state: AnalysisState): Promise<any> {
@@ -270,7 +342,12 @@ export class CFGVisualizer {
       }
     });
 
-    for (const [blockId, block] of funcCFG.blocks) {
+    // Reorder blocks in topological order (academic CFG standard)
+    const orderedBlockIds = this.getTopologicalOrder(funcCFG);
+
+    for (const blockId of orderedBlockIds) {
+      const block = funcCFG.blocks.get(blockId);
+      if (!block) continue;
       // Get analysis info
       const livenessKey = `${funcCFG.name}_${blockId}`;
       const liveness = state.liveness.get(livenessKey);
