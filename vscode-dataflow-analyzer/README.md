@@ -5,10 +5,10 @@ A comprehensive VSCode extension for real-time incremental static/dataflow analy
 ## 🎯 Overview
 
 This extension provides powerful static analysis capabilities for C++ codebases, focusing on:
-- **Control Flow Graph (CFG) Visualization** - Interactive real-time CFG building
-- **Dataflow Analysis** - Liveness, reaching definitions, and taint analysis
+- **Control Flow Graph (CFG) Visualization** - Interactive real-time CFG building using official Clang/LLVM libraries
+- **Dataflow Analysis** - Liveness, reaching definitions, and taint analysis with full propagation tracking
 - **Security Vulnerability Detection** - Automated detection of common vulnerabilities
-- **Attack Path Visualization** - Source-to-sink path tracking for exploit analysis ⭐ NEW
+- **Attack Path Visualization** - Source-to-sink path tracking for exploit analysis
 - **Exploit Post-Mortem Support** - Tools for analyzing and understanding security vulnerabilities
 
 Perfect for security researchers, developers, and code reviewers who need to understand dataflow and identify security vulnerabilities in C++ code.
@@ -21,16 +21,20 @@ Perfect for security researchers, developers, and code reviewers who need to und
    - Determines which variables are live at each program point
    - Backward dataflow analysis with iterative fixed-point algorithm
    - Visualized in CFG with live-in and live-out sets
+   - Academic-correct implementation per Cooper & Torczon
 
-2. **Reaching Definitions Analysis**
-   - Tracks where variable definitions reach
-   - Forward dataflow analysis
-   - Identifies all definitions that can reach a use
+2. **Reaching Definitions Analysis** ⭐ NEW (v1.1)
+   - Tracks where variable definitions reach through the program
+   - Forward dataflow analysis with full propagation history
+   - Shows definition-to-use chains with complete path tracking
+   - Identifies all definitions that can reach each use point
+   - Displays propagation paths showing CFG traversal
 
 3. **Taint Analysis**
    - Tracks tainted data flow from sources (user input, network, etc.)
    - Forward propagation through assignments
    - Identifies security-sensitive data flows
+   - Integration with reaching definitions for path tracking
 
 4. **Security Vulnerability Detection**
    - Buffer overflow detection
@@ -44,7 +48,7 @@ Perfect for security researchers, developers, and code reviewers who need to und
    - Uninitialized variable usage
    - And more...
 
-5. **Source-to-Sink Path Visualization** ⭐ NEW
+5. **Source-to-Sink Path Visualization**
    - Highlights complete attack paths from taint sources to security sinks
    - Color-coded paths based on vulnerability severity
    - Interactive path highlighting and navigation
@@ -58,6 +62,7 @@ Perfect for security researchers, developers, and code reviewers who need to und
   - Click blocks to see detailed analysis information
   - Color-coded nodes (tainted blocks, attack paths)
   - Hierarchical layout with vis-network
+  - Topologically sorted blocks for academic correctness
 
 - **Vulnerability Dashboard**
   - List all detected vulnerabilities
@@ -78,10 +83,11 @@ Perfect for security researchers, developers, and code reviewers who need to und
 
 ### Technical Features
 
-- **Clang AST Integration (C++ only)**
-  - Uses clang AST for accurate parsing
-  - Automatic detection of clang installation
-  - Note: This build uses clang-only parsing (no fallback)
+- **Official Clang/LLVM Integration**
+  - Uses `clang::CFG::buildCFG()` for accurate CFG generation
+  - `cfg-exporter` C++ tool for theoretically sound CFGs
+  - Direct libclang/LLVM integration
+  - Ensures academic correctness
 
 - **Incremental Analysis**
   - Updates only changed files
@@ -101,252 +107,55 @@ Perfect for security researchers, developers, and code reviewers who need to und
 - **Node.js**: Version 20.0.0 or higher (for development)
 - **TypeScript**: Version 5.0.0 or higher (for development)
 
-### Optional (Recommended)
+### Required (for CFG generation)
 
-- **clang/clang++**: For accurate AST parsing
-  - macOS: Usually comes with Xcode Command Line Tools (`xcode-select --install`)
+- **clang/clang++**: Version 21.1.5 or higher (from Homebrew recommended)
+  - macOS: Install via `brew install llvm` or use Xcode Command Line Tools
   - Linux: Install via package manager (`apt-get install clang` or `yum install clang`)
-  - Windows: Install LLVM/Clang from [llvm.org](https://llvm.org/)
+  - Windows: Install from [llvm.org](https://llvm.org/)
 
-The extension will automatically detect clang and use it if available. If not found, it falls back to a primitive parser.
+- **CMake**: Version 3.16 or higher (required for building cfg-exporter)
+  - macOS: `brew install cmake`
+  - Linux: `sudo apt-get install cmake` or `sudo yum install cmake`
+  - Windows: Download from [cmake.org](https://cmake.org/)
 
 ## 🚀 Installation & Build Instructions
 
-### Prerequisites
+**See [BUILD_AND_RUN_LAUNCH.md](BUILD_AND_RUN_LAUNCH.md) for platform-specific detailed instructions (macOS/Windows/Linux).**
 
-Before building, ensure you have:
+### Quick Build Summary
 
-1. **Node.js** (v20.0.0 or higher)
+1. **Install System Dependencies**
    ```bash
-   node --version  # Should show v20.x.x or higher
+   # macOS
+   brew install llvm cmake node
+   
+   # Linux (Ubuntu/Debian)
+   sudo apt-get install clang clang++ cmake build-essential nodejs
+   
+   # Windows: Install from https://llvm.org, https://cmake.org, https://nodejs.org
    ```
 
-2. **npm** (comes with Node.js)
+2. **Build CFG Exporter**
    ```bash
-   npm --version
+   cd cpp-tools/cfg-exporter
+   mkdir -p build && cd build
+   cmake ..
+   cmake --build .
    ```
 
-3. **TypeScript** (will be installed as dev dependency)
+3. **Build TypeScript Extension**
    ```bash
-   npm install -g typescript  # Optional, for global tsc command
-   ```
-
-4. **VSCode** (v1.80.0 or higher)
-   - Download from [code.visualstudio.com](https://code.visualstudio.com/)
-
-5. **clang** (Optional but recommended)
-   - macOS: `xcode-select --install`
-   - Linux: `sudo apt-get install clang` or `sudo yum install clang`
-   - Windows: Download from [llvm.org](https://llvm.org/)
-
-### Building from Source
-
-#### Step 1: Clone or Navigate to Project
-
-```bash
-cd /path/to/vscode-dataflow-analyzer
-```
-
-#### Step 2: Install Dependencies
-
-```bash
-npm install
-```
-
-This will install all required dependencies including:
-- TypeScript compiler
-- VSCode extension API types
-- ESLint and TypeScript ESLint plugins
-- Other development dependencies
-
-#### Step 3: Compile TypeScript
-
-```bash
-npm run compile
-```
-
-This compiles all TypeScript files in `src/` to JavaScript in `out/`.
-
-**Expected output:**
-- `out/` directory created with compiled `.js` files
-- Source maps (`.js.map`) for debugging
-- No compilation errors
-
-#### Step 4: Verify Build
-
-Check that compilation succeeded:
-
-```bash
-ls out/
-# Should see: extension.js, analyzer/, visualizer/, state/, types.js
-```
-
-### Running the Extension
-
-#### Method 1: Extension Development Host (Recommended for Development)
-
-1. **Open Project in VSCode:**
-   ```bash
-   code .
-   ```
-
-2. **Open Debug View:**
-   - Press `F5` OR
-   - Click "Run and Debug" in sidebar OR
-   - Go to Run → Start Debugging
-
-3. **Select Configuration:**
-   - Choose "Extension" from the debug configuration dropdown
-   - This launches a new VSCode window (Extension Development Host)
-
-4. **In the Extension Development Host:**
-   - Open a folder containing C++ source files (.cpp/.c)
-   - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
-   - Type "Analyze Workspace" (analyzes entire workspace; excludes libraries/headers by default)
-   - Or type "Analyze Active File" (analyzes only the currently open source file)
-   - Type "Show Control Flow Graph" to open the visualizer
-
-#### Method 2: Watch Mode (For Active Development)
-
-For continuous compilation during development:
-
-```bash
-npm run watch
-```
-
-This watches for file changes and recompiles automatically. Then press `F5` in VSCode to launch the extension.
-
-#### Method 3: Package and Install (For Distribution)
-
-1. **Install vsce (VSCode Extension Manager):**
-   ```bash
-   npm install -g vsce
-   ```
-
-2. **Package the Extension:**
-   ```bash
-   npm run compile  # Ensure latest build
-   vsce package
-   ```
-
-   This creates `vscode-dataflow-analyzer-1.0.0.vsix`
-
-3. **Install the VSIX:**
-   - In VSCode, press `Ctrl+Shift+P` (or `Cmd+Shift+P`)
-   - Type "Install from VSIX..."
-   - Select the `.vsix` file
-
-### Development Workflow
-
-1. **Make Changes:**
-   - Edit TypeScript files in `src/`
-   - Save files
-
-2. **Compile:**
-   ```bash
+   cd /path/to/vscode-dataflow-analyzer
+   npm install
    npm run compile
    ```
-   Or use watch mode: `npm run watch`
 
-3. **Reload Extension:**
-   - In Extension Development Host, press `Ctrl+R` (or `Cmd+R`)
-   - Or stop and restart debug session (`F5`)
-
-4. **Test:**
-   - Open a C++ file
-   - Run "Analyze Workspace"
-   - Check results in CFG visualizer
-
-### Troubleshooting Build Issues
-
-#### Issue: TypeScript compilation errors
-
-**Solution:**
-```bash
-# Clean and rebuild
-rm -rf out/
-npm run compile
-```
-
-#### Issue: Module not found errors
-
-**Solution:**
-```bash
-# Reinstall dependencies
-rm -rf node_modules package-lock.json
-npm install
-```
-
-#### Issue: Extension doesn't activate
-
-**Check:**
-- VSCode version is 1.80.0+
-- Node.js version is 20.0.0+
-- All dependencies installed (`npm install`)
-- TypeScript compiled successfully (`npm run compile`)
-
-#### Issue: clang not found warnings
-
-**Solution:**
-- Install clang (see Prerequisites)
-- Or ignore - extension will use primitive parser
-- Check console output for parser being used
-
-### Build Scripts Reference
-
-- `npm run compile` - Compile TypeScript once
-- `npm run watch` - Watch mode (continuous compilation)
-- `npm run lint` - Run ESLint
-- `npm test` - Run tests (if configured)
-- `npm run vscode:prepublish` - Prepare for publishing (runs compile)
-
-### Project Structure After Build
-
-```
-vscode-dataflow-analyzer/
-├── src/                    # TypeScript source files
-├── out/                    # Compiled JavaScript (generated)
-│   ├── extension.js       # Main entry point
-│   ├── analyzer/          # Analysis modules
-│   ├── visualizer/        # Visualization modules
-│   ├── state/             # State management
-│   └── types.js           # Type definitions
-├── node_modules/          # Dependencies (generated)
-├── package.json           # Project manifest
-├── tsconfig.json          # TypeScript config
-└── README.md              # This file
-```
-
-### Quick Start Checklist
-
-- [ ] Node.js 20+ installed
-- [ ] npm installed
-- [ ] VSCode 1.80+ installed
-- [ ] Cloned/navigated to project directory
-- [ ] Ran `npm install`
-- [ ] Ran `npm run compile` (no errors)
-- [ ] Opened project in VSCode
-- [ ] Pressed `F5` to launch Extension Development Host
-- [ ] Opened a C++ workspace in Extension Development Host
-- [ ] Ran "Analyze Workspace" command
-- [ ] Opened CFG visualizer
-
-### Next Steps After Building
-
-1. **Test with Example Code:**
-   - Use the provided `example.cpp` file
-   - Or create your own C++ test files
-
-2. **Explore Features:**
-   - Run analysis on your codebase
-   - View CFG visualization
-   - Check vulnerability detection
-   - Explore attack paths
-
-3. **Customize:**
-   - Adjust settings in VSCode preferences
-   - Modify analysis configurations
-   - Extend vulnerability patterns
+4. **Run Extension**
+   - Open project in VSCode: `code .`
+   - Press `F5` to launch Extension Development Host
+   - Open a C++ workspace
+   - Run "Analyze Workspace" command
 
 ## 📖 Usage
 
@@ -407,20 +216,27 @@ vscode-dataflow-analyzer/
 ├── src/
 │   ├── analyzer/
 │   │   ├── CPPParser.ts              # Primitive parser (fallback)
-│   │   ├── EnhancedCPPParser.ts      # Main parser using clang AST
-│   │   ├── ClangASTParser.ts         # Clang AST parsing wrapper
+│   │   ├── EnhancedCPPParser.ts      # Main parser using CFG exporter
+│   │   ├── ClangASTParser.ts         # CFG exporter wrapper (uses libclang)
 │   │   ├── DataflowAnalyzer.ts       # Main orchestrator
-│   │   ├── LivenessAnalyzer.ts       # Liveness analysis
-│   │   ├── ReachingDefinitionsAnalyzer.ts  # Reaching definitions
-│   │   ├── TaintAnalyzer.ts          # Taint analysis
-│   │   └── SecurityAnalyzer.ts       # Vulnerability detection
+│   │   ├── LivenessAnalyzer.ts       # Liveness analysis (backward DFA)
+│   │   ├── ReachingDefinitionsAnalyzer.ts  # Reaching definitions (forward DFA)
+│   │   ├── TaintAnalyzer.ts          # Taint analysis (forward propagation)
+│   │   └── SecurityAnalyzer.ts       # Vulnerability detection & attack path
 │   ├── visualizer/
-│   │   └── CFGVisualizer.ts          # CFG webview visualizer
+│   │   └── CFGVisualizer.ts          # CFG webview visualizer (vis-network)
 │   ├── state/
-│   │   └── StateManager.ts           # State persistence
-│   ├── types.ts                      # Type definitions
+│   │   └── StateManager.ts           # State persistence (.vscode/dataflow-state.json)
+│   ├── types.ts                      # Type definitions (CFG, Analysis, etc.)
 │   └── extension.ts                  # Extension entry point
-├── out/                              # Compiled JavaScript
+├── cpp-tools/
+│   └── cfg-exporter/                 # C++ CFG exporter tool
+│       ├── cfg-exporter.cpp          # Main CFG exporter using libclang
+│       ├── CMakeLists.txt            # CMake build configuration
+│       ├── build/
+│       │   └── cfg-exporter          # Compiled binary (after build)
+│       └── README.md                 # CFG exporter documentation
+├── out/                              # Compiled JavaScript (generated)
 ├── package.json                      # Extension manifest
 ├── tsconfig.json                     # TypeScript configuration
 └── README.md                         # This file
@@ -428,35 +244,131 @@ vscode-dataflow-analyzer/
 
 ### Key Components
 
+0. **CFG Exporter (C++ Tool)**
+   - Location: `cpp-tools/cfg-exporter/cfg-exporter.cpp`
+   - Uses official `clang::CFG::buildCFG()` from libclang
+   - Uses `clang::RecursiveASTVisitor` for AST traversal
+   - Generates CFG as JSON with blocks, statements, successors/predecessors
+   - Compiled with CMake using official LLVM/Clang libraries
+   - Ensures theoretically sound, academically correct CFGs
+
 1. **Parser Layer**
-   - `ClangASTParser`: Wraps clang command-line tool for AST parsing
-   - `EnhancedCPPParser`: Main parser that uses AST or falls back to primitive parsing
-   - Extracts functions, variables, statements, and control flow
+   - `ClangASTParser.ts`: Wraps `cfg-exporter` binary (uses official libclang)
+   - Parses JSON output from `cfg-exporter`
+   - Converts CFG data to internal ASTNode format
+   - `EnhancedCPPParser.ts`: Main parser that uses CFG exporter output
+   - Extracts functions, basic blocks, statements, and control flow
 
 2. **Analysis Layer**
-   - `LivenessAnalyzer`: Backward dataflow analysis for liveness
-   - `ReachingDefinitionsAnalyzer`: Forward dataflow analysis for reaching definitions
-   - `TaintAnalyzer`: Forward propagation of taint information
-   - `SecurityAnalyzer`: Vulnerability pattern detection
+   - **LivenessAnalyzer.ts**: Backward dataflow analysis
+     - Equation: `IN[B] = USE[B] ∪ (OUT[B] - DEF[B])`
+     - Fixed-point iteration until convergence
+     - Based on Dragon Book & Cooper & Torczon algorithms
+   
+   - **ReachingDefinitionsAnalyzer.ts**: Forward dataflow analysis
+     - Equation: `IN[B] = ∪ OUT[P] for all predecessors P`
+     - Equation: `OUT[B] = GEN[B] ∪ (IN[B] - KILL[B])`
+     - Tracks definition propagation through CFG
+     - Maintains complete path history for each definition
+     - Academic-correct implementation
+   
+   - **TaintAnalyzer.ts**: Forward propagation of taint information
+   - **SecurityAnalyzer.ts**: Vulnerability pattern detection and attack path construction
 
 3. **Visualization Layer**
-   - `CFGVisualizer`: Webview-based interactive CFG visualization
+   - `CFGVisualizer.ts`: Webview-based interactive CFG visualization
    - Uses vis-network for graph rendering
+   - Displays blocks in topological order (academic CFG standard)
+   - Shows liveness, reaching definitions, and taint information on blocks
    - Real-time updates and interactive features
+   - Color-coded blocks for vulnerability severity
 
 4. **State Management**
-   - `StateManager`: Handles persistence of analysis state
+   - `StateManager.ts`: Handles persistence of analysis state
    - JSON-based storage in `.vscode/dataflow-state.json`
    - Per-workspace state management
+   - Preserves analysis data across sessions
+
+## 📊 Technical Details
+
+### Dataflow Analysis Algorithms
+
+#### Liveness Analysis (Backward)
+
+Academic formulation based on Dragon Book (Aho, Sethi, Ullman):
+
+```
+IN[B] = USE[B] ∪ (OUT[B] - DEF[B])
+OUT[B] = ∪ IN[S] for all successors S of B
+
+Iterate until fixed point (no changes in any IN/OUT set)
+```
+
+**Implementation:**
+- Traverses CFG blocks in reverse postorder
+- Iteratively computes IN/OUT sets
+- Converges when no changes occur
+
+#### Reaching Definitions (Forward)
+
+Academic formulation based on Cooper & Torczon:
+
+```
+IN[B] = ∪ OUT[P] for all predecessors P of B
+OUT[B] = GEN[B] ∪ (IN[B] - KILL[B])
+
+GEN[B] = definitions generated in block B
+KILL[B] = definitions killed (overwritten) in block B
+
+Iterate until fixed point
+```
+
+**Implementation (v1.1):**
+- Collects all definitions in function upfront
+- Computes GEN and KILL sets for each block
+- Iteratively propagates definitions
+- Tracks propagation path for each definition: `sourceBlock -> ... -> currentBlock`
+- Enhanced to store full history for debugging and visualization
+
+#### Taint Analysis (Forward)
+
+Forward propagation with source/sink identification:
+
+```
+Sources: scanf, gets, read, network input, etc.
+Sinks: printf, puts, write, sprintf, system, etc.
+
+For each statement:
+  - If assignment: propagate taint from RHS to LHS
+  - If sink: flag vulnerability if tainted variable used
+  - Track path from source to sink
+```
+
+### CFG Generation Pipeline
+
+1. **Source File** → `cfg-exporter` (C++ tool)
+2. `cfg-exporter` uses `clang::CFG::buildCFG()`
+3. Generates JSON with CFG structure (blocks, edges, statements)
+4. `ClangASTParser.ts` parses JSON
+5. `EnhancedCPPParser.ts` extracts function information
+6. `DataflowAnalyzer.ts` orchestrates analyses
+7. Results stored and visualized
+
+### Academic Correctness
+
+- Uses official `clang::CFG::buildCFG()` from libclang/LLVM
+- CFG follows academic standard: Entry → Basic Blocks → Exit
+- Each block has statements, predecessors, successors
+- Dataflow equations match standard compiler textbooks
+- Topological sorting for visualization follows academic standards
+- Propagation paths track complete flow through CFG
 
 ## 🔍 Vulnerability Detection
 
 ### Supported Vulnerability Types
 
-The extension detects the following vulnerability types:
-
 1. **Buffer Overflow** (CWE-120)
-   - Unsafe buffer operations (strcpy, strcat, sprintf, gets, etc.)
+   - Unsafe buffer operations (strcpy, strcat, sprintf, gets)
    - Missing bounds checking
 
 2. **Use After Free** (CWE-416)
@@ -482,24 +394,15 @@ The extension detects the following vulnerability types:
 8. **Uninitialized Variable** (CWE-457)
    - Use of uninitialized variables
 
-9. **Unsafe Function Calls**
-   - Various unsafe C/C++ functions
+### Attack Path Analysis
 
-### Attack Path Visualization
-
-The source-to-sink path visualization shows:
-
-- **Source Blocks**: Where tainted data enters (highlighted in cyan)
-- **Propagation Blocks**: Intermediate blocks where taint flows (highlighted in orange)
-- **Sink Blocks**: Where vulnerabilities occur (highlighted in red)
-- **Path Edges**: Colored edges showing the attack path
-
-Each path includes:
-- Step-by-step breakdown
-- Block labels and statements
-- Vulnerability details
-- CWE links
-- Recommendations
+Each vulnerability includes:
+- **Source Blocks**: Where tainted data enters (cyan)
+- **Propagation Blocks**: Intermediate blocks (orange)
+- **Sink Blocks**: Where vulnerabilities occur (red)
+- **Complete Path**: Step-by-step CFG traversal
+- **CWE Information**: Link to MITRE CWE database
+- **Recommendations**: How to fix the vulnerability
 
 ## 🛠️ Development
 
@@ -509,6 +412,8 @@ Each path includes:
 - npm or yarn
 - TypeScript 5+
 - VSCode 1.80+
+- CMake 3.16+
+- Clang/LLVM 21.1.5+
 
 ### Setup Development Environment
 
@@ -525,24 +430,21 @@ npm run compile
 
 # Watch mode for development
 npm run watch
+
+# Build CFG exporter
+cd cpp-tools/cfg-exporter
+mkdir -p build && cd build
+cmake ..
+cmake --build .
 ```
 
-### Running Tests
+### Build Scripts Reference
 
-```bash
-npm test
-```
-
-### Building
-
-```bash
-# Compile TypeScript
-npm run compile
-
-# Create VSIX package
-npm install -g vsce
-vsce package
-```
+- `npm run compile` - Compile TypeScript once
+- `npm run watch` - Watch mode (continuous compilation)
+- `npm run lint` - Run ESLint
+- `npm test` - Run tests (if configured)
+- `npm run vscode:prepublish` - Prepare for publishing
 
 ### Debugging
 
@@ -550,36 +452,6 @@ vsce package
 2. Press `F5` to launch Extension Development Host
 3. Set breakpoints in TypeScript files
 4. Use VSCode debugger
-
-## 📊 Analysis Algorithms
-
-### Liveness Analysis
-
-Uses backward dataflow analysis:
-
-```
-IN[B] = USE[B] ∪ (OUT[B] - DEF[B])
-OUT[B] = ∪ IN[S] for all successors S of B
-```
-
-Iterates until fixed point is reached.
-
-### Reaching Definitions
-
-Uses forward dataflow analysis:
-
-```
-IN[B] = ∪ OUT[P] for all predecessors P of B
-OUT[B] = GEN[B] ∪ (IN[B] - KILL[B])
-```
-
-### Taint Analysis
-
-Forward propagation:
-- Identifies taint sources (scanf, gets, read, etc.)
-- Propagates taint through assignments
-- Tracks propagation paths
-- Identifies when taint reaches security sinks
 
 ## 🔐 Security Considerations
 
@@ -613,8 +485,9 @@ Contributions are welcome! Areas for improvement:
 ## 🙏 Acknowledgments
 
 - Uses [vis-network](https://visjs.github.io/vis-network/) for graph visualization
-- Integrates with clang/LLVM for AST parsing
+- Integrates with clang/LLVM for AST parsing and CFG generation
 - Built on VSCode Extension API
+- Algorithms from Dragon Book (Aho, Sethi, Ullman) and Engineering a Compiler (Cooper & Torczon)
 
 ## 📚 References
 
@@ -622,6 +495,8 @@ Contributions are welcome! Areas for improvement:
 - [Clang Documentation](https://clang.llvm.org/docs/)
 - [VSCode Extension API](https://code.visualstudio.com/api)
 - [Dataflow Analysis](https://en.wikipedia.org/wiki/Data-flow_analysis)
+- [Dragon Book](https://www.pearsonhighered.com/program/Aho-Compilers-Principles-Techniques-and-Tools-2nd-Edition/PGM310509.html)
+- [Engineering a Compiler](https://www.elsevier.com/books/engineering-a-compiler/cooper/978-0-12-811905-1)
 
 ## 🐛 Known Issues
 
@@ -631,15 +506,16 @@ Contributions are welcome! Areas for improvement:
 
 ## 🔮 Future Enhancements
 
-See `IMPLEMENTATION_PLAN.md` for detailed roadmap including:
 - Call graph analysis
 - Inter-procedural taint analysis
 - Exploitability scoring
 - Patch suggestion engine
 - Historical comparison
 - Report generation
-- And more...
 
 ---
 
 **Built with ❤️ for security researchers and developers**
+
+**Version**: 1.1.0  
+**Last Updated**: November 2025

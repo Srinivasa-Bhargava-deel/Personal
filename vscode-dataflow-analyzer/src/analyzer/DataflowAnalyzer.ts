@@ -100,9 +100,38 @@ export class DataflowAnalyzer {
       }
 
       if (this.config.enableReachingDefinitions) {
+        console.log(`Running reaching definitions analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcRD = this.reachingDefinitionsAnalyzer.analyze(funcCFG);
+        console.log(`Reaching definitions analysis for ${funcName} produced ${funcRD.size} entries`);
         funcRD.forEach((info, blockId) => {
-          reachingDefinitions.set(`${funcName}_${blockId}`, info);
+          const key = `${funcName}_${blockId}`;
+          reachingDefinitions.set(key, info);
+          
+          // Log the IN/OUT sets for each block WITH FULL HISTORY/PROPAGATION PATHS
+          const inVars = Array.from(info.in.entries())
+            .map(([v, defs]) => {
+              const defDetails = defs.map(d => {
+                const path = d.propagationPath ? d.propagationPath.join('→') : 'unknown';
+                const killed = d.killed ? '❌' : '✓';
+                return `${d.definitionId}[${path}]${killed}`;
+              }).join(',');
+              return `${v}:[${defDetails}]`;
+            })
+            .join('; ');
+          const outVars = Array.from(info.out.entries())
+            .map(([v, defs]) => {
+              const defDetails = defs.map(d => {
+                const path = d.propagationPath ? d.propagationPath.join('→') : 'unknown';
+                const killed = d.killed ? '❌' : '✓';
+                return `${d.definitionId}[${path}]${killed}`;
+              }).join(',');
+              return `${v}:[${defDetails}]`;
+            })
+            .join('; ');
+          
+          console.log(`Set RD for key: ${key}`);
+          console.log(`  - IN: ${inVars || '(empty)'}`);
+          console.log(`  - OUT: ${outVars || '(empty)'}`);
         });
       }
 
@@ -563,8 +592,18 @@ export class DataflowAnalyzer {
 
     console.log(`Analyzing statement: "${trimmed}" -> cleaned: "${cleanContent}"`);
 
-    // Assignment statement: identifier = expression
-    if (cleanContent.includes('=') && !cleanContent.includes('==') && !cleanContent.includes('!=')) {
+    // First, check if this is a declaration statement: int x = value or int x;
+    const declMatch = cleanContent.match(/\b(int|float|double|char|bool|long|short|unsigned)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:=\s*(.+))?/);
+    if (declMatch) {
+      variables.defined.push(declMatch[2]); // Variable name
+      console.log(`Declared variable: ${declMatch[2]}`);
+
+      if (declMatch[3]) { // Has initialization
+        this.extractVariablesFromExpression(declMatch[3], variables.used);
+      }
+    }
+    // Assignment statement: identifier = expression (but NOT a declaration)
+    else if (cleanContent.includes('=') && !cleanContent.includes('==') && !cleanContent.includes('!=')) {
       // Split on '=' to get LHS (defined) and RHS (used)
       const parts = cleanContent.split('=');
       if (parts.length >= 2) {
@@ -580,18 +619,6 @@ export class DataflowAnalyzer {
 
         // RHS: extract variables (academic approach)
         this.extractVariablesFromExpression(rhs, variables.used);
-      }
-    }
-    // Declaration with initialization: int x = value
-    else if (cleanContent.match(/\b(int|float|double|char)\b/)) {
-      const declMatch = cleanContent.match(/\b(int|float|double|char)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(=\s*(.+))?/);
-      if (declMatch) {
-        variables.defined.push(declMatch[2]); // Variable name
-        console.log(`Declared variable: ${declMatch[2]}`);
-
-        if (declMatch[4]) { // Has initialization
-          this.extractVariablesFromExpression(declMatch[4], variables.used);
-        }
       }
     }
     // Function call: func(arg1, arg2, ...)
