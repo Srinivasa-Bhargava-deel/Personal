@@ -195,20 +195,26 @@ export class CFGVisualizer {
     // Prepare data for visualization
     const graphData = await this.prepareGraphData(funcCFG, state);
     
+    // Prepare IPA data if available
+    const callGraphData = state.callGraph ? this.prepareCallGraphData(state.callGraph) : null;
+    const ipaData = this.prepareIPAData(state, funcCFG.name);
+    
     console.log('[CFGVisualizer] Setting webview HTML with graph data');
     console.log('[CFGVisualizer] Graph data summary:', {
       functionName: funcCFG.name,
       nodesCount: graphData.nodes.length,
       edgesCount: graphData.edges.length,
-      nodeLabels: graphData.nodes.map((n: any) => n.label),
-      edgeConnections: graphData.edges.map((e: any) => `${e.from}->${e.to}`)
+      hasCallGraph: !!callGraphData,
+      hasIPAData: !!ipaData
     });
 
     const htmlContent = this.getWebviewContent(
       graphData,
       state,
       funcCFG.name,
-      this.panel.webview.cspSource
+      this.panel.webview.cspSource,
+      callGraphData,
+      ipaData
     );
 
     console.log('[CFGVisualizer] Generated HTML length:', htmlContent.length);
@@ -555,9 +561,95 @@ export class CFGVisualizer {
   }
 
   /**
+   * Prepare call graph data for visualization
+   */
+  private prepareCallGraphData(callGraph: any): any {
+    const nodes: any[] = [];
+    const edges: any[] = [];
+
+    // Add function nodes
+    callGraph.functions.forEach((metadata: any, funcName: string) => {
+      nodes.push({
+        id: funcName,
+        label: funcName,
+        isExternal: metadata.isExternal,
+        isRecursive: metadata.isRecursive,
+        parameters: metadata.parameters.map((p: any) => p.name).join(', '),
+        callsCount: metadata.callsCount
+      });
+    });
+
+    // Add call edges
+    callGraph.calls.forEach((call: any) => {
+      edges.push({
+        from: call.callerId,
+        to: call.calleeId,
+        label: `${call.arguments.actual.length} args`,
+        returnValueUsed: call.returnValueUsed
+      });
+    });
+
+    return { nodes, edges };
+  }
+
+  /**
+   * Prepare IPA data for display
+   */
+  private prepareIPAData(state: AnalysisState, functionName: string): any {
+    const ipaData: any = {
+      parameterAnalysis: null,
+      returnValueAnalysis: null,
+      interProceduralRD: null
+    };
+
+    // Get parameter analysis for this function
+    if (state.parameterAnalysis && state.parameterAnalysis.has(functionName)) {
+      ipaData.parameterAnalysis = state.parameterAnalysis.get(functionName);
+    }
+
+    // Get return value analysis for this function
+    if (state.returnValueAnalysis && state.returnValueAnalysis.has(functionName)) {
+      ipaData.returnValueAnalysis = state.returnValueAnalysis.get(functionName);
+    }
+
+    // Get inter-procedural reaching definitions
+    if (state.interProceduralRD && state.interProceduralRD.has(functionName)) {
+      const funcRD = state.interProceduralRD.get(functionName);
+      ipaData.interProceduralRD = Array.from(funcRD!.entries()).map(([blockId, rdInfo]) => ({
+        blockId,
+        in: Array.from(rdInfo.in.entries()).map(([varName, defs]) => ({
+          variable: varName,
+          definitions: defs.map((d: any) => ({
+            definitionId: d.definitionId,
+            sourceBlock: d.sourceBlock,
+            propagationPath: d.propagationPath || []
+          }))
+        })),
+        out: Array.from(rdInfo.out.entries()).map(([varName, defs]) => ({
+          variable: varName,
+          definitions: defs.map((d: any) => ({
+            definitionId: d.definitionId,
+            sourceBlock: d.sourceBlock,
+            propagationPath: d.propagationPath || []
+          }))
+        }))
+      }));
+    }
+
+    return ipaData;
+  }
+
+  /**
    * Get webview HTML content
    */
-  private getWebviewContent(graphData: any, state: AnalysisState, functionName: string, cspSource: string): string {
+  private getWebviewContent(
+    graphData: any,
+    state: AnalysisState,
+    functionName: string,
+    cspSource: string,
+    callGraphData?: any,
+    ipaData?: any
+  ): string {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -571,10 +663,14 @@ export class CFGVisualizer {
             margin: 0;
             padding: 20px;
             background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
+            color: #333333;
         }
         .header {
             margin-bottom: 20px;
+            color: #333333;
+        }
+        .header h2 {
+            color: #333333;
         }
         .function-selector {
             margin-bottom: 20px;
@@ -582,8 +678,11 @@ export class CFGVisualizer {
         select {
             padding: 8px;
             background-color: var(--vscode-dropdown-background);
-            color: var(--vscode-dropdown-foreground);
+            color: #333333;
             border: 1px solid var(--vscode-dropdown-border);
+        }
+        label {
+            color: #333333;
         }
         #network {
             width: 100%;
@@ -596,12 +695,14 @@ export class CFGVisualizer {
             padding: 15px;
             background-color: var(--vscode-editor-selectionBackground);
             border-radius: 5px;
+            color: #333333;
         }
         .block-info {
             margin: 10px 0;
             padding: 10px;
             background-color: var(--vscode-editor-background);
             border-left: 3px solid var(--vscode-textLink-foreground);
+            color: #333333;
         }
         .liveness-info, .rd-info {
             margin-top: 10px;
@@ -624,7 +725,7 @@ export class CFGVisualizer {
         }
         .taint-path {
             font-size: 0.85em;
-            color: var(--vscode-descriptionForeground);
+            color: #666666;
             margin-left: 15px;
         }
         .summary-panel {
@@ -632,13 +733,16 @@ export class CFGVisualizer {
             padding: 15px;
             background-color: var(--vscode-editor-selectionBackground);
             border-radius: 5px;
+            color: #333333;
         }
         .summary-section {
             margin: 10px 0;
+            color: #333333;
         }
         .summary-section h4 {
             margin-top: 0;
             margin-bottom: 10px;
+            color: #333333;
         }
         .tab-container {
             display: flex;
@@ -650,10 +754,12 @@ export class CFGVisualizer {
             padding: 8px 16px;
             cursor: pointer;
             border-bottom: 2px solid transparent;
+            color: #333333;
         }
         .tab.active {
             border-bottom-color: var(--vscode-textLink-foreground);
-            color: var(--vscode-textLink-foreground);
+            color: #0066cc;
+            font-weight: bold;
         }
         .tab-content {
             display: none;
@@ -728,11 +834,27 @@ export class CFGVisualizer {
         .show-path-btn:hover {
             background-color: var(--vscode-button-hoverBackground);
         }
+        .debug-toggle-container {
+            display: flex;
+            align-items: center;
+        }
+        .debug-toggle-btn {
+            transition: background-color 0.2s;
+        }
+        .debug-toggle-btn:hover {
+            opacity: 0.9;
+        }
+        .debug-toggle-btn.active {
+            background-color: #28a745 !important;
+        }
+        .debug-toggle-btn.inactive {
+            background-color: #6c757d !important;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2>Control Flow Graph: ${functionName}</h2>
+        <h2>Dataflow Analysis: ${functionName}</h2>
         <div class="function-selector">
             <label>Function: </label>
             <select id="functionSelect">
@@ -741,26 +863,130 @@ export class CFGVisualizer {
                 ).join('')}
             </select>
         </div>
+        <div class="debug-toggle-container" style="margin-top: 10px;">
+            <label for="debugToggle" style="color: #333333; margin-right: 8px;">Show Debug Info:</label>
+            <button id="debugToggle" class="debug-toggle-btn active" style="padding: 5px 15px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer;">ON</button>
+        </div>
     </div>
     
-    <div id="network" style="width: 100%; height: 600px; border: 1px solid #ccc;"></div>
+    <!-- Tabs for different views -->
+    <div class="tab-container">
+        <div class="tab active" data-tab="cfg">CFG</div>
+        ${callGraphData ? '<div class="tab" data-tab="callgraph">Call Graph</div>' : ''}
+        ${ipaData && (ipaData.parameterAnalysis || ipaData.returnValueAnalysis) ? '<div class="tab" data-tab="params">Parameters & Returns</div>' : ''}
+        ${ipaData && ipaData.interProceduralRD ? '<div class="tab" data-tab="ipa">Inter-Procedural</div>' : ''}
+    </div>
     
-    <div id="blockInfo" style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; color: black;">
-        <h3 style="color: black;">Block Information</h3>
-        <p style="color: black;">Click on a node in the graph above to see its details here.</p>
+    <!-- CFG Tab Content -->
+    <div class="tab-content active" id="cfg-tab">
+        <div id="network" style="width: 100%; height: 600px; border: 1px solid #ccc;"></div>
+        <div id="blockInfo" style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; color: #333333;">
+            <h3 style="color: #333333;">Block Information</h3>
+            <p style="color: #333333;">Click on a node in the graph above to see its details here.</p>
         </div>
-        
+    </div>
+    
+    <!-- Call Graph Tab Content -->
+    ${callGraphData ? `
+    <div class="tab-content" id="callgraph-tab">
+        <div id="callgraph-network" style="width: 100%; height: 600px; border: 1px solid #ccc;"></div>
+        <div id="callgraph-info" style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; color: #333333;">
+            <h3 style="color: #333333;">Call Graph Information</h3>
+            <div id="callgraph-stats" style="margin-bottom: 15px;">
+                <p style="color: #333333;"><strong>Functions:</strong> ${callGraphData.nodes.length}</p>
+                <p style="color: #333333;"><strong>Function Calls:</strong> ${callGraphData.edges.length}</p>
+                <p style="color: #333333;"><strong>Recursive Functions:</strong> ${callGraphData.nodes.filter((n: any) => n.isRecursive).length}</p>
+                <p style="color: #333333;"><strong>External Functions:</strong> ${callGraphData.nodes.filter((n: any) => n.isExternal).length}</p>
+            </div>
+            <div id="callgraph-details" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                <p style="color: #666666; font-style: italic;">Click on a function node in the graph above to see its details here.</p>
+            </div>
+        </div>
+    </div>
+    ` : ''}
+    
+    <!-- Parameters & Returns Tab Content -->
+    ${ipaData && (ipaData.parameterAnalysis || ipaData.returnValueAnalysis) ? `
+    <div class="tab-content" id="params-tab">
+        ${ipaData.parameterAnalysis ? `
+        <div style="margin-bottom: 20px;">
+            <h3 style="color: #333333;">Parameter Analysis</h3>
+            <div id="parameter-analysis">
+                ${ipaData.parameterAnalysis.map((mapping: any) => `
+                    <div style="padding: 10px; margin: 5px 0; background: #e8f4f8; border-radius: 5px; color: #333333;">
+                        <strong style="color: #333333;">${mapping.formalParam}</strong> ← <span style="color: #333333;">${mapping.actualArg}</span>
+                        <br><small style="color: #666666;">Type: ${mapping.derivation.type}, Base: ${mapping.derivation.base}</small>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : ''}
+        ${ipaData.returnValueAnalysis ? `
+        <div>
+            <h3 style="color: #333333;">Return Value Analysis</h3>
+            <div id="return-analysis">
+                ${ipaData.returnValueAnalysis.map((ret: any) => `
+                    <div style="padding: 10px; margin: 5px 0; background: #e8f4f8; border-radius: 5px; color: #333333;">
+                        <strong style="color: #333333;">Return:</strong> <span style="color: #333333;">${ret.value || '(void)'}</span>
+                        <br><small style="color: #666666;">Type: ${ret.type}, Block: ${ret.blockId}</small>
+                        ${ret.usedVariables && ret.usedVariables.length > 0 ? `<br><small style="color: #666666;">Variables: ${ret.usedVariables.join(', ')}</small>` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : ''}
+    </div>
+    ` : ''}
+    
+    <!-- Inter-Procedural Analysis Tab Content -->
+    ${ipaData && ipaData.interProceduralRD ? `
+    <div class="tab-content" id="ipa-tab">
+        <h3 style="color: #333333;">Inter-Procedural Reaching Definitions</h3>
+        <div id="ipa-rd-info">
+            ${ipaData.interProceduralRD.map((blockRD: any) => `
+                <div style="padding: 10px; margin: 5px 0; background: #e8f4f8; border-radius: 5px; color: #333333;">
+                    <strong style="color: #333333;">Block: ${blockRD.blockId}</strong>
+                    ${blockRD.out && blockRD.out.length > 0 ? `
+                        <div style="margin-top: 5px;">
+                            <strong style="color: #333333;">OUT:</strong>
+                            ${blockRD.out.map((varInfo: any) => `
+                                <div style="margin-left: 15px;">
+                                    <strong style="color: #333333;">${varInfo.variable}:</strong>
+                                    ${varInfo.definitions.map((def: any) => `
+                                        <div style="margin-left: 15px; font-size: 0.9em; color: #666666;">
+                                            ${def.definitionId} [${def.propagationPath.join(' → ')}]
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('')}
+        </div>
+    </div>
+    ` : ''}
+    
+    <!-- Debug Panel (initially visible, can be toggled) -->
     <div id="debug-panel" style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px;">
         <h3 style="color: #856404;">Debug Information</h3>
         <div id="debug-logs" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; background: white; padding: 10px; border-radius: 3px;">
             <div style="color: #007bff;">✓ HTML loaded</div>
             <div style="color: #28a745;">✓ vis-network loading from CDN...</div>
         </div>
-        </div>
+    </div>
         
 
     <script type="application/json" id="graph-data-json">
 ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
+    </script>
+    
+    <script type="application/json" id="callgraph-data-json">
+${callGraphData ? JSON.stringify(callGraphData).replace(/<\//g, '<\\/') : '{}'}
+    </script>
+    
+    <script type="application/json" id="ipa-data-json">
+${ipaData ? JSON.stringify(ipaData).replace(/<\//g, '<\\/') : '{}'}
     </script>
 
     <script>
@@ -775,6 +1001,32 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
         }
 
         logDebug('Starting initialization...');
+
+        // Debug panel toggle functionality
+        let debugVisible = true;
+        const debugToggle = document.getElementById('debugToggle');
+        const debugPanel = document.getElementById('debug-panel');
+        
+        if (debugToggle && debugPanel) {
+            debugToggle.addEventListener('click', function() {
+                debugVisible = !debugVisible;
+                if (debugVisible) {
+                    debugPanel.style.display = 'block';
+                    debugToggle.textContent = 'ON';
+                    debugToggle.classList.remove('inactive');
+                    debugToggle.classList.add('active');
+                    debugToggle.style.backgroundColor = '#28a745';
+                } else {
+                    debugPanel.style.display = 'none';
+                    debugToggle.textContent = 'OFF';
+                    debugToggle.classList.remove('active');
+                    debugToggle.classList.add('inactive');
+                    debugToggle.style.backgroundColor = '#6c757d';
+                }
+            });
+            // Set initial state
+            debugToggle.classList.add('active');
+        }
 
         function initNetwork() {
             if (typeof vis === 'undefined') {
@@ -849,16 +1101,16 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                             nodeSpacing: 120,
                             levelSeparation: 150,
                             edgeMinimization: false
-                        }
-                    },
+                }
+            },
                     physics: { enabled: false },
                     interaction: {
                         hover: true,
                         tooltipDelay: 200,
                         multiselect: false
-                    }
-                };
-
+            }
+        };
+        
         const network = new vis.Network(container, data, options);
             logDebug('vis.Network created successfully');
 
@@ -879,7 +1131,7 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                 } else {
                 logDebug('ERROR: functionSelect element not found');
             }
-
+            
             // Handle node click (show info on click)
             network.on('click', function(params) {
                 if (params.nodes.length > 0) {
@@ -889,35 +1141,35 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                     if (node) {
                         const infoDiv = document.getElementById('blockInfo');
                         if (infoDiv) {
-                            let html = '<h4 style="color: black;">Block: ' + node.label + '</h4>';
-                            html += '<div style="color: black;"><strong>Statements:</strong><ul style="color: black;">';
+                            let html = '<h4 style="color: #333333;">Block: ' + node.label + '</h4>';
+                            html += '<div style="color: #333333;"><strong>Statements:</strong><ul style="color: #333333;">';
                             node.statements.forEach(function(stmt) {
                                 const stmtText = typeof stmt === 'string' ? stmt : stmt.text;
-                                html += '<li style="color: black;">' + stmtText + '</li>';
+                                html += '<li style="color: #333333;">' + stmtText + '</li>';
                             });
                             html += '</ul></div>';
 
                             // Add additional node information
                 if (node.liveness) {
-                                html += '<div style="color: black; margin-top: 10px;"><strong>Live Variables In:</strong> ' +
+                                html += '<div style="color: #333333; margin-top: 10px;"><strong>Live Variables In:</strong> ' +
                                     (node.liveness.in.length > 0 ? node.liveness.in.join(', ') : 'none') + '</div>';
-                                html += '<div style="color: black;"><strong>Live Variables Out:</strong> ' +
+                                html += '<div style="color: #333333;"><strong>Live Variables Out:</strong> ' +
                                     (node.liveness.out.length > 0 ? node.liveness.out.join(', ') : 'none') + '</div>';
-                            }
+            }
 
                             if (node.reachingDefinitions && node.reachingDefinitions.out) {
-                                html += '<div style="color: black; margin-top: 10px;"><strong>Reaching Definitions:</strong><br>';
+                                html += '<div style="color: #333333; margin-top: 10px;"><strong>Reaching Definitions:</strong><br>';
                                 Object.keys(node.reachingDefinitions.out).forEach(function(varName) {
-                                    html += '<span style="color: black; margin-right: 10px;">' + varName + ': ' +
+                                    html += '<span style="color: #333333; margin-right: 10px;">' + varName + ': ' +
                                         node.reachingDefinitions.out[varName].map(function(def) { return def.sourceCode; }).join('<br>') + '</span><br>';
-                                });
+                });
             html += '</div>';
                             }
 
                             if (node.taintInfo && node.taintInfo.taintedVariables && node.taintInfo.taintedVariables.length > 0) {
                                 html += '<div style="color: #d9534f; margin-top: 10px;"><strong>⚠ Tainted Variables:</strong> ' +
                                     node.taintInfo.taintedVariables.join(', ') + '</div>';
-                            }
+            }
 
                             infoDiv.innerHTML = html;
                         }
@@ -926,10 +1178,137 @@ ${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
                     // Clicked on empty space - clear info
                     const infoDiv = document.getElementById('blockInfo');
                     if (infoDiv) {
-                        infoDiv.innerHTML = '<h3 style="color: black;">Block Information</h3><p style="color: black;">Click on a node in the graph above to see its details here.</p>';
+                        infoDiv.innerHTML = '<h3 style="color: #333333;">Block Information</h3><p style="color: #333333;">Click on a node in the graph above to see its details here.</p>';
                     }
                 }
             });
+        }
+
+        // Tab switching functionality
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                const targetTab = this.getAttribute('data-tab');
+                
+                // Remove active class from all tabs and contents
+                tabs.forEach(function(t) { t.classList.remove('active'); });
+                tabContents.forEach(function(tc) { tc.classList.remove('active'); });
+                
+                // Add active class to clicked tab and corresponding content
+                this.classList.add('active');
+                const targetContent = document.getElementById(targetTab + '-tab');
+                if (targetContent) {
+                    targetContent.classList.add('active');
+                    
+                    // Initialize call graph if switching to call graph tab
+                    if (targetTab === 'callgraph' && typeof vis !== 'undefined') {
+                        initCallGraph();
+                    }
+                }
+            });
+        });
+
+        // Initialize call graph visualization
+        function initCallGraph() {
+            const callGraphDataElement = document.getElementById('callgraph-data-json');
+            if (!callGraphDataElement) return;
+            
+            const callGraphData = JSON.parse(callGraphDataElement.textContent);
+            if (!callGraphData || !callGraphData.nodes || callGraphData.nodes.length === 0) {
+                logDebug('No call graph data available');
+                return;
+            }
+            
+            logDebug('Initializing call graph visualization...');
+            
+            const cgNodes = new vis.DataSet(callGraphData.nodes.map(function(node) {
+                return {
+                    id: node.id,
+                    label: node.label + '\\n(' + node.parameters + ')',
+                    shape: 'ellipse',
+                    color: {
+                        background: node.isExternal ? '#ffeaa7' : (node.isRecursive ? '#ff6b6b' : '#74b9ff'),
+                        border: node.isExternal ? '#fdcb6e' : (node.isRecursive ? '#d63031' : '#0984e3'),
+                        highlight: { background: '#a29bfe', border: '#6c5ce7' }
+                    },
+                    font: {
+                        size: 12,
+                        face: 'Monaco, Menlo, "Ubuntu Mono", monospace'
+                    },
+                    title: 'Function: ' + node.label + '\\nParameters: ' + node.parameters + 
+                           '\\nRecursive: ' + (node.isRecursive ? 'Yes' : 'No') +
+                           '\\nExternal: ' + (node.isExternal ? 'Yes' : 'No')
+                };
+            }));
+            
+            const cgEdges = new vis.DataSet(callGraphData.edges.map(function(edge) {
+                return {
+                    from: edge.from,
+                    to: edge.to,
+                    label: edge.label,
+                    arrows: { to: { enabled: true } },
+                    color: { color: '#666', highlight: '#0984e3' },
+                    title: edge.returnValueUsed ? 'Return value used' : 'Return value unused'
+                };
+            }));
+            
+            const cgContainer = document.getElementById('callgraph-network');
+            if (cgContainer) {
+                const cgData = { nodes: cgNodes, edges: cgEdges };
+                const cgOptions = {
+                    nodes: {
+                        shape: 'ellipse',
+                        font: { size: 12 },
+                        margin: 10
+                    },
+                    edges: {
+                        arrows: { to: { enabled: true } },
+                        smooth: { type: 'cubicBezier' },
+                        color: { color: '#666' }
+                    },
+                    layout: {
+                        hierarchical: {
+                            direction: 'LR',
+                            sortMethod: 'directed',
+                            nodeSpacing: 150,
+                            levelSeparation: 200
+                        }
+                    },
+                    physics: { enabled: false },
+                    interaction: { hover: true }
+                };
+                
+                const cgNetwork = new vis.Network(cgContainer, cgData, cgOptions);
+                logDebug('Call graph network created');
+                
+                // Handle node click on call graph
+                cgNetwork.on('click', function(params) {
+                    if (params.nodes.length > 0) {
+                        // Clicked on a node - show its info
+                        const nodeId = params.nodes[0];
+                        const node = callGraphData.nodes.find(function(n) { return n.id === nodeId; });
+                        if (node) {
+                            const detailsDiv = document.getElementById('callgraph-details');
+                            if (detailsDiv) {
+                                let html = '<h4 style="color: #333333; margin-top: 0;">Function: ' + node.label + '</h4>';
+                                html += '<p style="color: #333333;"><strong>Parameters:</strong> ' + (node.parameters || 'none') + '</p>';
+                                html += '<p style="color: #333333;"><strong>Recursive:</strong> ' + (node.isRecursive ? 'Yes' : 'No') + '</p>';
+                                html += '<p style="color: #333333;"><strong>External:</strong> ' + (node.isExternal ? 'Yes' : 'No') + '</p>';
+                                html += '<p style="color: #333333;"><strong>Calls Count:</strong> ' + (node.callsCount || 0) + '</p>';
+                                detailsDiv.innerHTML = html;
+                            }
+                        }
+                    } else {
+                        // Clicked on empty space - clear details
+                        const detailsDiv = document.getElementById('callgraph-details');
+                        if (detailsDiv) {
+                            detailsDiv.innerHTML = '<p style="color: #666666; font-style: italic;">Click on a function node in the graph above to see its details here.</p>';
+                        }
+                    }
+                });
+            }
         }
 
         // Load vis-network from CDN

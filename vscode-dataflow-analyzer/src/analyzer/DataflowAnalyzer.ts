@@ -21,6 +21,10 @@ import { LivenessAnalyzer } from './LivenessAnalyzer';
 import { ReachingDefinitionsAnalyzer } from './ReachingDefinitionsAnalyzer';
 import { TaintAnalyzer } from './TaintAnalyzer';
 import { SecurityAnalyzer } from './SecurityAnalyzer';
+import { CallGraphAnalyzer } from './CallGraphAnalyzer';
+import { InterProceduralReachingDefinitions } from './InterProceduralReachingDefinitions';
+import { ParameterAnalyzer } from './ParameterAnalyzer';
+import { ReturnValueAnalyzer } from './ReturnValueAnalyzer';
 import { StateManager } from '../state/StateManager';
 import {
   CFG,
@@ -211,6 +215,74 @@ export class DataflowAnalyzer {
       }
     });
 
+    // STEP 4: Run Inter-Procedural Analysis (IPA) - Phases 1-4
+    let callGraph: any = undefined;
+    let interProceduralRD: Map<string, Map<string, any>> | undefined = undefined;
+    const parameterAnalysis = new Map<string, any[]>();
+    const returnValueAnalysis = new Map<string, any[]>();
+
+    if (this.config.enableInterProcedural !== false && cfg.functions.size > 0) {
+      try {
+        console.log('[IPA] Starting inter-procedural analysis...');
+        
+        // Phase 1 & 2: Build call graph
+        const cgAnalyzer = new CallGraphAnalyzer(cfg.functions);
+        callGraph = cgAnalyzer.buildCallGraph();
+        console.log(`[IPA] Call graph built: ${callGraph.functions.size} functions, ${callGraph.calls.length} calls`);
+
+        // Phase 3: Inter-procedural reaching definitions
+        if (this.config.enableReachingDefinitions && reachingDefinitions.size > 0) {
+          // Organize intra-procedural RD by function
+          const intraRD = new Map<string, Map<string, any>>();
+          reachingDefinitions.forEach((rdInfo, key) => {
+            const [funcName, blockId] = key.split('_');
+            if (!intraRD.has(funcName)) {
+              intraRD.set(funcName, new Map());
+            }
+            intraRD.get(funcName)!.set(blockId, rdInfo);
+          });
+
+          const ipaAnalyzer = new InterProceduralReachingDefinitions(callGraph, intraRD);
+          interProceduralRD = ipaAnalyzer.analyze();
+          console.log(`[IPA] Inter-procedural reaching definitions complete`);
+        }
+
+        // Phase 4: Parameter and return value analysis
+        const paramAnalyzer = new ParameterAnalyzer();
+        const returnAnalyzer = new ReturnValueAnalyzer();
+
+        cfg.functions.forEach((funcCFG, funcName) => {
+          // Analyze return values
+          const returns = returnAnalyzer.analyzeReturns(funcCFG);
+          if (returns.length > 0) {
+            returnValueAnalysis.set(funcName, returns);
+          }
+
+          // Analyze parameters at call sites
+          const calls = callGraph.callsFrom.get(funcName) || [];
+          const paramMappings: any[] = [];
+          
+          calls.forEach((call: any) => {
+            const calleeMetadata = callGraph.functions.get(call.calleeId);
+            if (calleeMetadata) {
+              const mappings = paramAnalyzer.mapParametersWithDerivation(call, calleeMetadata);
+              paramMappings.push(...mappings);
+            }
+          });
+
+          if (paramMappings.length > 0) {
+            parameterAnalysis.set(funcName, paramMappings);
+          }
+        });
+
+        console.log(`[IPA] Parameter analysis: ${parameterAnalysis.size} functions`);
+        console.log(`[IPA] Return value analysis: ${returnValueAnalysis.size} functions`);
+      } catch (error) {
+        console.error('[IPA] Error during inter-procedural analysis:', error);
+        // Continue without IPA if it fails
+      }
+    }
+
     // Update state
     this.currentState = {
       workspacePath,
@@ -220,7 +292,12 @@ export class DataflowAnalyzer {
       reachingDefinitions,
       taintAnalysis,
       vulnerabilities,
-      fileStates
+      fileStates,
+      // IPA features
+      callGraph,
+      interProceduralRD,
+      parameterAnalysis: parameterAnalysis.size > 0 ? parameterAnalysis : undefined,
+      returnValueAnalysis: returnValueAnalysis.size > 0 ? returnValueAnalysis : undefined
     };
 
     // Save state
@@ -292,6 +369,74 @@ export class DataflowAnalyzer {
       }
     });
 
+    // STEP 4: Run Inter-Procedural Analysis (IPA) - Phases 1-4
+    let callGraph: any = undefined;
+    let interProceduralRD: Map<string, Map<string, any>> | undefined = undefined;
+    const parameterAnalysis = new Map<string, any[]>();
+    const returnValueAnalysis = new Map<string, any[]>();
+
+    if (this.config.enableInterProcedural !== false && cfg.functions.size > 0) {
+      try {
+        console.log('[IPA] Starting inter-procedural analysis...');
+        
+        // Phase 1 & 2: Build call graph
+        const cgAnalyzer = new CallGraphAnalyzer(cfg.functions);
+        callGraph = cgAnalyzer.buildCallGraph();
+        console.log(`[IPA] Call graph built: ${callGraph.functions.size} functions, ${callGraph.calls.length} calls`);
+
+        // Phase 3: Inter-procedural reaching definitions
+        if (this.config.enableReachingDefinitions && reachingDefinitions.size > 0) {
+          // Organize intra-procedural RD by function
+          const intraRD = new Map<string, Map<string, any>>();
+          reachingDefinitions.forEach((rdInfo, key) => {
+            const [funcName, blockId] = key.split('_');
+            if (!intraRD.has(funcName)) {
+              intraRD.set(funcName, new Map());
+            }
+            intraRD.get(funcName)!.set(blockId, rdInfo);
+          });
+
+          const ipaAnalyzer = new InterProceduralReachingDefinitions(callGraph, intraRD);
+          interProceduralRD = ipaAnalyzer.analyze();
+          console.log(`[IPA] Inter-procedural reaching definitions complete`);
+        }
+
+        // Phase 4: Parameter and return value analysis
+        const paramAnalyzer = new ParameterAnalyzer();
+        const returnAnalyzer = new ReturnValueAnalyzer();
+
+        cfg.functions.forEach((funcCFG, funcName) => {
+          // Analyze return values
+          const returns = returnAnalyzer.analyzeReturns(funcCFG);
+          if (returns.length > 0) {
+            returnValueAnalysis.set(funcName, returns);
+          }
+
+          // Analyze parameters at call sites
+          const calls = callGraph.callsFrom.get(funcName) || [];
+          const paramMappings: any[] = [];
+          
+          calls.forEach((call: any) => {
+            const calleeMetadata = callGraph.functions.get(call.calleeId);
+            if (calleeMetadata) {
+              const mappings = paramAnalyzer.mapParametersWithDerivation(call, calleeMetadata);
+              paramMappings.push(...mappings);
+            }
+          });
+
+          if (paramMappings.length > 0) {
+            parameterAnalysis.set(funcName, paramMappings);
+          }
+        });
+
+        console.log(`[IPA] Parameter analysis: ${parameterAnalysis.size} functions`);
+        console.log(`[IPA] Return value analysis: ${returnValueAnalysis.size} functions`);
+      } catch (error) {
+        console.error('[IPA] Error during inter-procedural analysis:', error);
+        // Continue without IPA if it fails
+      }
+    }
+
     this.currentState = {
       workspacePath,
       timestamp: Date.now(),
@@ -300,7 +445,12 @@ export class DataflowAnalyzer {
       reachingDefinitions,
       taintAnalysis,
       vulnerabilities,
-      fileStates
+      fileStates,
+      // IPA features
+      callGraph,
+      interProceduralRD,
+      parameterAnalysis: parameterAnalysis.size > 0 ? parameterAnalysis : undefined,
+      returnValueAnalysis: returnValueAnalysis.size > 0 ? returnValueAnalysis : undefined
     };
 
     this.stateManager.saveState(this.currentState);
@@ -575,7 +725,12 @@ export class DataflowAnalyzer {
       reachingDefinitions: new Map(),
       taintAnalysis: new Map(),
       vulnerabilities: new Map(),
-      fileStates: new Map()
+      fileStates: new Map(),
+      // IPA features (optional, will be populated during analysis)
+      callGraph: undefined,
+      interProceduralRD: undefined,
+      parameterAnalysis: undefined,
+      returnValueAnalysis: undefined
     };
   }
 

@@ -145,9 +145,9 @@ Perfect for security researchers, developers, and code reviewers who need to und
    ```
 
 3. **Build TypeScript Extension**
-   ```bash
-   cd /path/to/vscode-dataflow-analyzer
-   npm install
+```bash
+cd /path/to/vscode-dataflow-analyzer
+npm install
    npm run compile
    ```
 

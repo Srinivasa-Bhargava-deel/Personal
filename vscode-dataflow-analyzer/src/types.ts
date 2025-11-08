@@ -19,12 +19,15 @@ export interface BasicBlock {
   predecessors: string[];
   successors: string[];
   range?: Range;
+  isEntry?: boolean;  // Optional marker for entry block
+  isExit?: boolean;   // Optional marker for exit block
 }
 
 export interface Statement {
   id?: string;
   type?: StatementType;
   text: string;
+  content?: string;  // Alias for text, used by some parsers
   range?: Range;
   variables?: {
     defined: string[];
@@ -99,6 +102,11 @@ export interface AnalysisState {
   taintAnalysis: Map<string, TaintInfo[]>;
   vulnerabilities: Map<string, any[]>; // functionName -> Vulnerability[]
   fileStates: Map<string, FileAnalysisState>;
+  // IPA (Inter-Procedural Analysis) features (v1.2+)
+  callGraph?: any; // CallGraph from Phase 1 & 2
+  interProceduralRD?: Map<string, Map<string, ReachingDefinitionsInfo>>; // Phase 3
+  parameterAnalysis?: Map<string, any[]>; // Phase 4: functionName -> ParameterMapping[]
+  returnValueAnalysis?: Map<string, any[]>; // Phase 4: functionName -> ReturnValueInfo[]
 }
 
 export interface FileAnalysisState {
@@ -114,5 +122,6 @@ export interface AnalysisConfig {
   enableReachingDefinitions: boolean;
   enableTaintAnalysis: boolean;
   debounceDelay: number;
+  enableInterProcedural?: boolean; // Enable IPA features (v1.2+)
 }
 

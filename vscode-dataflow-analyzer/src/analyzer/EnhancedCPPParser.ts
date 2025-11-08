@@ -35,7 +35,7 @@ import { ASTNode, CXCursorKind } from './ClangASTParser';
  * Represents a complete function for analysis.
  * Contains the function name, source location, and CFG for dataflow analysis.
  */
-interface FunctionInfo {
+export interface FunctionInfo {
   name: string;                           // Function name (e.g., "factorial")
   range: Range;                           // Source code location of function
   cfg: FunctionCFG;                       // Control Flow Graph for this function
@@ -102,17 +102,8 @@ export class EnhancedCPPParser {
    * Extract functions from CFG-based AST structure.
    * 
    * CFG structure format (from cfg-exporter):
-   * ```
-   * {
-   *   inner: {
-   *     "function_name": {
-   *       kind: "FunctionDecl",
-   *       inner: [ /* CFG blocks */ ],
-   *       range: { start: ..., end: ... }
-   *     }
-   *   }
-   * }
-   * ```
+   * Object with function names as keys, each containing FunctionDecl nodes
+   * with inner array of CFGBlock nodes.
    * 
    * @param ast - AST from clang parser
    * @param filePath - Source file path
@@ -288,11 +279,4 @@ export class EnhancedCPPParser {
   dispose(): void {
     // No resources to dispose for clang command-line approach
   }
-}
-
-export interface FunctionInfo {
-  name: string;
-  range: Range;
-  cfg: FunctionCFG;
-  astNode?: ASTNode;
 }

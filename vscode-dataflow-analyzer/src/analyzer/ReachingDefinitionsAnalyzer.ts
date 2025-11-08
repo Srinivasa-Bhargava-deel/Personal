@@ -81,14 +81,14 @@ export class ReachingDefinitionsAnalyzer {
           
           // Union operation: add all definitions from predecessors' OUT
           // IMPORTANT: Track propagation path through CFG
-          predRdInfo.out.forEach((defs, varName) => {
-            if (!newIn.has(varName)) {
-              newIn.set(varName, []);
-            }
-            const existing = newIn.get(varName)!;
-            defs.forEach(def => {
+            predRdInfo.out.forEach((defs, varName) => {
+              if (!newIn.has(varName)) {
+                newIn.set(varName, []);
+              }
+              const existing = newIn.get(varName)!;
+              defs.forEach(def => {
               // Avoid duplicates by checking definitionId
-              if (!existing.find(d => d.definitionId === def.definitionId)) {
+                if (!existing.find(d => d.definitionId === def.definitionId)) {
                 // Clone the definition and extend its propagation path
                 const defWithHistory: ReachingDefinition = {
                   ...def,
@@ -98,9 +98,9 @@ export class ReachingDefinitionsAnalyzer {
                     : [def.sourceBlock || String(predId), String(blockId)]
                 };
                 existing.push(defWithHistory);
-              }
+                }
+              });
             });
-          });
         }
         
         // Compute OUT[B] = GEN[B] union (IN[B] - KILL[B])

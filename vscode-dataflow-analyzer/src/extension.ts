@@ -45,7 +45,8 @@ export function activate(context: vscode.ExtensionContext) {
     enableLiveness: config.get('enableLiveness', true),
     enableReachingDefinitions: config.get('enableReachingDefinitions', true),
     enableTaintAnalysis: config.get('enableTaintAnalysis', true),
-    debounceDelay: config.get('debounceDelay', 500)
+    debounceDelay: config.get('debounceDelay', 500),
+    enableInterProcedural: config.get('enableInterProcedural', true)
   };
 
   // Initialize analyzer
@@ -167,7 +168,8 @@ export function activate(context: vscode.ExtensionContext) {
         enableLiveness: config.get('enableLiveness', true),
         enableReachingDefinitions: config.get('enableReachingDefinitions', true),
         enableTaintAnalysis: config.get('enableTaintAnalysis', true),
-        debounceDelay: config.get('debounceDelay', 500)
+        debounceDelay: config.get('debounceDelay', 500),
+        enableInterProcedural: config.get('enableInterProcedural', true)
       };
       
       if (analyzer) {

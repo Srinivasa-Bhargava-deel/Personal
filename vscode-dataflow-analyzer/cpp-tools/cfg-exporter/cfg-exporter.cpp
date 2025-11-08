@@ -181,7 +181,7 @@ int main(int argc, const char **argv) {
     llvm::errs() << "Error: Could not open file " << SourceFile << "\n";
     return 1;
   }
-  
+
   std::string Source((std::istreambuf_iterator<char>(FileStream)),
                      std::istreambuf_iterator<char>());
   FileStream.close();

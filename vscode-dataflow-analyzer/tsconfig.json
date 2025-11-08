@@ -16,7 +16,9 @@
   },
   "exclude": [
     "node_modules",
-    ".vscode-test"
+    ".vscode-test",
+    "validate_phase3.ts",
+    "validate_phase4.ts"
   ]
 }
 
