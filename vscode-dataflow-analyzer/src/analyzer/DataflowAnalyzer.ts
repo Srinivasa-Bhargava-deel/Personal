@@ -32,7 +32,8 @@ import {
   FunctionCFG,
   AnalysisState,
   FileAnalysisState,
-  AnalysisConfig
+  AnalysisConfig,
+  ReachingDefinitionsInfo
 } from '../types';
 
 /**
@@ -199,8 +200,10 @@ export class DataflowAnalyzer {
       }
 
       if (this.config.enableTaintAnalysis) {
-        const funcRD = reachingDefinitions.get(`${funcName}_entry`) || 
-                      new Map().set('entry', { in: new Map(), out: new Map() });
+        // CRITICAL FIX (Issue #3): Use correct key format matching the storage format
+        const entryBlockId = funcCFG.entry || 'entry';
+        const funcRD = reachingDefinitions.get(`${funcName}_${entryBlockId}`) || 
+                      new Map<string, ReachingDefinitionsInfo>();
         const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
         taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
         
@@ -370,8 +373,10 @@ export class DataflowAnalyzer {
       }
 
       if (this.config.enableTaintAnalysis) {
-        const funcRD = reachingDefinitions.get(`${funcName}_entry`) || 
-                      new Map().set('entry', { in: new Map(), out: new Map() });
+        // CRITICAL FIX (Issue #3): Use correct key format matching the storage format
+        const entryBlockId = funcCFG.entry || 'entry';
+        const funcRD = reachingDefinitions.get(`${funcName}_${entryBlockId}`) || 
+                      new Map<string, ReachingDefinitionsInfo>();
         const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
         taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
         
@@ -657,8 +662,10 @@ export class DataflowAnalyzer {
       }
 
       if (this.config.enableTaintAnalysis) {
-        const funcRD = reachingDefinitions.get(`${funcName}_entry`) || 
-                      new Map().set('entry', { in: new Map(), out: new Map() });
+        // CRITICAL FIX (Issue #3): Use correct key format matching the storage format
+        const entryBlockId = funcCFG.entry || 'entry';
+        const funcRD = reachingDefinitions.get(`${funcName}_${entryBlockId}`) || 
+                      new Map<string, ReachingDefinitionsInfo>();
         const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
         taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
         

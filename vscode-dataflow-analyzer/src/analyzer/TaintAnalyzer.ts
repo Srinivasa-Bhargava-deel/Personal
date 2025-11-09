@@ -50,6 +50,8 @@ export class TaintAnalyzer {
     });
     
     // Forward propagation: find taint sources and propagate
+    // LOW FIX (Issue #10): Use Set to track worklist items and avoid duplicates
+    const worklistSet = new Set<string>();
     const worklist: Array<{ 
       blockId: string; 
       varName: string; 
@@ -76,15 +78,19 @@ export class TaintAnalyzer {
             taintMap.set(variable, existingTaints);
             
             // Add to worklist for propagation
-            worklist.push({
-              blockId,
-              varName: variable,
-              source: taintInfo.source,
-              path: [...taintInfo.propagationPath],
-              category: taintInfo.sourceCategory,
-              taintType: taintInfo.taintType,
-              sourceFunction: taintInfo.sourceFunction
-            });
+            const worklistKey = `${blockId}:${variable}:${taintInfo.source}`;
+            if (!worklistSet.has(worklistKey)) {
+              worklist.push({
+                blockId,
+                varName: variable,
+                source: taintInfo.source,
+                path: [...taintInfo.propagationPath],
+                category: taintInfo.sourceCategory,
+                taintType: taintInfo.taintType,
+                sourceFunction: taintInfo.sourceFunction
+              });
+              worklistSet.add(worklistKey);
+            }
           }
           
         }
@@ -110,15 +116,19 @@ export class TaintAnalyzer {
             const existingTaints = taintMap.get(varName) || [];
             existingTaints.push(taintInfo);
             taintMap.set(varName, existingTaints);
-            worklist.push({
-              blockId,
-              varName,
-              source: taintInfo.source,
-              path: [...taintInfo.propagationPath],
-              category: 'command_line',
-              taintType: 'string',
-              sourceFunction: 'argv'
-            });
+            const worklistKey = `${blockId}:${varName}:${taintInfo.source}`;
+            if (!worklistSet.has(worklistKey)) {
+              worklist.push({
+                blockId,
+                varName,
+                source: taintInfo.source,
+                path: [...taintInfo.propagationPath],
+                category: 'command_line',
+                taintType: 'string',
+                sourceFunction: 'argv'
+              });
+              worklistSet.add(worklistKey);
+            }
           }
         }
       });
@@ -128,6 +138,9 @@ export class TaintAnalyzer {
     while (worklist.length > 0) {
       const item = worklist.shift()!;
       const { blockId, varName, source, path, category, taintType, sourceFunction } = item;
+      // Remove from set when processing
+      const itemKey = `${blockId}:${varName}:${source}`;
+      worklistSet.delete(itemKey);
       
       // Find all uses of this variable
       functionCFG.blocks.forEach((block, bid) => {
@@ -195,15 +208,21 @@ export class TaintAnalyzer {
                       };
                   
                   taintMap.get(targetVar)?.push(taintInfo);
-                  worklist.push({
-                    blockId: bid,
-                    varName: targetVar,
-                    source,
-                    path: taintInfo.propagationPath,
-                    category,
-                    taintType,
-                    sourceFunction
-                  });
+                  
+                  // LOW FIX (Issue #10): Only add to worklist if not already processed
+                  const newWorklistKey = `${bid}:${targetVar}:${source}`;
+                  if (!worklistSet.has(newWorklistKey)) {
+                    worklist.push({
+                      blockId: bid,
+                      varName: targetVar,
+                      source,
+                      path: taintInfo.propagationPath,
+                      category,
+                      taintType,
+                      sourceFunction
+                    });
+                    worklistSet.add(newWorklistKey);
+                  }
                 }
               });
             }

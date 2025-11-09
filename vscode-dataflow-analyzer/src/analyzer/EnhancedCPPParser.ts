@@ -230,9 +230,12 @@ export class EnhancedCPPParser {
     }
 
     // Find entry and exit blocks
+    // MODERATE FIX (Issue #7): Use graph-theoretic properties (predecessor/successor count)
+    // instead of heuristics, per academic standards
     let entryBlock = '';
     let exitBlock = '';
 
+    // First, try explicit labels (for compatibility)
     for (const [id, block] of blocks) {
       if (block.label.includes('Entry') || block.label.includes('(ENTRY)')) {
         entryBlock = id;
@@ -242,7 +245,27 @@ export class EnhancedCPPParser {
       }
     }
 
-    // If no explicit entry/exit found, use first/last blocks
+    // If no explicit entry found, use graph-theoretic property: block with no predecessors
+    if (!entryBlock) {
+      for (const [id, block] of blocks) {
+        if (block.predecessors.length === 0) {
+          entryBlock = id;
+          break;
+        }
+      }
+    }
+
+    // If no explicit exit found, use graph-theoretic property: block with no successors
+    if (!exitBlock) {
+      for (const [id, block] of blocks) {
+        if (block.successors.length === 0) {
+          exitBlock = id;
+          break;
+        }
+      }
+    }
+
+    // Fallback: use first/last blocks if still not found (should rarely happen)
     if (!entryBlock && blocks.size > 0) {
       const firstKey = blocks.keys().next();
       entryBlock = firstKey.done ? '' : firstKey.value;

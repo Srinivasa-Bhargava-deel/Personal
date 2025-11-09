@@ -76,6 +76,7 @@ export interface ReachingDefinition {
   sourceBlock?: string;        // Original block where definition was created
   propagationPath?: string[];  // Path from source to current block: [B0 -> B1 -> B2]
   killed?: boolean;            // Whether this definition was killed
+  isParameter?: boolean;       // Whether this is a function parameter definition
 }
 
 export interface ReachingDefinitionsInfo {

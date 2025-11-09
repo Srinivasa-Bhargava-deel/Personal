@@ -38,7 +38,7 @@ export class ReachingDefinitionsAnalyzer {
     
     // Step 2: Initialize RD info for each block with GEN and KILL sets
     functionCFG.blocks.forEach((block, blockId) => {
-      const gen = this.computeGen(block, allDefinitions);
+      const gen = this.computeGen(block, allDefinitions, functionCFG);
       const kill = this.computeKill(block, allDefinitions);
       
       rdMap.set(blockId, {
@@ -55,9 +55,11 @@ export class ReachingDefinitionsAnalyzer {
     });
 
     // Step 3: Iterative dataflow analysis until reaching fixed point
+    // MODERATE FIX (Issue #6): Add MAX_ITERATIONS safety check
+    const MAX_ITERATIONS = 10 * functionCFG.blocks.size;
     let iteration = 0;
     let changed = true;
-    while (changed) {
+    while (changed && iteration < MAX_ITERATIONS) {
       iteration++;
       changed = false;
       console.log(`[RD Analysis] Iteration ${iteration}`);
@@ -90,12 +92,26 @@ export class ReachingDefinitionsAnalyzer {
               // Avoid duplicates by checking definitionId
                 if (!existing.find(d => d.definitionId === def.definitionId)) {
                 // Clone the definition and extend its propagation path
+                // MODERATE FIX (Issue #5): Detect cycles to prevent unbounded path growth
+                const currentPath = def.propagationPath || [def.sourceBlock || String(predId)];
+                const isCycle = currentPath.includes(String(blockId));
+                
+                let newPath: string[];
+                if (isCycle) {
+                  // Compact cycle representation: mark cycle with [*]
+                  const cycleStart = currentPath.indexOf(String(blockId));
+                  const beforeCycle = currentPath.slice(0, cycleStart);
+                  const cycle = currentPath.slice(cycleStart);
+                  newPath = [...beforeCycle, `[${cycle.join('->')}]*`, String(blockId)];
+                } else {
+                  // Normal path extension
+                  newPath = [...currentPath, String(blockId)];
+                }
+                
                 const defWithHistory: ReachingDefinition = {
                   ...def,
                   // Extend the propagation path: add current block to the path
-                  propagationPath: def.propagationPath 
-                    ? [...def.propagationPath, String(blockId)] 
-                    : [def.sourceBlock || String(predId), String(blockId)]
+                  propagationPath: newPath
                 };
                 existing.push(defWithHistory);
                 }
@@ -187,18 +203,47 @@ export class ReachingDefinitionsAnalyzer {
       }
     }
     
-    console.log(`[RD Analysis] Converged after ${iteration} iterations`);
+    if (iteration >= MAX_ITERATIONS) {
+      console.warn(`[RD Analysis] WARNING: Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence!`);
+    } else {
+      console.log(`[RD Analysis] Converged after ${iteration} iterations`);
+    }
     return rdMap;
   }
 
   /**
    * Collect all definitions in the function across all blocks
    * A definition is where a variable receives a value
+   * 
+   * CRITICAL FIX (Issue #1): Function parameters must be treated as definitions
+   * at the function entry point per academic standards (Cooper & Torczon).
    */
   private collectDefinitions(functionCFG: FunctionCFG): ReachingDefinition[] {
     const definitions: ReachingDefinition[] = [];
     let defCounter = 0;
     
+    // CRITICAL FIX: Add function parameters as definitions at entry block
+    // This is required by academic standards - parameters are "defined" by the caller
+    const entryBlockId = functionCFG.entry;
+    if (entryBlockId && functionCFG.parameters && functionCFG.parameters.length > 0) {
+      functionCFG.parameters.forEach(paramName => {
+        const definitionId = `d${defCounter++}`;
+        const paramDef: ReachingDefinition = {
+          variable: paramName,
+          definitionId: definitionId,
+          blockId: entryBlockId,
+          statementId: `${entryBlockId}_param_${paramName}`,
+          range: undefined,
+          sourceBlock: entryBlockId,
+          propagationPath: [entryBlockId],
+          isParameter: true  // Mark as parameter definition
+        };
+        definitions.push(paramDef);
+        console.log(`[RD Analysis] Found parameter definition: ${paramName} -> ${definitionId} at entry block ${entryBlockId}`);
+      });
+    }
+    
+    // Collect definitions from statements in all blocks
     functionCFG.blocks.forEach((block, blockId) => {
       block.statements.forEach((stmt, stmtIdx) => {
         // Get defined variables from the statement
@@ -232,9 +277,22 @@ export class ReachingDefinitionsAnalyzer {
    * 
    * For academic correctness: if a variable is assigned multiple times in a block,
    * only the LAST assignment is in GEN (previous ones are killed within the block)
+   * 
+   * CRITICAL FIX (Issue #1): Entry block must include parameter definitions
    */
-  private computeGen(block: BasicBlock, allDefinitions: ReachingDefinition[]): Map<string, ReachingDefinition[]> {
+  private computeGen(block: BasicBlock, allDefinitions: ReachingDefinition[], functionCFG: FunctionCFG): Map<string, ReachingDefinition[]> {
     const gen = new Map<string, ReachingDefinition[]>();
+    
+    // CRITICAL FIX: If this is the entry block, include parameter definitions
+    if (String(block.id) === functionCFG.entry) {
+      const paramDefs = allDefinitions.filter(d => d.isParameter === true);
+      paramDefs.forEach(def => {
+        if (!gen.has(def.variable)) {
+          gen.set(def.variable, []);
+        }
+        gen.get(def.variable)!.push(def);
+      });
+    }
     
     // Track last definition of each variable in this block
     const lastDefByVar = new Map<string, ReachingDefinition>();
