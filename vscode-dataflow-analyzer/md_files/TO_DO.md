@@ -1,14 +1,7 @@
 # TODO List - VS Code Dataflow Analyzer
 
 **Last Updated**: December 2024  
-**Current Version**: v1.7.0
-
----
-
-# TODO List - VS Code Dataflow Analyzer
-
-**Last Updated**: December 2024  
-**Current Version**: v1.7.0
+**Current Version**: v1.8.0
 
 ---
 
