@@ -7,9 +7,10 @@ A comprehensive VSCode extension for real-time incremental static/dataflow analy
 This extension provides powerful static analysis capabilities for C++ codebases, focusing on:
 - **Control Flow Graph (CFG) Visualization** - Interactive real-time CFG building using official Clang/LLVM libraries
 - **Dataflow Analysis** - Liveness, reaching definitions, and taint analysis with full propagation tracking
-- **Security Vulnerability Detection** - Automated detection of common vulnerabilities
-- **Attack Path Visualization** - Source-to-sink path tracking for exploit analysis
-- **Exploit Post-Mortem Support** - Tools for analyzing and understanding security vulnerabilities
+- **Inter-Procedural Analysis (IPA)** - Analysis across function boundaries with call graphs, parameter mapping, and return value tracking
+- **Security Vulnerability Detection** - Automated detection of common vulnerabilities with source-to-sink path tracking
+- **Attack Path Visualization** - Complete path visualization from taint sources to security sinks
+- **Interconnected CFG Visualization** - Unified view of all functions with control flow, call, and data flow edges
 
 Perfect for security researchers, developers, and code reviewers who need to understand dataflow and identify security vulnerabilities in C++ code.
 
@@ -23,32 +24,45 @@ Perfect for security researchers, developers, and code reviewers who need to und
    - Visualized in CFG with live-in and live-out sets
    - Academic-correct implementation per Cooper & Torczon
 
-2. **Reaching Definitions Analysis** ⭐ NEW (v1.1)
+2. **Reaching Definitions Analysis**
    - Tracks where variable definitions reach through the program
    - Forward dataflow analysis with full propagation history
    - Shows definition-to-use chains with complete path tracking
    - Identifies all definitions that can reach each use point
    - Displays propagation paths showing CFG traversal
+   - Function parameters initialized as definitions at entry block
 
-3. **Taint Analysis**
-   - Tracks tainted data flow from sources (user input, network, etc.)
-   - Forward propagation through assignments
-   - Identifies security-sensitive data flows
-   - Integration with reaching definitions for path tracking
+3. **Taint Analysis** (v1.3+)
+   - Enhanced taint source detection (user input, file I/O, network, environment, command line, database, configuration)
+   - Taint sink detection (SQL injection, command injection, format string, path traversal, buffer overflow, code injection, integer overflow)
+   - Sanitization detection (input validation, encoding, escaping, whitelisting, type conversion, length limits)
+   - Enhanced propagation with taint labels (USER_INPUT, FILE_CONTENT, NETWORK_DATA, etc.)
+   - Inter-procedural taint propagation across function boundaries
+   - Vulnerability detection with source-to-sink path tracking
 
-4. **Security Vulnerability Detection**
-   - Buffer overflow detection
-   - Use-after-free detection
-   - Double free detection
-   - Format string vulnerabilities
-   - Command injection
-   - SQL injection
-   - Path traversal
+4. **Inter-Procedural Analysis (IPA)** (v1.2+)
+   - **Call Graph Construction**: Builds complete call graphs showing function call relationships
+   - **Recursion Detection**: Identifies direct, mutual, and tail recursion
+   - **External Function Identification**: Categorizes library and system calls
+   - **Context-Insensitive Analysis**: Tracks variable definitions across function boundaries
+   - **Parameter Mapping**: Maps actual arguments to formal parameters with 7 derivation types (direct, expression, composite, address, call, dereference, array access)
+   - **Return Value Analysis**: Tracks return values back to call sites with 6 return types (variable, expression, call, constant, conditional, void)
+   - **Function Summaries**: Pre-defined models for common C library functions
+   - **Global Variable Handling**: Analyzes global variable definitions and uses
+
+5. **Security Vulnerability Detection**
+   - Buffer overflow detection (CWE-120)
+   - Use-after-free detection (CWE-416)
+   - Double free detection (CWE-415)
+   - Format string vulnerabilities (CWE-134)
+   - Command injection (CWE-78)
+   - SQL injection (CWE-89)
+   - Path traversal (CWE-22)
    - Unsafe function calls
-   - Uninitialized variable usage
-   - And more...
+   - Uninitialized variable usage (CWE-457)
+   - Taint-based vulnerability detection with source-to-sink paths
 
-5. **Source-to-Sink Path Visualization**
+6. **Source-to-Sink Path Visualization**
    - Highlights complete attack paths from taint sources to security sinks
    - Color-coded paths based on vulnerability severity
    - Interactive path highlighting and navigation
@@ -64,17 +78,31 @@ Perfect for security researchers, developers, and code reviewers who need to und
   - Hierarchical layout with vis-network
   - Topologically sorted blocks for academic correctness
 
+- **Interconnected CFG Visualization** (v1.5+)
+  - Unified graph combining all function CFGs
+  - Three edge types: Control Flow (green), Function Calls (blue), Data Flow (orange)
+  - Red-highlighted function nodes for high visibility
+  - Interactive visualization with click-to-inspect functionality
+  - Physics-based layout for natural function grouping
+
+- **Call Graph Visualization**
+  - Interactive call graph with vis-network
+  - Node styling for recursive/external functions
+  - Call statistics and metrics display
+  - DOT format export support
+
+- **Taint Analysis Visualization**
+  - Dedicated Taint Analysis tab
+  - Taint summary with statistics
+  - Tainted variables list with source information
+  - Vulnerability list with interactive path highlighting
+  - Source categories breakdown
+
 - **Vulnerability Dashboard**
   - List all detected vulnerabilities
   - Filter by severity, type, exploitability
   - Click to highlight attack paths
   - CWE links and recommendations
-
-- **Attack Paths Panel**
-  - Detailed view of each attack path
-  - Step-by-step breakdown
-  - Source and sink identification
-  - One-click path highlighting
 
 - **Analysis Summary**
   - Overview of all analyses
@@ -121,8 +149,6 @@ Perfect for security researchers, developers, and code reviewers who need to und
 
 ## 🚀 Installation & Build Instructions
 
-**See [BUILD_AND_RUN_LAUNCH.md](BUILD_AND_RUN_LAUNCH.md) for platform-specific detailed instructions (macOS/Windows/Linux).**
-
 ### Quick Build Summary
 
 1. **Install System Dependencies**
@@ -145,9 +171,9 @@ Perfect for security researchers, developers, and code reviewers who need to und
    ```
 
 3. **Build TypeScript Extension**
-```bash
-cd /path/to/vscode-dataflow-analyzer
-npm install
+   ```bash
+   cd /path/to/vscode-dataflow-analyzer
+   npm install
    npm run compile
    ```
 
@@ -156,6 +182,75 @@ npm install
    - Press `F5` to launch Extension Development Host
    - Open a C++ workspace
    - Run "Analyze Workspace" command
+
+### Detailed Platform-Specific Instructions
+
+#### macOS Setup
+
+1. **Install Homebrew** (if not already installed)
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+
+2. **Install Required Tools**
+   ```bash
+   brew install node cmake llvm
+   ```
+
+3. **Configure LLVM Path** (for Homebrew LLVM)
+   Add to `~/.zshrc` or `~/.bash_profile`:
+   ```bash
+   export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+   export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
+   export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+   ```
+   Then: `source ~/.zshrc`
+
+4. **Build CFG Exporter**
+   ```bash
+   cd cpp-tools/cfg-exporter
+   mkdir -p build && cd build
+   cmake .. -DLLVM_DIR=/opt/homebrew/opt/llvm/lib/cmake/llvm
+   cmake --build .
+   ```
+
+#### Linux Setup
+
+1. **Install Required Tools**
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install -y nodejs npm cmake clang clang++ llvm llvm-dev build-essential git
+   
+   # RedHat/CentOS/Fedora
+   sudo yum install -y nodejs npm cmake clang clang-tools-extra llvm llvm-devel gcc gcc-c++ make git
+   ```
+
+2. **Build CFG Exporter**
+   ```bash
+   cd cpp-tools/cfg-exporter
+   mkdir -p build && cd build
+   cmake ..
+   cmake --build .
+   ```
+
+#### Windows Setup
+
+1. **Install Node.js**: Download from [nodejs.org](https://nodejs.org/) (LTS version, 20.x or higher)
+
+2. **Install CMake**: Download from [cmake.org](https://cmake.org/download/) - Choose "Windows x64 Installer", select "Add CMake to system PATH"
+
+3. **Install LLVM/Clang**: Download from [llvm.org](https://github.com/llvm/llvm-project/releases) - Choose "LLVM-21.1.5-win64.exe", select "Add LLVM to the system PATH"
+
+4. **Install Visual Studio Build Tools**: Download from [visualstudio.microsoft.com](https://visualstudio.microsoft.com/downloads/) - Choose "Desktop development with C++" and "CMake tools for Windows"
+
+5. **Build CFG Exporter**
+   ```powershell
+   cd cpp-tools\cfg-exporter
+   mkdir build -Force
+   cd build
+   cmake ..
+   cmake --build . --config Release
+   ```
 
 ## 📖 Usage
 
@@ -174,15 +269,18 @@ npm install
    - Type "Show Control Flow Graph" and select it
    - The CFG visualizer will open in a new panel
 
-4. **Explore Vulnerabilities**
-   - Click on the "Vulnerabilities" tab in the visualizer
+4. **Explore Features**
+   - **CFG Tab**: View individual function control flow graphs
+   - **Call Graph Tab**: See function call relationships
+   - **Parameters & Returns Tab**: View parameter mapping and return value analysis
+   - **Inter-Procedural Tab**: See inter-procedural dataflow analysis
+   - **Taint Analysis Tab**: View taint sources, sinks, and vulnerabilities
+   - **Interconnected CFG Tab**: Unified view of all functions with all edge types
+
+5. **Explore Vulnerabilities**
+   - Click on the "Taint Analysis" tab in the visualizer
    - Click any vulnerability to highlight its attack path
    - View detailed information including CWE links and recommendations
-
-5. **Analyze Attack Paths**
-   - Click on the "Attack Paths" tab
-   - See step-by-step breakdown of each attack path
-   - Click "Highlight in Graph" to visualize the path
 
 ### Configuration
 
@@ -200,6 +298,8 @@ Open VSCode settings (`Ctrl+,` or `Cmd+,`) and search for "Dataflow Analyzer":
 
 - **Enable Taint Analysis**: Toggle taint analysis (default: true)
 
+- **Enable Inter-Procedural**: Toggle inter-procedural analysis (default: true)
+
 ### Commands
 
 - `dataflowAnalyzer.showCFG` - Show Control Flow Graph visualizer
@@ -215,31 +315,42 @@ Open VSCode settings (`Ctrl+,` or `Cmd+,`) and search for "Dataflow Analyzer":
 vscode-dataflow-analyzer/
 ├── src/
 │   ├── analyzer/
-│   │   ├── CPPParser.ts              # Primitive parser (fallback)
-│   │   ├── EnhancedCPPParser.ts      # Main parser using CFG exporter
-│   │   ├── ClangASTParser.ts         # CFG exporter wrapper (uses libclang)
-│   │   ├── DataflowAnalyzer.ts       # Main orchestrator
-│   │   ├── LivenessAnalyzer.ts       # Liveness analysis (backward DFA)
-│   │   ├── ReachingDefinitionsAnalyzer.ts  # Reaching definitions (forward DFA)
-│   │   ├── TaintAnalyzer.ts          # Taint analysis (forward propagation)
-│   │   └── SecurityAnalyzer.ts       # Vulnerability detection & attack path
+│   │   ├── CPPParser.ts                      # Primitive parser (fallback)
+│   │   ├── EnhancedCPPParser.ts              # Main parser using CFG exporter
+│   │   ├── ClangASTParser.ts                 # CFG exporter wrapper (uses libclang)
+│   │   ├── DataflowAnalyzer.ts               # Main orchestrator
+│   │   ├── LivenessAnalyzer.ts               # Liveness analysis (backward DFA)
+│   │   ├── ReachingDefinitionsAnalyzer.ts    # Reaching definitions (forward DFA)
+│   │   ├── TaintAnalyzer.ts                  # Taint analysis (forward propagation)
+│   │   ├── TaintSourceRegistry.ts            # Taint source registry
+│   │   ├── TaintSinkRegistry.ts              # Taint sink registry
+│   │   ├── SanitizationRegistry.ts           # Sanitization function registry
+│   │   ├── SecurityAnalyzer.ts               # Vulnerability detection & attack path
+│   │   ├── CallGraphAnalyzer.ts              # Call graph construction (Phase 1)
+│   │   ├── CallGraphAnalyzer.Extensions.ts   # Advanced call graph analysis (Phase 2)
+│   │   ├── InterProceduralReachingDefinitions.ts  # Inter-procedural dataflow (Phase 3)
+│   │   ├── ParameterAnalyzer.ts              # Parameter mapping (Phase 4)
+│   │   ├── ReturnValueAnalyzer.ts            # Return value analysis (Phase 4)
+│   │   ├── FunctionSummaries.ts              # Library function summaries (Phase 4)
+│   │   ├── FunctionCallExtractor.ts          # Robust function call extraction
+│   │   └── __tests__/                        # Unit tests
 │   ├── visualizer/
-│   │   └── CFGVisualizer.ts          # CFG webview visualizer (vis-network)
+│   │   └── CFGVisualizer.ts                  # CFG webview visualizer (vis-network)
 │   ├── state/
-│   │   └── StateManager.ts           # State persistence (.vscode/dataflow-state.json)
-│   ├── types.ts                      # Type definitions (CFG, Analysis, etc.)
-│   └── extension.ts                  # Extension entry point
+│   │   └── StateManager.ts                   # State persistence (.vscode/dataflow-state.json)
+│   ├── types.ts                              # Type definitions (CFG, Analysis, etc.)
+│   └── extension.ts                          # Extension entry point
 ├── cpp-tools/
-│   └── cfg-exporter/                 # C++ CFG exporter tool
-│       ├── cfg-exporter.cpp          # Main CFG exporter using libclang
-│       ├── CMakeLists.txt            # CMake build configuration
+│   └── cfg-exporter/                         # C++ CFG exporter tool
+│       ├── cfg-exporter.cpp                  # Main CFG exporter using libclang
+│       ├── CMakeLists.txt                    # CMake build configuration
 │       ├── build/
-│       │   └── cfg-exporter          # Compiled binary (after build)
-│       └── README.md                 # CFG exporter documentation
-├── out/                              # Compiled JavaScript (generated)
-├── package.json                      # Extension manifest
-├── tsconfig.json                     # TypeScript configuration
-└── README.md                         # This file
+│       │   └── cfg-exporter                  # Compiled binary (after build)
+│       └── README.md                         # CFG exporter documentation
+├── out/                                      # Compiled JavaScript (generated)
+├── package.json                              # Extension manifest
+├── tsconfig.json                             # TypeScript configuration
+└── README.md                                 # This file
 ```
 
 ### Key Components
@@ -258,10 +369,12 @@ vscode-dataflow-analyzer/
    - Converts CFG data to internal ASTNode format
    - `EnhancedCPPParser.ts`: Main parser that uses CFG exporter output
    - Extracts functions, basic blocks, statements, and control flow
+   - Entry/exit block detection using graph-theoretic properties (no predecessors/successors)
 
 2. **Analysis Layer**
    - **LivenessAnalyzer.ts**: Backward dataflow analysis
      - Equation: `IN[B] = USE[B] ∪ (OUT[B] - DEF[B])`
+     - Equation: `OUT[B] = ∪ IN[S] for all successors S`
      - Fixed-point iteration until convergence
      - Based on Dragon Book & Cooper & Torczon algorithms
    
@@ -270,9 +383,52 @@ vscode-dataflow-analyzer/
      - Equation: `OUT[B] = GEN[B] ∪ (IN[B] - KILL[B])`
      - Tracks definition propagation through CFG
      - Maintains complete path history for each definition
+     - Function parameters initialized as definitions at entry block
+     - MAX_ITERATIONS safety check to prevent infinite loops
+     - Cycle detection in propagation paths
      - Academic-correct implementation
    
    - **TaintAnalyzer.ts**: Forward propagation of taint information
+     - Enhanced source detection (7 categories)
+     - Sink detection (7 vulnerability types)
+     - Sanitization detection (6 sanitization types)
+     - Taint label propagation
+     - Inter-procedural taint propagation
+     - Worklist algorithm with Set-based deduplication
+   
+   - **CallGraphAnalyzer.ts**: Call graph construction (Phase 1)
+     - Function call extraction from CFG statements
+     - Caller/callee relationship mapping
+     - Direct recursion detection
+     - Mutual recursion detection using DFS
+     - Tail recursion identification
+   
+   - **CallGraphAnalyzer.Extensions.ts**: Advanced call graph analysis (Phase 2)
+     - External function identification (13+ recognized categories)
+     - Recursion depth calculation
+     - Strongly connected components (Tarjan's algorithm)
+     - Call statistics and metrics
+   
+   - **InterProceduralReachingDefinitions.ts**: Inter-procedural dataflow (Phase 3)
+     - Context-insensitive analysis
+     - Definition propagation through function calls
+     - Parameter mapping
+     - Return value propagation
+     - Global variable handling
+     - Fixed-point iteration with MAX_ITERATIONS
+   
+   - **ParameterAnalyzer.ts**: Parameter mapping (Phase 4)
+     - 7 types of argument derivations (direct, expression, composite, address, call, dereference, array access)
+     - Sophisticated parameter-to-argument mapping
+   
+   - **ReturnValueAnalyzer.ts**: Return value analysis (Phase 4)
+     - 6 return value types (variable, expression, call, constant, conditional, void)
+     - Return value extraction and tracking
+   
+   - **FunctionSummaries.ts**: Library function summaries (Phase 4)
+     - Pre-defined models for common C library functions
+     - Parameter effects and return value tracking
+   
    - **SecurityAnalyzer.ts**: Vulnerability pattern detection and attack path construction
 
 3. **Visualization Layer**
@@ -282,6 +438,10 @@ vscode-dataflow-analyzer/
    - Shows liveness, reaching definitions, and taint information on blocks
    - Real-time updates and interactive features
    - Color-coded blocks for vulnerability severity
+   - Tabbed interface: CFG, Call Graph, Parameters & Returns, Inter-Procedural, Taint Analysis, Interconnected CFG
+   - Separate information windows for block info and call graph info
+   - Debug toggle for debug information panel
+   - Interconnected CFG visualization with three edge types
 
 4. **State Management**
    - `StateManager.ts`: Handles persistence of analysis state
@@ -323,11 +483,13 @@ KILL[B] = definitions killed (overwritten) in block B
 Iterate until fixed point
 ```
 
-**Implementation (v1.1):**
-- Collects all definitions in function upfront
+**Implementation:**
+- Collects all definitions in function upfront (including function parameters at entry block)
 - Computes GEN and KILL sets for each block
 - Iteratively propagates definitions
 - Tracks propagation path for each definition: `sourceBlock -> ... -> currentBlock`
+- MAX_ITERATIONS safety check (10 * number of blocks)
+- Cycle detection in propagation paths (represented as `[cycle]*`)
 - Enhanced to store full history for debugging and visualization
 
 #### Taint Analysis (Forward)
@@ -335,14 +497,39 @@ Iterate until fixed point
 Forward propagation with source/sink identification:
 
 ```
-Sources: scanf, gets, read, network input, etc.
-Sinks: printf, puts, write, sprintf, system, etc.
+Sources: scanf, gets, fgets, read, network input, file I/O, environment, etc.
+Sinks: printf, puts, write, sprintf, system, SQL queries, etc.
+Sanitization: Input validation, encoding, escaping, whitelisting, etc.
 
 For each statement:
   - If assignment: propagate taint from RHS to LHS
   - If sink: flag vulnerability if tainted variable used
+  - If sanitization: remove taint from sanitized variables
   - Track path from source to sink
 ```
+
+**Implementation:**
+- Enhanced source registry with 7 categories
+- Sink registry with 7 vulnerability types
+- Sanitization registry with 6 sanitization types
+- Taint label propagation (USER_INPUT, FILE_CONTENT, NETWORK_DATA, etc.)
+- Inter-procedural taint propagation across function boundaries
+- Worklist algorithm with Set-based deduplication
+
+#### Inter-Procedural Analysis
+
+**Call Graph Construction:**
+- Extracts function calls from CFG statements
+- Builds caller/callee relationship maps
+- Detects direct, mutual, and tail recursion
+- Identifies external/library functions
+
+**Inter-Procedural Dataflow:**
+- Fixed-point iteration across function boundaries
+- Parameter mapping (7 derivation types)
+- Return value tracking (6 return types)
+- Global variable handling
+- Function summaries for library functions
 
 ### CFG Generation Pipeline
 
@@ -351,17 +538,23 @@ For each statement:
 3. Generates JSON with CFG structure (blocks, edges, statements)
 4. `ClangASTParser.ts` parses JSON
 5. `EnhancedCPPParser.ts` extracts function information
-6. `DataflowAnalyzer.ts` orchestrates analyses
-7. Results stored and visualized
+6. Entry/exit block detection using graph-theoretic properties
+7. `DataflowAnalyzer.ts` orchestrates analyses
+8. Results stored and visualized
 
 ### Academic Correctness
 
 - Uses official `clang::CFG::buildCFG()` from libclang/LLVM
 - CFG follows academic standard: Entry → Basic Blocks → Exit
+- Entry block = block with no predecessors
+- Exit block = block with no successors
 - Each block has statements, predecessors, successors
 - Dataflow equations match standard compiler textbooks
 - Topological sorting for visualization follows academic standards
 - Propagation paths track complete flow through CFG
+- Function parameters initialized as definitions at entry (academic standard)
+- MAX_ITERATIONS safety checks prevent infinite loops
+- Cycle detection in propagation paths
 
 ## 🔍 Vulnerability Detection
 
@@ -393,6 +586,10 @@ For each statement:
 
 8. **Uninitialized Variable** (CWE-457)
    - Use of uninitialized variables
+
+9. **Taint-Based Vulnerabilities**
+   - Detected when tainted data reaches security sinks without sanitization
+   - Includes all above types when taint analysis is enabled
 
 ### Attack Path Analysis
 
@@ -467,17 +664,6 @@ This tool is designed for:
 - Penetration testing
 - Security audits
 
-## 🤝 Contributing
-
-Contributions are welcome! Areas for improvement:
-
-1. Additional vulnerability patterns
-2. Inter-procedural analysis
-3. Call graph construction
-4. Symbolic execution integration
-5. Performance optimizations
-6. UI/UX improvements
-
 ## 📝 License
 
 [Specify your license here]
@@ -500,22 +686,23 @@ Contributions are welcome! Areas for improvement:
 
 ## 🐛 Known Issues
 
-- Inter-procedural analysis is limited (single function scope)
+- Inter-procedural analysis context sensitivity is limited (context-insensitive only)
 - Some complex C++ features may not be fully parsed
 - Performance may degrade on very large codebases
+- Interconnected CFG visualization: Orange (data flow) and blue (function call) edges may not appear correctly in some cases
 
-## 🔮 Future Enhancements
+## 📈 Version History
 
-- Call graph analysis
-- Inter-procedural taint analysis
-- Exploitability scoring
-- Patch suggestion engine
-- Historical comparison
-- Report generation
+- **v1.5.0**: Interconnected CFG visualization with red-highlighted function nodes
+- **v1.4.0**: Fix critical code review issues, improved entry/exit block detection
+- **v1.3.0**: Enhanced taint analysis with sanitization, comprehensive code review, and bug fixes
+- **v1.2.0**: Inter-Procedural Analysis (IPA) with Call Graphs, Parameter Analysis, and Enhanced GUI
+- **v1.1.1**: Add comprehensive code comments to analyzer modules
+- **v1.1.0**: Fixed reaching definitions analysis with full propagation tracking
 
 ---
 
 **Built with ❤️ for security researchers and developers**
 
-**Version**: 1.1.0  
+**Version**: 1.5.0  
 **Last Updated**: November 2025

@@ -1,0 +1,704 @@
+# Future Plans & Roadmap
+
+**Current Version**: v1.5.0  
+**Last Updated**: November 2025
+
+---
+
+## 📋 **CURRENT PENDING TASKS**
+
+### Task 0: FIX CRITICAL - Interconnected CFG Edges Issue
+**Status**: Pending  
+**Priority**: CRITICAL
+
+**Issue**: Only green edges showing, blue and orange edges missing in interconnected CFG visualization.
+
+**Sub-tasks**:
+- **0a. Fix blue edges (function call edges) not appearing** - Call graph parsing issue
+- **0b. Fix orange edges (data flow edges) not appearing** - RD data structure issue
+
+**Details**:
+- Blue edges represent inter-function calls
+- Orange edges represent data flow (reaching definitions)
+- Both edge types are generated but not appearing in visualization
+- Need to verify data structure parsing and edge creation logic
+
+### Task 1: Test Alert Visibility
+**Status**: Completed ✅
+
+### Task 2: Complete Interconnected CFG Generation
+**Status**: Completed ✅
+
+### Task 3: Complete Interconnected CFG Visualizer
+**Status**: Completed ✅
+
+### Task 4: Fix Tab Switching
+**Status**: Completed ✅
+
+### Task 5: Verify vis-network Loading
+**Status**: Completed ✅
+
+### Task 6: Test Interconnected Visualization
+**Status**: Completed ✅
+
+### Task 7: Improve Webview Error Handling
+**Status**: Pending
+
+**Requirements**:
+- Better error handling for network failures
+- Graceful degradation when vis.js fails to load
+- Improved debugging panel functionality
+- Cross-browser compatibility checks
+
+### Task 8: Verify All Features Working
+**Status**: Pending
+
+**Requirements**:
+- End-to-end testing of all analysis features
+- GUI functionality verification
+- Performance testing on large codebases
+- Cross-platform testing
+
+### Task 9: Prepare v1.5 Release
+**Status**: Pending
+
+**Requirements**:
+- Update version number
+- Create release notes
+- Prepare git commands
+- Push to GitHub
+
+### Task 10: Fix and Review Documentation
+**Status**: Pending
+
+**Requirements**:
+- Review all documentation for accuracy
+- Update outdated information
+- Ensure consistency across documents
+- Validate technical details against codebase
+
+### Task 11: Add Comprehensive Comments
+**Status**: Pending
+
+**Requirements**:
+- Add comments to all code files (every 5-10 lines)
+- Industry-standard JSDoc documentation
+- Academic algorithm explanations
+- Cross-platform considerations
+
+---
+
+## 🚀 **FUTURE ENHANCEMENTS**
+
+### **v1.6+ - Advanced Taint Analysis**
+
+#### Phase 5: Inter-Procedural Taint Propagation (5-6 days)
+**Goal**: Track taint flow across function boundaries using IPA infrastructure.
+
+**Instructions**:
+1. **Integrate with Call Graph**:
+   - Use `CallGraphAnalyzer` to identify function calls
+   - Use `ParameterAnalyzer` to map actual arguments to formal parameters
+   - Use `ReturnValueAnalyzer` to track return value taint
+
+2. **Parameter Taint Mapping**:
+   - When calling function f(tainted_arg):
+     - Identify formal parameter corresponding to tainted_arg
+     - Mark formal parameter as tainted in callee's context
+     - Propagate taint within callee function
+     - Track taint in return value if it flows through
+
+3. **Return Value Taint**:
+   - If callee returns tainted data, mark return value as tainted
+   - Track return value taint back to caller
+   - Handle multiple return paths (different return statements)
+
+4. **Global Variable Taint**:
+   - Track taint in global variables
+   - Propagate global taint across function boundaries
+   - Handle global taint in function calls
+
+5. **Taint Summaries**:
+   - Create function summaries describing taint behavior
+   - Example: `strcpy(dest, src)` → dest is tainted if src is tainted
+   - Use summaries for library functions
+
+**Deliverable**: Inter-procedural taint analysis tracking taint across functions.
+
+**Files to Create/Modify**:
+- `src/analyzer/InterProceduralTaintAnalyzer.ts` (new)
+- `src/analyzer/TaintAnalyzer.ts` (modify to use IPA)
+- `src/analyzer/DataflowAnalyzer.ts` (integrate inter-procedural taint)
+
+**Test Cases**:
+- Taint through function call: f(tainted) → formal param tainted → return tainted
+- Multiple functions: input → process → output (taint flows through)
+- Global taint: global_var tainted in f1(), used in f2()
+- Library functions: strcpy(dest, tainted_src) → dest tainted
+
+#### Phase 6: Context-Sensitive Taint Analysis (4-5 days)
+**Goal**: Improve precision by tracking taint with call-site context.
+
+**Instructions**:
+1. **Call-Site Context**:
+   - Track taint separately for each call site
+   - Example: `f(user_input)` vs `f("constant")` - different contexts
+   - Use k-limited context (k=1 or k=2) for scalability
+
+2. **Path Sensitivity**:
+   - Track taint along specific execution paths
+   - Handle conditional sanitization: sanitized in one path, not in another
+   - Support "taint removed" annotations per path
+
+3. **Taint State at Call Sites**:
+   ```typescript
+   interface CallSiteTaintState {
+     callSiteId: string;
+     arguments: Map<number, TaintInfo[]>; // Argument index → taint info
+     returnValueTaint: TaintInfo[];
+     globalTaint: Map<string, TaintInfo[]>;
+   }
+   ```
+
+4. **Context Merging**:
+   - Merge taint states from multiple call sites
+   - Handle recursion with context limits
+   - Optimize with worklist algorithm
+
+**Deliverable**: Context-sensitive taint analysis reducing false positives.
+
+**Files to Create/Modify**:
+- `src/analyzer/ContextSensitiveTaintAnalyzer.ts` (new)
+- `src/analyzer/InterProceduralTaintAnalyzer.ts` (modify)
+
+**Test Cases**:
+- Same function called with tainted vs safe arguments
+- Conditional sanitization: if (validate(x)) use x else reject
+- Recursive functions with taint propagation
+- Multiple call sites to same function with different taint states
+
+#### Phase 7: Vulnerability Detection & Reporting (3-4 days)
+**Goal**: Generate comprehensive vulnerability reports with source-to-sink paths.
+
+**Instructions**:
+1. **Vulnerability Detection**:
+   - Scan for tainted data reaching sinks
+   - Check if sanitization occurred along path
+   - Generate vulnerability reports with:
+     - Source location (where taint entered)
+     - Sink location (where taint used dangerously)
+     - Propagation path (how taint flowed)
+     - Severity (based on sink category)
+     - Sanitization status (was it sanitized?)
+
+2. **Path Construction**:
+   - Build complete source-to-sink paths
+   - Include all intermediate steps
+   - Handle inter-procedural paths
+   - Support multiple paths to same sink
+
+3. **Vulnerability Interface**:
+   ```typescript
+   interface TaintVulnerability {
+     id: string;
+     type: 'sql_injection' | 'command_injection' | 'format_string' | ...;
+     severity: 'critical' | 'high' | 'medium' | 'low';
+     source: {
+       file: string;
+       line: number;
+       function: string;
+       statement: string;
+     };
+     sink: {
+       file: string;
+       line: number;
+       function: string;
+       statement: string;
+     };
+     propagationPath: Array<{
+       file: string;
+       function: string;
+       blockId: string;
+       statementId: string;
+     }>;
+     sanitized: boolean;
+     sanitizationPoints: Array<{ location: string; type: string }>;
+   }
+   ```
+
+4. **Integration with SecurityAnalyzer**:
+   - Merge taint vulnerabilities with existing security analysis
+   - Provide unified vulnerability reporting
+   - Support filtering and sorting
+
+**Deliverable**: Comprehensive vulnerability detection and reporting system.
+
+**Files to Create/Modify**:
+- `src/analyzer/TaintVulnerabilityDetector.ts` (new)
+- `src/analyzer/SecurityAnalyzer.ts` (integrate taint vulnerabilities)
+- `src/types.ts` (add TaintVulnerability interface)
+
+**Test Cases**:
+- SQL injection: scanf → sprintf(sql) → vulnerability detected
+- Command injection: gets → system → vulnerability detected
+- Sanitized path: scanf → validate → sprintf → no vulnerability
+- Multiple paths: taint reaches sink via two paths, one sanitized
+
+#### Phase 8: GUI Integration & Visualization (3-4 days)
+**Goal**: Visualize taint flow and vulnerabilities in the CFG visualizer.
+
+**Instructions**:
+1. **Taint Visualization in CFG**:
+   - Highlight tainted blocks/nodes in CFG graph
+   - Show taint sources with special markers
+   - Show taint sinks with warning indicators
+   - Display propagation paths with colored edges
+   - Show sanitization points
+
+2. **Taint Information Panel**:
+   - Add "Taint Analysis" tab to visualizer (already done)
+   - Display taint sources, sinks, and propagation paths
+   - Show vulnerability list with source-to-sink paths
+   - Filter by severity, type, or file
+
+3. **Interactive Features**:
+   - Click on tainted variable to see propagation path
+   - Click on vulnerability to highlight path in CFG
+   - Show taint labels/types for variables
+   - Display sanitization status
+
+4. **Statistics Dashboard**:
+   - Total taint sources found
+   - Total sinks found
+   - Vulnerabilities by severity
+   - Sanitization coverage
+
+**Deliverable**: Complete GUI integration for taint analysis visualization.
+
+**Files to Create/Modify**:
+- `src/visualizer/CFGVisualizer.ts` (add taint visualization)
+
+**Test Cases**:
+- Taint sources highlighted in CFG
+- Taint sinks marked with warning icons
+- Propagation paths visible as colored edges
+- Vulnerability list displays correctly
+- Interactive path highlighting works
+
+---
+
+### **v1.7+ - Inter-Procedural Analysis Enhancements**
+
+#### Phase 5: Context Sensitivity (4-5 days)
+**Goal**: Track which call site produced a value (k-limited context)
+
+**Objective**: Implement context-sensitive analysis to improve precision.
+
+**Instructions**:
+1. **Call-Site Context**:
+   - Track taint separately for each call site
+   - Example: `f(user_input)` vs `f("constant")` - different contexts
+   - Use k-limited context (k=1 or k=2) for scalability
+
+2. **Context-Sensitive Analyzer**:
+   ```typescript
+   export class ContextSensitiveAnalyzer {
+     private contextSize: number = 2;  // k-limited context
+     
+     buildContext(callStack: string[]): string[] {
+       if (callStack.length > this.contextSize) {
+         return callStack.slice(-this.contextSize);
+       }
+       return [...callStack];
+     }
+     
+     contextId(context: string[]): string {
+       return context.join(' -> ');
+     }
+   }
+   ```
+
+3. **Flow-Sensitive Context Tracking**:
+   - Associate each value with the context in which it was created
+   - Track call stack for each value
+   - Merge contexts when necessary
+
+**Deliverable**: Context-sensitive inter-procedural analysis reducing false positives.
+
+**Files to Create/Modify**:
+- `src/analyzer/ContextSensitiveAnalyzer.ts` (new)
+- `src/analyzer/InterProceduralReachingDefinitions.ts` (modify)
+
+#### Phase 6: Integration & Testing
+**Goal**: Complete integration with all analysis components.
+
+**Requirements**:
+- Integrate IPA with all dataflow analyses
+- Comprehensive unit tests
+- End-to-end integration tests
+- Performance benchmarks
+
+#### Phase 7: Optimization
+**Goal**: Performance optimization for large codebases.
+
+**Requirements**:
+- Incremental analysis (only re-analyze changed functions)
+- Caching strategies
+- Parallel processing
+- Memory optimization
+
+---
+
+### **v1.8+ - Exploitability Scoring**
+
+#### Exploitability Assessment
+**Goal**: Calculate CVSS-like scores for vulnerabilities.
+
+**Implementation**:
+1. **CVSS Integration**:
+   - Industry-standard vulnerability scoring
+   - Attack vector analysis (remote vs local)
+   - Impact assessment (data loss, privilege escalation)
+   - Patch priority scoring
+
+2. **Exploitability Factors**:
+   - Attack vector (network, local, physical)
+   - Attack complexity (low, high)
+   - Privileges required (none, low, high)
+   - User interaction (none, required)
+   - Scope (unchanged, changed)
+
+3. **Impact Metrics**:
+   - Confidentiality impact
+   - Integrity impact
+   - Availability impact
+
+**Files to Create**:
+- `src/analyzer/ExploitabilityScorer.ts`
+
+**Estimated Time**: 4-5 hours
+
+---
+
+### **v1.9+ - Patch Suggestion Engine**
+
+#### Automated Fix Suggestions
+**Goal**: Generate repair suggestions for detected vulnerabilities.
+
+**Implementation**:
+1. **Pattern-Based Fixes**:
+   - Safe function replacements (strcpy → strncpy)
+   - Input validation suggestions
+   - Bounds checking recommendations
+   - Type conversion fixes
+
+2. **Code Pattern Matching**:
+   - Identify vulnerable code patterns
+   - Match to known safe patterns
+   - Generate replacement code
+
+3. **Context-Aware Suggestions**:
+   - Consider surrounding code context
+   - Suggest minimal changes
+   - Preserve functionality
+
+**Files to Create**:
+- `src/analyzer/PatchSuggester.ts`
+
+**Estimated Time**: 5-6 hours
+
+---
+
+### **v2.0+ - Advanced Features**
+
+#### Memory Safety Analysis
+**Goal**: Detect memory safety vulnerabilities.
+
+**Features**:
+- Stack/heap buffer overflow detection
+- Out-of-bounds read/write detection
+- Memory corruption patterns
+- ASLR/DEP bypass analysis
+- Stack frame analysis
+- Heap layout analysis
+
+**Files to Create**:
+- `src/analyzer/MemorySafetyAnalyzer.ts`
+
+**Estimated Time**: 8-10 hours
+
+#### Control Flow Hijacking Detection
+**Goal**: Detect control flow hijacking vulnerabilities.
+
+**Features**:
+- Return address corruption
+- Function pointer overwrites
+- VTable corruption (C++)
+- ROP/JOP gadget identification
+
+**Files to Create**:
+- `src/analyzer/ControlFlowAnalyzer.ts`
+
+**Estimated Time**: 10-12 hours
+
+#### Historical Comparison
+**Goal**: Compare analysis results across versions.
+
+**Features**:
+- Before/after patch comparison
+- Git diff integration
+- Vulnerability regression detection
+- Timeline of vulnerability introduction
+
+**Files to Create**:
+- `src/analyzer/HistoricalComparator.ts`
+
+**Estimated Time**: 6-8 hours
+
+#### Attack Vector Visualization
+**Goal**: Visualize attack surfaces and exploit chains.
+
+**Features**:
+- Attack tree generation
+- Exploit chain visualization
+- Attack surface mapping
+- Entry point identification
+- Multiple path visualization
+
+**Files to Create**:
+- `src/visualizer/AttackVectorVisualizer.ts`
+
+**Estimated Time**: 6-8 hours
+
+#### Report Generation
+**Goal**: Generate comprehensive vulnerability reports.
+
+**Features**:
+- HTML/PDF report generation
+- Executive summary
+- Technical deep-dive
+- Vulnerability listings with details
+- Remediation roadmap
+- Export to various formats
+
+**Files to Create**:
+- `src/reporting/ReportGenerator.ts`
+
+**Dependencies**: pdfkit or similar  
+**Estimated Time**: 5-6 hours
+
+#### CVE/CWE Database Integration
+**Goal**: Link vulnerabilities to CWE/CVE databases.
+
+**Features**:
+- Fetch CWE descriptions from MITRE
+- Link vulnerabilities to CWE entries
+- Show CVE examples (if available)
+- Historical vulnerability references
+
+**Files to Create**:
+- `src/integration/CWEDatabase.ts`
+
+**Dependencies**: HTTP client for API calls  
+**Estimated Time**: 3-4 hours
+
+#### Vulnerability Chaining
+**Goal**: Detect vulnerability chains and combined exploits.
+
+**Features**:
+- Detect vulnerability chains (vuln1 → vuln2 → exploit)
+- Show how vulnerabilities can be combined
+- Attack scenario generation
+
+**Files to Create**:
+- `src/analyzer/VulnerabilityChainer.ts`
+
+**Estimated Time**: 6-8 hours
+
+#### Constraint Analysis
+**Goal**: Track input validation constraints and detect bypasses.
+
+**Features**:
+- Track input validation constraints
+- Detect constraint bypasses
+- Path feasibility analysis (basic)
+- Input generation hints
+
+**Files to Create**:
+- `src/analyzer/ConstraintAnalyzer.ts`
+
+**Estimated Time**: 8-10 hours
+
+---
+
+### **v2.5+ - Advanced Integration Features**
+
+#### Symbolic Execution Integration
+**Goal**: Integrate symbolic execution for advanced analysis.
+
+**Features**:
+- Path constraint collection
+- Input generation for exploits
+- Feasibility analysis
+- Counter-example generation
+
+**Dependencies**: Z3 bindings or KLEE integration  
+**Estimated Time**: 20+ hours
+
+#### Fuzzing Integration
+**Goal**: Integrate fuzzing for dynamic analysis.
+
+**Features**:
+- Generate fuzzing harnesses
+- Integrate with libFuzzer
+- Show fuzzing results
+- Crash analysis
+
+**Dependencies**: libFuzzer, compilation infrastructure  
+**Estimated Time**: 15+ hours
+
+#### Interactive Debugging Integration
+**Goal**: Integrate with debuggers for runtime analysis.
+
+**Features**:
+- Suggest breakpoints at vulnerable code
+- Memory inspection at exploit points
+- Register value tracking
+- Stack frame visualization
+
+**Dependencies**: GDB/LLDB MI interface  
+**Estimated Time**: 15+ hours
+
+#### Static Analysis Integration
+**Goal**: Integrate with Clang Static Analyzer.
+
+**Features**:
+- Run Clang Static Analyzer
+- Parse results
+- Integrate findings with our analysis
+- Show in unified dashboard
+
+**Dependencies**: Clang Static Analyzer  
+**Estimated Time**: 6-8 hours
+
+---
+
+## 🔧 **CODE REVIEW ISSUES TO FIX**
+
+### Critical Issues (Must Fix)
+
+1. **Function Parameters Not Initialized in Reaching Definitions**
+   - **Status**: Fixed ✅ (v1.3)
+   - Function parameters are now initialized as definitions at entry block
+
+2. **Taint Analysis Reaching Definitions Key Mismatch**
+   - **Status**: Fixed ✅ (v1.3)
+   - Key format corrected from `${funcName}_entry` to `${funcName}_${entryBlockId}`
+
+### Moderate Issues (Should Fix)
+
+3. **MAX_ITERATIONS Check in Reaching Definitions**
+   - **Status**: Fixed ✅ (v1.3)
+   - Added MAX_ITERATIONS safety check (10 * number of blocks)
+
+4. **Entry Block Detection Logic**
+   - **Status**: Fixed ✅ (v1.3)
+   - Now uses graph-theoretic properties (no predecessors) instead of heuristics
+
+5. **Propagation Path Tracking May Create Cycles**
+   - **Status**: Fixed ✅ (v1.3)
+   - Cycle detection added, cycles represented as `[cycle]*`
+
+6. **Taint Analysis Worklist Algorithm**
+   - **Status**: Fixed ✅ (v1.3)
+   - Worklist now uses Set to avoid duplicate entries
+
+### Minor Issues (Nice to Fix)
+
+7. **Type Safety - String Conversion**
+   - Standardize on string IDs throughout
+
+8. **Missing Null Checks**
+   - Add CFG validation step before analysis
+
+---
+
+## 📊 **IMPLEMENTATION TIMELINE**
+
+### Immediate (Next 1-2 weeks)
+- Fix interconnected CFG edges issue (Task 0)
+- Improve webview error handling (Task 7)
+- Verify all features working (Task 8)
+- Prepare v1.5 release (Task 9)
+
+### Short Term (Next month)
+- Fix and review documentation (Task 10)
+- Add comprehensive comments (Task 11)
+- Taint Analysis Phase 5: Inter-Procedural Taint Propagation
+- Taint Analysis Phase 6: Context-Sensitive Taint Analysis
+
+### Medium Term (Next 2-3 months)
+- Taint Analysis Phase 7: Vulnerability Detection & Reporting
+- Taint Analysis Phase 8: GUI Integration & Visualization
+- IPA Phase 5: Context Sensitivity
+- IPA Phase 6: Integration & Testing
+- IPA Phase 7: Optimization
+- Exploitability Scoring
+- Patch Suggestion Engine
+
+### Long Term (Future)
+- Memory Safety Analysis
+- Control Flow Hijacking Detection
+- Historical Comparison
+- Attack Vector Visualization
+- Report Generation
+- CVE/CWE Database Integration
+- Vulnerability Chaining
+- Constraint Analysis
+- Symbolic Execution Integration
+- Fuzzing Integration
+- Interactive Debugging Integration
+- Static Analysis Integration
+
+---
+
+## 🎯 **SUCCESS CRITERIA**
+
+### Functionality
+- ✅ All core analysis features working correctly
+- ✅ Inter-procedural analysis functional
+- ✅ Taint analysis comprehensive
+- ⏳ Interconnected CFG visualization complete (edges issue pending)
+- ⏳ All GUI features functional
+
+### Performance
+- ✅ Analysis completes in reasonable time for typical programs
+- ⏳ Memory usage scales linearly with program size
+- ⏳ Incremental updates efficient for small changes
+
+### Quality
+- ✅ Unit test coverage for core components
+- ⏳ Comprehensive end-to-end tests
+- ⏳ Zero false negatives on test suite
+- ⏳ False positive rate < 5%
+
+### Documentation
+- ✅ README.md comprehensive
+- ⏳ All code files commented
+- ⏳ API documentation complete
+- ⏳ User guides updated
+
+---
+
+## 📝 **NOTES**
+
+- All future enhancements are subject to change based on user feedback and priorities
+- Estimated times are rough approximations and may vary
+- Some features may require external dependencies or tools
+- Priority should be given to fixing critical bugs and completing current features before adding new ones
+
+---
+
+**Version**: 1.5.0  
+**Last Updated**: November 2025
+
