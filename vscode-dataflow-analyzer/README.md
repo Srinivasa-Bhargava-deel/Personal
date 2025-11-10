@@ -37,8 +37,8 @@ Perfect for security researchers, developers, and code reviewers who need to und
    - Taint sink detection (SQL injection, command injection, format string, path traversal, buffer overflow, code injection, integer overflow)
    - Sanitization detection (input validation, encoding, escaping, whitelisting, type conversion, length limits)
    - Enhanced propagation with taint labels (USER_INPUT, FILE_CONTENT, NETWORK_DATA, etc.)
-   - Inter-procedural taint propagation across function boundaries
    - Vulnerability detection with source-to-sink path tracking
+   - Note: Inter-procedural taint propagation is planned for future releases (v1.6+)
 
 4. **Inter-Procedural Analysis (IPA)** (v1.2+)
    - **Call Graph Construction**: Builds complete call graphs showing function call relationships
@@ -100,9 +100,10 @@ Perfect for security researchers, developers, and code reviewers who need to und
 
 - **Vulnerability Dashboard**
   - List all detected vulnerabilities
-  - Filter by severity, type, exploitability
+  - Display severity and CWE information
   - Click to highlight attack paths
-  - CWE links and recommendations
+  - CWE links displayed (when available)
+  - Note: Filtering by severity/type planned for future releases
 
 - **Analysis Summary**
   - Overview of all analyses
@@ -393,8 +394,9 @@ vscode-dataflow-analyzer/
      - Sink detection (7 vulnerability types)
      - Sanitization detection (6 sanitization types)
      - Taint label propagation
-     - Inter-procedural taint propagation
+     - Vulnerability detection with source-to-sink path tracking
      - Worklist algorithm with Set-based deduplication
+     - Note: Inter-procedural taint propagation planned for v1.6+
    
    - **CallGraphAnalyzer.ts**: Call graph construction (Phase 1)
      - Function call extraction from CFG statements
@@ -404,7 +406,8 @@ vscode-dataflow-analyzer/
      - Tail recursion identification
    
    - **CallGraphAnalyzer.Extensions.ts**: Advanced call graph analysis (Phase 2)
-     - External function identification (13+ recognized categories)
+     - External function identification (5 categories: STDLIB, CSTDLIB, POSIX, SYSTEM, UNKNOWN)
+     - Pre-defined summaries for 13+ common library functions (printf, scanf, malloc, free, strcpy, memcpy, open, read, write, close, system, exit, etc.)
      - Recursion depth calculation
      - Strongly connected components (Tarjan's algorithm)
      - Call statistics and metrics
@@ -513,8 +516,9 @@ For each statement:
 - Sink registry with 7 vulnerability types
 - Sanitization registry with 6 sanitization types
 - Taint label propagation (USER_INPUT, FILE_CONTENT, NETWORK_DATA, etc.)
-- Inter-procedural taint propagation across function boundaries
+- Vulnerability detection with source-to-sink path tracking
 - Worklist algorithm with Set-based deduplication
+- Note: Inter-procedural taint propagation planned for v1.6+
 
 #### Inter-Procedural Analysis
 
@@ -693,9 +697,10 @@ This tool is designed for:
 
 ## 📈 Version History
 
+- **v1.5.1**: Documentation consolidation - merged all technical docs into README.md and FUTURE_PLANS.md
 - **v1.5.0**: Interconnected CFG visualization with red-highlighted function nodes
 - **v1.4.0**: Fix critical code review issues, improved entry/exit block detection
-- **v1.3.0**: Enhanced taint analysis with sanitization, comprehensive code review, and bug fixes
+- **v1.3.0**: Enhanced taint analysis with sanitization, vulnerability detection, and GUI integration
 - **v1.2.0**: Inter-Procedural Analysis (IPA) with Call Graphs, Parameter Analysis, and Enhanced GUI
 - **v1.1.1**: Add comprehensive code comments to analyzer modules
 - **v1.1.0**: Fixed reaching definitions analysis with full propagation tracking
@@ -704,5 +709,5 @@ This tool is designed for:
 
 **Built with ❤️ for security researchers and developers**
 
-**Version**: 1.5.0  
+**Version**: 1.5.1  
 **Last Updated**: November 2025

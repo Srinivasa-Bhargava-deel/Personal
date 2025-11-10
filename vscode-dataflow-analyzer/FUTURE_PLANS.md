@@ -1,6 +1,6 @@
 # Future Plans & Roadmap
 
-**Current Version**: v1.5.0  
+**Current Version**: v1.5.1  
 **Last Updated**: November 2025
 
 ---
@@ -60,13 +60,7 @@
 - Cross-platform testing
 
 ### Task 9: Prepare v1.5 Release
-**Status**: Pending
-
-**Requirements**:
-- Update version number
-- Create release notes
-- Prepare git commands
-- Push to GitHub
+**Status**: Completed ✅ (v1.5.1 released)
 
 ### Task 10: Fix and Review Documentation
 **Status**: Pending
@@ -177,113 +171,47 @@
 - Recursive functions with taint propagation
 - Multiple call sites to same function with different taint states
 
-#### Phase 7: Vulnerability Detection & Reporting (3-4 days)
+#### Phase 7: Vulnerability Detection & Reporting ✅ COMPLETED (v1.3+)
 **Goal**: Generate comprehensive vulnerability reports with source-to-sink paths.
 
-**Instructions**:
-1. **Vulnerability Detection**:
-   - Scan for tainted data reaching sinks
-   - Check if sanitization occurred along path
-   - Generate vulnerability reports with:
-     - Source location (where taint entered)
-     - Sink location (where taint used dangerously)
-     - Propagation path (how taint flowed)
-     - Severity (based on sink category)
-     - Sanitization status (was it sanitized?)
+**Status**: ✅ Implemented in v1.3.0
 
-2. **Path Construction**:
-   - Build complete source-to-sink paths
-   - Include all intermediate steps
-   - Handle inter-procedural paths
-   - Support multiple paths to same sink
+**Implemented Features**:
+- ✅ Vulnerability detection when tainted data reaches sinks
+- ✅ Sanitization status checking along paths
+- ✅ Comprehensive vulnerability reports with source/sink locations
+- ✅ Propagation path tracking
+- ✅ Severity classification based on sink category
+- ✅ TaintVulnerability interface defined in `src/types.ts`
+- ✅ Integration with SecurityAnalyzer
+- ✅ Vulnerability detection in `TaintAnalyzer.detectSinkVulnerabilities()`
 
-3. **Vulnerability Interface**:
-   ```typescript
-   interface TaintVulnerability {
-     id: string;
-     type: 'sql_injection' | 'command_injection' | 'format_string' | ...;
-     severity: 'critical' | 'high' | 'medium' | 'low';
-     source: {
-       file: string;
-       line: number;
-       function: string;
-       statement: string;
-     };
-     sink: {
-       file: string;
-       line: number;
-       function: string;
-       statement: string;
-     };
-     propagationPath: Array<{
-       file: string;
-       function: string;
-       blockId: string;
-       statementId: string;
-     }>;
-     sanitized: boolean;
-     sanitizationPoints: Array<{ location: string; type: string }>;
-   }
-   ```
+**Files**:
+- `src/types.ts` - TaintVulnerability interface
+- `src/analyzer/TaintAnalyzer.ts` - detectSinkVulnerabilities() method
+- `src/analyzer/DataflowAnalyzer.ts` - Integration with security analysis
 
-4. **Integration with SecurityAnalyzer**:
-   - Merge taint vulnerabilities with existing security analysis
-   - Provide unified vulnerability reporting
-   - Support filtering and sorting
+**Note**: Inter-procedural vulnerability paths planned for v1.6+ (Phase 5)
 
-**Deliverable**: Comprehensive vulnerability detection and reporting system.
-
-**Files to Create/Modify**:
-- `src/analyzer/TaintVulnerabilityDetector.ts` (new)
-- `src/analyzer/SecurityAnalyzer.ts` (integrate taint vulnerabilities)
-- `src/types.ts` (add TaintVulnerability interface)
-
-**Test Cases**:
-- SQL injection: scanf → sprintf(sql) → vulnerability detected
-- Command injection: gets → system → vulnerability detected
-- Sanitized path: scanf → validate → sprintf → no vulnerability
-- Multiple paths: taint reaches sink via two paths, one sanitized
-
-#### Phase 8: GUI Integration & Visualization (3-4 days)
+#### Phase 8: GUI Integration & Visualization ✅ COMPLETED (v1.3+)
 **Goal**: Visualize taint flow and vulnerabilities in the CFG visualizer.
 
-**Instructions**:
-1. **Taint Visualization in CFG**:
-   - Highlight tainted blocks/nodes in CFG graph
-   - Show taint sources with special markers
-   - Show taint sinks with warning indicators
-   - Display propagation paths with colored edges
-   - Show sanitization points
+**Status**: ✅ Implemented in v1.3.0
 
-2. **Taint Information Panel**:
-   - Add "Taint Analysis" tab to visualizer (already done)
-   - Display taint sources, sinks, and propagation paths
-   - Show vulnerability list with source-to-sink paths
-   - Filter by severity, type, or file
+**Implemented Features**:
+- ✅ Taint Analysis tab in CFG visualizer
+- ✅ Taint summary with statistics (total tainted variables, vulnerabilities, source categories)
+- ✅ Tainted variables list with source information
+- ✅ Vulnerability list with interactive path highlighting
+- ✅ Source categories breakdown
+- ✅ Tainted blocks highlighted in CFG graph
+- ✅ prepareTaintData() method for data preparation
+- ✅ Integration with CFG visualization
 
-3. **Interactive Features**:
-   - Click on tainted variable to see propagation path
-   - Click on vulnerability to highlight path in CFG
-   - Show taint labels/types for variables
-   - Display sanitization status
+**Files**:
+- `src/visualizer/CFGVisualizer.ts` - prepareTaintData() method and Taint Analysis tab
 
-4. **Statistics Dashboard**:
-   - Total taint sources found
-   - Total sinks found
-   - Vulnerabilities by severity
-   - Sanitization coverage
-
-**Deliverable**: Complete GUI integration for taint analysis visualization.
-
-**Files to Create/Modify**:
-- `src/visualizer/CFGVisualizer.ts` (add taint visualization)
-
-**Test Cases**:
-- Taint sources highlighted in CFG
-- Taint sinks marked with warning icons
-- Propagation paths visible as colored edges
-- Vulnerability list displays correctly
-- Interactive path highlighting works
+**Note**: Enhanced visualization features (filtering, advanced statistics) planned for future releases
 
 ---
 
@@ -629,7 +557,6 @@
 - Fix interconnected CFG edges issue (Task 0)
 - Improve webview error handling (Task 7)
 - Verify all features working (Task 8)
-- Prepare v1.5 release (Task 9)
 
 ### Short Term (Next month)
 - Fix and review documentation (Task 10)
@@ -638,8 +565,6 @@
 - Taint Analysis Phase 6: Context-Sensitive Taint Analysis
 
 ### Medium Term (Next 2-3 months)
-- Taint Analysis Phase 7: Vulnerability Detection & Reporting
-- Taint Analysis Phase 8: GUI Integration & Visualization
 - IPA Phase 5: Context Sensitivity
 - IPA Phase 6: Integration & Testing
 - IPA Phase 7: Optimization
@@ -699,6 +624,6 @@
 
 ---
 
-**Version**: 1.5.0  
+**Version**: 1.5.1  
 **Last Updated**: November 2025
 
