@@ -199,6 +199,7 @@ export class CFGVisualizer {
     const callGraphData = state.callGraph ? this.prepareCallGraphData(state.callGraph) : null;
     const ipaData = this.prepareIPAData(state, funcCFG.name);
     const taintData = this.prepareTaintData(state, funcCFG.name);
+    const interconnectedData = this.prepareInterconnectedCFGData(state);
     
     console.log('[CFGVisualizer] Taint data for', funcCFG.name, ':', {
       totalTaintedVariables: taintData.totalTaintedVariables,
@@ -207,6 +208,12 @@ export class CFGVisualizer {
       vulnerabilitiesCount: taintData.vulnerabilities?.length || 0,
       taintInfoFromState: state.taintAnalysis.get(funcCFG.name)?.length || 0,
       vulnerabilitiesFromState: state.vulnerabilities.get(funcCFG.name)?.length || 0
+    });
+    
+    console.log('[CFGVisualizer] Interconnected CFG data:', {
+      nodesCount: interconnectedData.nodes.length,
+      edgesCount: interconnectedData.edges.length,
+      functionsCount: interconnectedData.functions.length
     });
     
     console.log('[CFGVisualizer] Setting webview HTML with graph data');
@@ -226,7 +233,8 @@ export class CFGVisualizer {
       this.panel.webview.cspSource,
       callGraphData,
       ipaData,
-      taintData
+      taintData,
+      interconnectedData
     );
 
     console.log('[CFGVisualizer] Generated HTML length:', htmlContent.length);
@@ -504,6 +512,178 @@ export class CFGVisualizer {
   }
 
   /**
+   * Prepare interconnected CFG data showing all functions and their relationships
+   */
+  private prepareInterconnectedCFGData(state: AnalysisState): any {
+    console.log('[CFGVisualizer] Preparing interconnected CFG data');
+    const nodes: any[] = [];
+    const edges: any[] = [];
+    const functionGroups = new Map<string, number>();
+    let groupId = 0;
+
+    // Extract call graph data
+    const callGraphData = state.callGraph;
+    console.log('[CFGVisualizer] Call graph available:', !!callGraphData);
+
+    // Create nodes for each basic block in each function
+    state.cfg.functions.forEach((funcCFG, funcName) => {
+      console.log(`[CFGVisualizer] Processing function: ${funcName} with ${funcCFG.blocks.size} blocks`);
+      functionGroups.set(funcName, groupId++);
+      
+      funcCFG.blocks.forEach((block, blockId) => {
+        const nodeId = `${funcName}_${blockId}`;
+        const label = block.statements.length > 0 
+          ? block.statements[0].text.substring(0, 30) + (block.statements[0].text.length > 30 ? '...' : '')
+          : `Block ${blockId}`;
+        
+        nodes.push({
+          id: nodeId,
+          label: `${funcName}::${blockId}\n${label}`,
+          group: functionGroups.get(funcName),
+          title: `Function: ${funcName}\nBlock: ${blockId}\nStatements: ${block.statements.length}`,
+          color: {
+            background: '#ff6b6b',  // Red background for all function nodes
+            border: '#c92a2a',
+            highlight: {
+              background: '#ff8787',
+              border: '#e03131'
+            }
+          },
+          font: { color: '#ffffff' },
+          shape: 'box',
+          metadata: {
+            function: funcName,
+            blockId: blockId,
+            isEntry: block.isEntry || false,
+            isExit: block.isExit || false
+          }
+        });
+      });
+
+      // Add intra-function control flow edges (green)
+      funcCFG.blocks.forEach((block, blockId) => {
+        const fromNodeId = `${funcName}_${blockId}`;
+        block.successors.forEach(succId => {
+          const toNodeId = `${funcName}_${succId}`;
+          edges.push({
+            from: fromNodeId,
+            to: toNodeId,
+            color: { color: '#51cf66', highlight: '#37b24d' },  // Green for control flow
+            width: 2,
+            arrows: 'to',
+            title: 'Control Flow',
+            metadata: {
+              type: 'control_flow',
+              fromFunction: funcName,
+              toFunction: funcName
+            }
+          });
+        });
+      });
+    });
+
+    // Add inter-function call edges (blue) from call graph
+    if (callGraphData && callGraphData.callGraph) {
+      console.log('[CFGVisualizer] Adding inter-function call edges');
+      Object.entries(callGraphData.callGraph).forEach(([caller, callees]: [string, any]) => {
+        if (Array.isArray(callees)) {
+          callees.forEach((callee: string) => {
+            // Find entry blocks for caller and callee
+            const callerCFG = state.cfg.functions.get(caller);
+            const calleeCFG = state.cfg.functions.get(callee);
+            
+            if (callerCFG && calleeCFG) {
+              // Find entry block of callee
+              let calleeEntryId = '';
+              calleeCFG.blocks.forEach((block, blockId) => {
+                if (block.isEntry || block.predecessors.length === 0) {
+                  calleeEntryId = blockId;
+                }
+              });
+
+              // Find blocks in caller that contain calls to callee
+              callerCFG.blocks.forEach((block, blockId) => {
+                const hasCall = block.statements.some(stmt => 
+                  stmt.text.includes(callee + '(')
+                );
+                
+                if (hasCall && calleeEntryId) {
+                  const fromNodeId = `${caller}_${blockId}`;
+                  const toNodeId = `${callee}_${calleeEntryId}`;
+                  edges.push({
+                    from: fromNodeId,
+                    to: toNodeId,
+                    color: { color: '#4dabf7', highlight: '#1c7ed6' },  // Blue for calls
+                    width: 3,
+                    arrows: 'to',
+                    dashes: true,
+                    title: `Call: ${caller} → ${callee}`,
+                    metadata: {
+                      type: 'function_call',
+                      fromFunction: caller,
+                      toFunction: callee
+                    }
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+
+    // Add data flow edges (orange) based on reaching definitions
+    if (state.reachingDefinitions) {
+      console.log('[CFGVisualizer] Adding data flow edges');
+      state.reachingDefinitions.forEach((funcRD, funcName) => {
+        Object.entries(funcRD).forEach(([blockId, rdInfo]: [string, any]) => {
+          if (rdInfo && rdInfo.out) {
+            rdInfo.out.forEach((defs: any[], varName: string) => {
+              defs.forEach(def => {
+                if (def.definitionId && def.definitionId !== blockId) {
+                  const fromNodeId = `${funcName}_${def.definitionId}`;
+                  const toNodeId = `${funcName}_${blockId}`;
+                  
+                  // Only add if both nodes exist
+                  const fromExists = nodes.some(n => n.id === fromNodeId);
+                  const toExists = nodes.some(n => n.id === toNodeId);
+                  
+                  if (fromExists && toExists) {
+                    edges.push({
+                      from: fromNodeId,
+                      to: toNodeId,
+                      color: { color: '#ffa94d', highlight: '#fd7e14' },  // Orange for data flow
+                      width: 1,
+                      arrows: 'to',
+                      dashes: [5, 5],
+                      title: `Data Flow: ${varName}`,
+                      metadata: {
+                        type: 'data_flow',
+                        variable: varName,
+                        fromFunction: funcName,
+                        toFunction: funcName
+                      }
+                    });
+                  }
+                }
+              });
+            });
+          }
+        });
+      });
+    }
+
+    console.log(`[CFGVisualizer] Interconnected CFG prepared: ${nodes.length} nodes, ${edges.length} edges`);
+
+    return {
+      nodes,
+      edges,
+      functions: Array.from(functionGroups.keys()),
+      groups: Object.fromEntries(functionGroups)
+    };
+  }
+
+  /**
    * Serialize reaching definitions for display
    */
   private async serializeRD(rdMap: Map<string, any[]>, state: AnalysisState): Promise<any> {
@@ -746,7 +926,8 @@ export class CFGVisualizer {
     cspSource: string,
     callGraphData?: any,
     ipaData?: any,
-    taintData?: any
+    taintData?: any,
+    interconnectedData?: any
   ): string {
     // Helper function to format vulnerability type names
     const formatVulnType = (type: string): string => {
@@ -979,6 +1160,7 @@ export class CFGVisualizer {
         ${ipaData && (ipaData.parameterAnalysis || ipaData.returnValueAnalysis) ? '<div class="tab" data-tab="params">Parameters & Returns</div>' : ''}
         ${ipaData && ipaData.interProceduralRD ? '<div class="tab" data-tab="ipa">Inter-Procedural</div>' : ''}
         ${taintData ? '<div class="tab" data-tab="taint">Taint Analysis</div>' : ''}
+        ${interconnectedData ? '<div class="tab" data-tab="interconnected">Interconnected CFG</div>' : ''}
     </div>
     
     <!-- CFG Tab Content -->
@@ -1219,6 +1401,60 @@ export class CFGVisualizer {
     </div>
     ` : ''}
     
+    <!-- Interconnected CFG Tab Content -->
+    ${interconnectedData ? `
+    <div class="tab-content" id="interconnected-tab">
+        <div style="margin-bottom: 20px; padding: 15px; background: #e7f5ff; border-left: 4px solid #4dabf7; border-radius: 5px;">
+            <h3 style="color: #1864ab; margin-top: 0;">Interconnected Control Flow Graph</h3>
+            <p style="color: #333333; margin-bottom: 10px;">
+                This view shows all functions and their relationships in a unified graph.
+            </p>
+            <div style="display: flex; gap: 30px; flex-wrap: wrap; margin-top: 15px;">
+                <div>
+                    <strong style="color: #1864ab;">Total Functions:</strong>
+                    <span style="color: #333333;">${interconnectedData.functions.length}</span>
+                </div>
+                <div>
+                    <strong style="color: #1864ab;">Total Nodes:</strong>
+                    <span style="color: #333333;">${interconnectedData.nodes.length}</span>
+                </div>
+                <div>
+                    <strong style="color: #1864ab;">Total Edges:</strong>
+                    <span style="color: #333333;">${interconnectedData.edges.length}</span>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 3px;">
+                <strong style="color: #1864ab;">Legend:</strong>
+                <div style="display: flex; gap: 20px; margin-top: 8px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <div style="width: 20px; height: 20px; background: #ff6b6b; border: 2px solid #c92a2a;"></div>
+                        <span style="color: #333333;">Function Nodes (Red)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <div style="width: 30px; height: 3px; background: #51cf66;"></div>
+                        <span style="color: #333333;">Control Flow (Green)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <div style="width: 30px; height: 3px; background: #4dabf7; border-top: 2px dashed #4dabf7;"></div>
+                        <span style="color: #333333;">Function Calls (Blue, Dashed)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                        <div style="width: 30px; height: 3px; background: #ffa94d; border-top: 2px dashed #ffa94d;"></div>
+                        <span style="color: #333333;">Data Flow (Orange, Dashed)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="interconnected-network" style="width: 100%; height: 800px; border: 1px solid #ccc; background: white;"></div>
+        
+        <div id="interconnected-info" style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; color: #333333;">
+            <h4 style="color: #1864ab;">Node Information</h4>
+            <p style="color: #666666;">Click on a node to see details</p>
+        </div>
+    </div>
+    ` : ''}
+    
     <!-- Debug Panel (initially visible, can be toggled) -->
     <div id="debug-panel" style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px;">
         <h3 style="color: #856404;">Debug Information</h3>
@@ -1243,6 +1479,10 @@ ${ipaData ? JSON.stringify(ipaData).replace(/<\//g, '<\\/') : '{}'}
     
     <script type="application/json" id="taint-data-json">
 ${taintData ? JSON.stringify(taintData).replace(/<\//g, '<\\/') : '{}'}
+    </script>
+    
+    <script type="application/json" id="interconnected-data-json">
+${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/') : '{}'}
     </script>
 
     <script>
@@ -1463,6 +1703,11 @@ ${taintData ? JSON.stringify(taintData).replace(/<\//g, '<\\/') : '{}'}
                     if (targetTab === 'callgraph' && typeof vis !== 'undefined') {
                         initCallGraph();
                     }
+                    
+                    // Initialize interconnected CFG if switching to interconnected tab
+                    if (targetTab === 'interconnected' && typeof vis !== 'undefined') {
+                        initInterconnectedNetwork();
+                    }
                 } else {
                     logDebug('WARNING: Tab content element not found for: ' + targetTab + '-tab');
                 }
@@ -1621,6 +1866,121 @@ ${taintData ? JSON.stringify(taintData).replace(/<\//g, '<\\/') : '{}'}
                     }
                 });
             }
+        }
+        
+        // Initialize interconnected CFG network
+        function initInterconnectedNetwork() {
+            const interconnectedDataElement = document.getElementById('interconnected-data-json');
+            if (!interconnectedDataElement) {
+                logDebug('No interconnected data element found');
+                return;
+            }
+            
+            const interconnectedData = JSON.parse(interconnectedDataElement.textContent);
+            if (!interconnectedData || !interconnectedData.nodes || interconnectedData.nodes.length === 0) {
+                logDebug('No interconnected CFG data available');
+                return;
+            }
+            
+            logDebug('Initializing interconnected CFG visualization with ' + interconnectedData.nodes.length + ' nodes...');
+            
+            const icContainer = document.getElementById('interconnected-network');
+            if (!icContainer) {
+                logDebug('ERROR: Interconnected network container not found');
+                return;
+            }
+            
+            // Create vis.js datasets
+            const icNodes = new vis.DataSet(interconnectedData.nodes);
+            const icEdges = new vis.DataSet(interconnectedData.edges);
+            
+            const icData = {
+                nodes: icNodes,
+                edges: icEdges
+            };
+            
+            const icOptions = {
+                nodes: {
+                    shape: 'box',
+                    margin: 10,
+                    widthConstraint: { maximum: 200 }
+                },
+                edges: {
+                    smooth: { type: 'cubicBezier' },
+                    arrows: { to: { enabled: true, scaleFactor: 0.5 } }
+                },
+                layout: {
+                    hierarchical: {
+                        enabled: false
+                    }
+                },
+                physics: {
+                    enabled: true,
+                    stabilization: {
+                        enabled: true,
+                        iterations: 200
+                    },
+                    barnesHut: {
+                        gravitationalConstant: -8000,
+                        centralGravity: 0.3,
+                        springLength: 150,
+                        springConstant: 0.04
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 100
+                },
+                groups: {}
+            };
+            
+            // Add group colors for different functions
+            if (interconnectedData.groups) {
+                var colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f7b731', '#5f27cd', '#00d2d3', '#ff9ff3', '#54a0ff'];
+                var groupIndex = 0;
+                for (var funcName in interconnectedData.groups) {
+                    var colorIndex = groupIndex % colors.length;
+                    icOptions.groups[interconnectedData.groups[funcName]] = {
+                        color: {
+                            background: colors[colorIndex],
+                            border: colors[colorIndex],
+                            highlight: {
+                                background: colors[colorIndex],
+                                border: '#000'
+                            }
+                        }
+                    };
+                    groupIndex++;
+                }
+            }
+            
+            const icNetwork = new vis.Network(icContainer, icData, icOptions);
+            logDebug('Interconnected CFG network created successfully');
+            
+            // Handle node click
+            icNetwork.on('click', function(params) {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    const node = interconnectedData.nodes.find(function(n) { return n.id === nodeId; });
+                    if (node && node.metadata) {
+                        const infoDiv = document.getElementById('interconnected-info');
+                        if (infoDiv) {
+                            var html = '<h4 style="color: #1864ab; margin-top: 0;">Node Information</h4>';
+                            html += '<p style="color: #333333;"><strong>Function:</strong> ' + node.metadata.function + '</p>';
+                            html += '<p style="color: #333333;"><strong>Block ID:</strong> ' + node.metadata.blockId + '</p>';
+                            html += '<p style="color: #333333;"><strong>Entry Block:</strong> ' + (node.metadata.isEntry ? 'Yes' : 'No') + '</p>';
+                            html += '<p style="color: #333333;"><strong>Exit Block:</strong> ' + (node.metadata.isExit ? 'Yes' : 'No') + '</p>';
+                            html += '<p style="color: #333333;"><strong>Label:</strong> ' + node.label + '</p>';
+                            infoDiv.innerHTML = html;
+                        }
+                    }
+                } else {
+                    const infoDiv = document.getElementById('interconnected-info');
+                    if (infoDiv) {
+                        infoDiv.innerHTML = '<h4 style="color: #1864ab;">Node Information</h4><p style="color: #666666;">Click on a node to see details</p>';
+                    }
+                }
+            });
         }
 
         // Load vis-network from CDN
