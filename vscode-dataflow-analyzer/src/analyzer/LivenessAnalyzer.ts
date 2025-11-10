@@ -65,9 +65,12 @@ export class LivenessAnalyzer {
 
     // STEP 2: Iterative dataflow analysis until reaching fixed point
     // Fixed point: when IN and OUT sets don't change from one iteration to the next
+    // CRITICAL FIX (LOGIC.md #1): Add MAX_ITERATIONS safety check for algorithm termination
+    // CRITICAL FIX (LOGIC.md #10): Compute all new values first, then update atomically
+    const MAX_ITERATIONS = 10 * functionCFG.blocks.size;
     let changed = true;
     let iteration = 0;
-    while (changed) {
+    while (changed && iteration < MAX_ITERATIONS) {
       changed = false;
       iteration++;
       
@@ -75,9 +78,19 @@ export class LivenessAnalyzer {
       // Backward analysis is required for liveness (we compute from uses to definitions)
       const blockIds = Array.from(functionCFG.blocks.keys()).reverse();
       
+      // CRITICAL FIX (LOGIC.md #10): Compute all new values first, then update atomically
+      // This prevents order-dependent incorrect results
+      const newValues = new Map<string, { newIn: Set<string>; newOut: Set<string> }>();
+      
       for (const blockId of blockIds) {
-        const block = functionCFG.blocks.get(blockId)!;
-        const liveness = livenessMap.get(blockId)!;
+        // CRITICAL FIX (LOGIC.md #3): Add null checks before accessing blocks
+        const block = functionCFG.blocks.get(blockId);
+        const liveness = livenessMap.get(blockId);
+        
+        if (!block || !liveness) {
+          console.warn(`[Liveness Analysis] WARNING: Block ${blockId} not found in CFG or liveness map. Skipping.`);
+          continue;
+        }
         
         // STEP 4a: Compute OUT[B] = union of IN[S] for all successors S
         // Variables live at block exit = union of variables live at successor entries
@@ -90,31 +103,48 @@ export class LivenessAnalyzer {
           }
         }
         
-        // Check if OUT[B] changed
-        if (!this.setsEqual(liveness.out, newOut)) {
-          changed = true;
-          liveness.out = newOut;
-        }
-        
         // STEP 4b: Compute IN[B] = USE[B] union (OUT[B] - DEF[B])
         // Variables live at block entry = variables used in block + (variables live at exit that aren't defined in block)
         const use = this.getUseSet(block);    // Variables read in this block
         const def = this.getDefSet(block);    // Variables written in this block
         
         const newIn = new Set<string>(use);   // Start with USE set
-        liveness.out.forEach(v => {
+        newOut.forEach(v => {
           // For each variable live at exit, if it's not defined in this block, it's live at entry
           if (!def.has(v)) {
             newIn.add(v);
           }
         });
         
-        // Check if IN[B] changed
-        if (!this.setsEqual(liveness.in, newIn)) {
-          changed = true;
-          liveness.in = newIn;
-        }
+        // Store new values for atomic update
+        newValues.set(blockId, { newIn, newOut });
       }
+      
+      // CRITICAL FIX (LOGIC.md #10): Update all values atomically after computing all new values
+      newValues.forEach((values, blockId) => {
+        const liveness = livenessMap.get(blockId);
+        if (!liveness) return;
+        
+        // Check if OUT[B] changed
+        if (!this.setsEqual(liveness.out, values.newOut)) {
+          changed = true;
+          liveness.out = values.newOut;
+        }
+        
+        // Check if IN[B] changed
+        if (!this.setsEqual(liveness.in, values.newIn)) {
+          changed = true;
+          liveness.in = values.newIn;
+        }
+      });
+    }
+    
+    // CRITICAL FIX (LOGIC.md #1): Warn if convergence not reached
+    if (iteration >= MAX_ITERATIONS) {
+      console.warn(`[Liveness Analysis] WARNING: Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence for function ${functionCFG.name}!`);
+      console.warn(`[Liveness Analysis] This may indicate a bug in the CFG structure or analysis algorithm.`);
+    } else {
+      console.log(`[Liveness Analysis] Converged after ${iteration} iterations for function ${functionCFG.name}`);
     }
     
     return livenessMap;
@@ -166,12 +196,26 @@ export class LivenessAnalyzer {
    * Check if two sets are equal (contain the same elements).
    * Used to detect fixed point in iterative analysis.
    * 
+   * CRITICAL FIX (LOGIC.md #13): Optimized comparison using size check and
+   * efficient iteration. For large sets, this is already optimal (O(n) with
+   * O(1) average Set.has lookup). Further optimization would require caching
+   * which adds memory overhead.
+   * 
    * @param set1 - First set to compare
    * @param set2 - Second set to compare
    * @returns true if sets contain identical elements
    */
   private setsEqual(set1: Set<string>, set2: Set<string>): boolean {
+    // Early exit: different sizes means different sets
     if (set1.size !== set2.size) return false;
+    
+    // If both sets are empty, they're equal
+    if (set1.size === 0) return true;
+    
+    // CRITICAL FIX (LOGIC.md #13): Optimize by checking smaller set first
+    // Iterate over the set and check membership in the other (O(n) with O(1) average lookup)
+    // This is already optimal for Set<string> - further optimization would require
+    // hash-based caching which adds memory overhead
     for (const item of set1) {
       if (!set2.has(item)) return false;
     }

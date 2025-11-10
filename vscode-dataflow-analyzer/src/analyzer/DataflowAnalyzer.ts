@@ -71,6 +71,10 @@ export class DataflowAnalyzer {
   // Current analysis results cached in memory
   private currentState: AnalysisState | null = null;
 
+  // CRITICAL FIX (LOGIC.md #4): Mutex to prevent race conditions in concurrent file updates
+  // Serializes updateFile calls to prevent state corruption
+  private updateMutex: Promise<void> = Promise.resolve();
+
   /**
    * Initialize the analyzer with workspace context and configuration.
    * 
@@ -423,10 +427,18 @@ export class DataflowAnalyzer {
       }
 
       if (this.config.enableTaintAnalysis) {
-        // CRITICAL FIX (Issue #3): Use correct key format matching the storage format
-        const entryBlockId = funcCFG.entry || 'entry';
-        const funcRD = reachingDefinitions.get(`${funcName}_${entryBlockId}`) || 
-                      new Map<string, ReachingDefinitionsInfo>();
+        // CRITICAL FIX (LOGIC.md #2): Collect ALL reaching definitions for function, not just entry block
+        // Taint analysis needs RD info for ALL blocks to track data flow correctly
+        const funcRD = new Map<string, ReachingDefinitionsInfo>();
+        funcCFG.blocks.forEach((block, blockId) => {
+          const rdKey = `${funcName}_${blockId}`;
+          const rdInfo = reachingDefinitions.get(rdKey);
+          if (rdInfo) {
+            funcRD.set(blockId, rdInfo);
+          }
+        });
+        
+        console.log(`[DataflowAnalyzer] Taint analysis for ${funcName}: collected RD info for ${funcRD.size} blocks`);
         const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
         taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
         
@@ -709,9 +721,36 @@ export class DataflowAnalyzer {
    * to keep analysis up-to-date as files are modified. Maintains state for other
    * files that haven't changed.
    * 
+   * CRITICAL FIX (LOGIC.md #4): Protected by mutex to prevent race conditions.
+   * If multiple files are saved/changed concurrently, updates are serialized
+   * to prevent state corruption.
+   * 
    * @param filePath - Absolute path to the file to update
    */
   async updateFile(filePath: string): Promise<void> {
+    // CRITICAL FIX (LOGIC.md #4): Acquire mutex to serialize concurrent updates
+    // Chain the current operation after the previous one completes
+    this.updateMutex = this.updateMutex.then(async () => {
+      try {
+        console.log(`[DataflowAnalyzer] updateFile mutex acquired for: ${filePath}`);
+        await this.updateFileInternal(filePath);
+        console.log(`[DataflowAnalyzer] updateFile mutex released for: ${filePath}`);
+      } catch (error) {
+        console.error(`[DataflowAnalyzer] Error in updateFile for ${filePath}:`, error);
+        throw error;
+      }
+    });
+    
+    // Wait for this operation to complete
+    await this.updateMutex;
+  }
+
+  /**
+   * Internal implementation of updateFile (protected by mutex)
+   * 
+   * @param filePath - Absolute path to the file to update
+   */
+  private async updateFileInternal(filePath: string): Promise<void> {
     if (!this.currentState) {
       await this.analyzeWorkspace();
       return;
@@ -762,10 +801,18 @@ export class DataflowAnalyzer {
       }
 
       if (this.config.enableTaintAnalysis) {
-        // CRITICAL FIX (Issue #3): Use correct key format matching the storage format
-        const entryBlockId = funcCFG.entry || 'entry';
-        const funcRD = reachingDefinitions.get(`${funcName}_${entryBlockId}`) || 
-                      new Map<string, ReachingDefinitionsInfo>();
+        // CRITICAL FIX (LOGIC.md #2): Collect ALL reaching definitions for function, not just entry block
+        // Taint analysis needs RD info for ALL blocks to track data flow correctly
+        const funcRD = new Map<string, ReachingDefinitionsInfo>();
+        funcCFG.blocks.forEach((block, blockId) => {
+          const rdKey = `${funcName}_${blockId}`;
+          const rdInfo = reachingDefinitions.get(rdKey);
+          if (rdInfo) {
+            funcRD.set(blockId, rdInfo);
+          }
+        });
+        
+        console.log(`[DataflowAnalyzer] Taint analysis for ${funcName}: collected RD info for ${funcRD.size} blocks`);
         const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
         taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
         

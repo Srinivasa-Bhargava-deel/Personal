@@ -159,10 +159,15 @@ export class ReachingDefinitionsAnalyzer {
             const existing = newOut.get(varName)!;
             survived.forEach(def => {
               if (!existing.find(d => d.definitionId === def.definitionId)) {
-                // Survived definitions continue their propagation path
+                // CRITICAL FIX (LOGIC.md #6): Append current block to propagation path
+                // Survived definitions continue their propagation path by adding this block
                 const survivedDef: ReachingDefinition = {
                   ...def,
-                  killed: false
+                  killed: false,
+                  // Append current block to existing propagation path
+                  propagationPath: def.propagationPath 
+                    ? [...def.propagationPath, String(blockId)]
+                    : [String(blockId)]
                 };
                 existing.push(survivedDef);
               }
@@ -288,22 +293,12 @@ export class ReachingDefinitionsAnalyzer {
    * only the LAST assignment is in GEN (previous ones are killed within the block)
    * 
    * CRITICAL FIX (Issue #1): Entry block must include parameter definitions
+   * CRITICAL FIX (LOGIC.md #8): Parameters only in GEN if not redefined in entry block
    */
   private computeGen(block: BasicBlock, allDefinitions: ReachingDefinition[], functionCFG: FunctionCFG): Map<string, ReachingDefinition[]> {
     const gen = new Map<string, ReachingDefinition[]>();
     
-    // CRITICAL FIX: If this is the entry block, include parameter definitions
-    if (String(block.id) === functionCFG.entry) {
-      const paramDefs = allDefinitions.filter(d => d.isParameter === true);
-      paramDefs.forEach(def => {
-        if (!gen.has(def.variable)) {
-          gen.set(def.variable, []);
-        }
-        gen.get(def.variable)!.push(def);
-      });
-    }
-    
-    // Track last definition of each variable in this block
+    // Track last definition of each variable in this block (from statements)
     const lastDefByVar = new Map<string, ReachingDefinition>();
     
     block.statements.forEach((stmt, stmtIdx) => {
@@ -324,12 +319,32 @@ export class ReachingDefinitionsAnalyzer {
       }
     });
     
-    // Convert last definitions to GEN map
+    // CRITICAL FIX (LOGIC.md #8): If this is the entry block, include parameter definitions
+    // BUT only if they're not redefined in the entry block
+    if (String(block.id) === functionCFG.entry) {
+      const paramDefs = allDefinitions.filter(d => d.isParameter === true);
+      paramDefs.forEach(def => {
+        // Only add parameter to GEN if it's not redefined in this block
+        // If it's redefined, the redefinition will be in GEN (from lastDefByVar)
+        if (!lastDefByVar.has(def.variable)) {
+          if (!gen.has(def.variable)) {
+            gen.set(def.variable, []);
+          }
+          gen.get(def.variable)!.push(def);
+          console.log(`[RD Analysis] Parameter ${def.variable} added to GEN (not redefined in entry block)`);
+        } else {
+          console.log(`[RD Analysis] Parameter ${def.variable} NOT added to GEN (redefined in entry block)`);
+        }
+      });
+    }
+    
+    // Convert last definitions to GEN map (these override parameters if they exist)
     lastDefByVar.forEach((def, varName) => {
       if (!gen.has(varName)) {
         gen.set(varName, []);
       }
-      gen.get(varName)!.push(def);
+      // Replace any existing definitions (including parameters) with the last definition
+      gen.set(varName, [def]);
     });
     
     return gen;

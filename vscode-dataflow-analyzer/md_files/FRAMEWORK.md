@@ -2,7 +2,8 @@
 -divide each phase into sub tasks.
 -save this in a temporary .md file
 -flow changes from current task to next subtask ONLY after validation of current tasks execution
--refer to PLAN_FOR0a.md- given here in double quotes
+-refer to example "" PLAN_FOR0a.md- given here in double quotes
+
 
 "
 # PLAN FOR TASK 0.A: Fix Blue Edges (Function Call Edges) in Interconnected CFG

@@ -707,7 +707,7 @@ This tool is designed for:
 
 ---
 
-**Built with ❤️ for security researchers and developers**
+**Built with trust for security researchers and developers**
 
 **Version**: 1.5.1  
 **Last Updated**: November 2025

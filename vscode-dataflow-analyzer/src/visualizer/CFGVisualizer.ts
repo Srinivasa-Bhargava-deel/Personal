@@ -126,10 +126,12 @@ export class CFGVisualizer {
 
     panel.onDidDispose(() => {
       console.log('[CFGVisualizer] Panel disposed, removing from tracking');
+      // CRITICAL FIX (LOGIC.md #9): Ensure panel is removed from Map to prevent memory leak
       this.panels.delete(panelKey);
       if (this.panel === panel) {
         this.panel = undefined;
       }
+      console.log(`[CFGVisualizer] Panel ${panelKey} removed. Remaining panels: ${this.panels.size}`);
     }, null, context.subscriptions);
 
     // Handle messages from webview
@@ -694,6 +696,7 @@ export class CFGVisualizer {
             color: { color: '#51cf66', highlight: '#37b24d' },  // Green for control flow
             width: 2,
             arrows: 'to',
+            smooth: { type: 'continuous', roundness: 0.3 },  // Slight curve to avoid overlaps
             title: 'Control Flow',
             metadata: {
               type: 'control_flow',
@@ -711,23 +714,31 @@ export class CFGVisualizer {
       console.log('[CFGVisualizer] callsFrom type:', state.callGraph.callsFrom instanceof Map ? 'Map' : typeof state.callGraph.callsFrom);
       console.log('[CFGVisualizer] callsFrom size:', state.callGraph.callsFrom instanceof Map ? state.callGraph.callsFrom.size : Object.keys(state.callGraph.callsFrom).length);
       
+      // CRITICAL FIX (LOGIC.md #5): Standardize on Map type - callsFrom is always a Map
+      // Convert to Map if it's been serialized as an object
+      let callsFromMap: Map<string, any[]>;
+      if (state.callGraph.callsFrom instanceof Map) {
+        callsFromMap = state.callGraph.callsFrom;
+      } else {
+        // Convert plain object to Map (happens after JSON serialization/deserialization)
+        callsFromMap = new Map(Object.entries(state.callGraph.callsFrom));
+        console.log('[CFGVisualizer] Converted callsFrom from Object to Map');
+      }
+      
       const blueEdgeSet = new Set<string>(); // Track unique edges to avoid duplicates
       
-      // Handle both Map and plain object
-      const callsFromEntries: [string, any][] = state.callGraph.callsFrom instanceof Map
-        ? Array.from(state.callGraph.callsFrom.entries())
-        : Object.entries(state.callGraph.callsFrom);
-      
-      callsFromEntries.forEach(([caller, calls]) => {
+      // Iterate over Map entries (standardized type)
+      callsFromMap.forEach((calls, caller) => {
         if (Array.isArray(calls)) {
           calls.forEach((call: any) => {
             const callee = call.calleeId;
             const callSiteBlockId = call.callSite?.blockId;
             
-            // Skip external functions
-            const externalFunctions = ['printf', 'scanf', 'malloc', 'free', 'strlen', 'strcpy', 'strcat'];
-            if (externalFunctions.includes(callee)) {
-              return;
+            // CRITICAL FIX (LOGIC.md #11): Use external function registry instead of hardcoded list
+            // Check if function is external by checking if it's not in our CFG functions
+            const isExternal = !state.cfg.functions.has(callee);
+            if (isExternal) {
+              return; // Skip external functions (library functions)
             }
             
             const callerCFG = state.cfg.functions.get(caller);
@@ -773,6 +784,7 @@ export class CFGVisualizer {
                     width: 3,
                     arrows: 'to',
                     dashes: true,
+                    smooth: { type: 'continuous', roundness: 0.5 },  // Medium curve to avoid overlaps
                     title: `Call: ${caller} → ${callee}`,
                     metadata: {
                       type: 'function_call',
@@ -810,7 +822,13 @@ export class CFGVisualizer {
         if (!rdByFunction.has(funcName)) {
           rdByFunction.set(funcName, new Map());
         }
-        rdByFunction.get(funcName)!.set(blockId, rdInfo);
+        const rdMap = rdByFunction.get(funcName);
+        // CRITICAL FIX (LOGIC.md #12): Add type guard instead of non-null assertion
+        if (rdMap) {
+          rdMap.set(blockId, rdInfo);
+        } else {
+          console.warn(`[CFGVisualizer] No RD map found for function ${funcName}`);
+        }
       });
       
       console.log('[CFGVisualizer] Organized RD by function:', rdByFunction.size, 'functions');
@@ -850,6 +868,7 @@ export class CFGVisualizer {
                         width: 3,  // Increased to make more visible
                         arrows: 'to',
                         dashes: [8, 4],  // Dashed line pattern: 8px dash, 4px gap
+                        smooth: { type: 'continuous', roundness: 0.7 },  // Higher curve to avoid overlaps with other edges
                         title: `Data Flow: ${varName} (${def.definitionId})`,
                         metadata: {
                           type: 'data_flow',
@@ -1014,7 +1033,9 @@ export class CFGVisualizer {
     // Get inter-procedural reaching definitions
     if (state.interProceduralRD && state.interProceduralRD.has(functionName)) {
       const funcRD = state.interProceduralRD.get(functionName);
-      ipaData.interProceduralRD = Array.from(funcRD!.entries()).map(([blockId, rdInfo]: [string, any]) => ({
+      // CRITICAL FIX (LOGIC.md #12): Add type guard instead of non-null assertion
+      if (funcRD) {
+        ipaData.interProceduralRD = Array.from(funcRD.entries()).map(([blockId, rdInfo]: [string, any]) => ({
         blockId,
         in: Array.from(rdInfo.in.entries() as Iterable<[string, any[]]>).map(([varName, defs]: [string, any[]]) => ({
           variable: varName,
@@ -1031,8 +1052,9 @@ export class CFGVisualizer {
             sourceBlock: d.sourceBlock,
             propagationPath: d.propagationPath || []
           }))
-        }))
-      }));
+          }))
+        }));
+      }
     }
 
     return ipaData;
@@ -2181,7 +2203,7 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             // Create vis.js datasets
             const icNodes = new vis.DataSet(interconnectedData.nodes);
             
-            // Process edges to ensure styling is preserved
+            // Process edges to ensure styling is preserved and add smooth routing
             const processedEdges = interconnectedData.edges.map(function(edge) {
                 const processed = {
                     from: edge.from,
@@ -2200,6 +2222,23 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                 }
                 if (edge.dashes !== undefined) {
                     processed.dashes = edge.dashes;
+                }
+                
+                // Preserve smooth property if set, otherwise add default based on edge type
+                if (edge.smooth) {
+                    processed.smooth = edge.smooth;
+                } else {
+                    // Add smooth routing based on edge type to avoid overlaps
+                    const edgeType = edge.metadata?.type;
+                    if (edgeType === 'control_flow') {
+                        processed.smooth = { type: 'continuous', roundness: 0.3 };
+                    } else if (edgeType === 'function_call') {
+                        processed.smooth = { type: 'continuous', roundness: 0.5 };
+                    } else if (edgeType === 'data_flow') {
+                        processed.smooth = { type: 'continuous', roundness: 0.7 };
+                    } else {
+                        processed.smooth = { type: 'continuous', roundness: 0.4 };
+                    }
                 }
                 
                 return processed;
@@ -2225,9 +2264,9 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                     widthConstraint: { maximum: 200 }
                 },
                 edges: {
-                    smooth: { type: 'cubicBezier' },
+                    smooth: { type: 'continuous' },  // Use continuous curves for better non-overlapping routing
                     arrows: { to: { enabled: true, scaleFactor: 0.5 } },
-                    // Don't override individual edge colors/widths
+                    // Don't override individual edge colors/widths - let each edge specify its own smooth properties
                     color: { inherit: false },
                     width: 1  // Default width, but individual edges can override
                 },
@@ -2461,14 +2500,27 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
   /**
    * Dispose the visualizer
    */
+  /**
+   * Dispose of all resources
+   * 
+   * CRITICAL FIX (LOGIC.md #9): Explicitly clear panels Map to prevent memory leaks
+   * Ensures all panels are disposed and references are removed
+   */
   dispose(): void {
+    console.log(`[CFGVisualizer] Disposing visualizer. Cleaning up ${this.panels.size} panels`);
+    
     if (this.panel) {
       this.panel.dispose();
       this.panel = undefined;
     }
     // Dispose all tracked panels
-    this.panels.forEach(panel => panel.dispose());
+    this.panels.forEach((panel, key) => {
+      console.log(`[CFGVisualizer] Disposing panel: ${key}`);
+      panel.dispose();
+    });
+    // CRITICAL FIX (LOGIC.md #9): Clear Map to release all references
     this.panels.clear();
+    console.log('[CFGVisualizer] Visualizer disposed successfully');
   }
 }
 

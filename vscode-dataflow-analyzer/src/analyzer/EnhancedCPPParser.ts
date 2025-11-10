@@ -30,6 +30,7 @@ import * as path from 'path';
 import { Statement, StatementType, BasicBlock, CFG, FunctionCFG, Position, Range } from '../types';
 import { ClangASTParser } from './ClangASTParser';
 import { ASTNode, CXCursorKind } from './ClangASTParser';
+import { logError, logWarning, logInfo } from '../utils/ErrorLogger';
 
 /**
  * Represents a complete function for analysis.
@@ -126,7 +127,7 @@ export class EnhancedCPPParser {
         console.log(`Found function: ${funcName}`);
 
         // STEP 3: Extract CFG blocks from function node
-        const cfg = this.extractCFGFromFunctionNode(funcNode);
+        const cfg = this.extractCFGFromFunctionNode(funcNode, filePath);
         if (cfg) {
           const funcInfo: FunctionInfo = {
             name: funcName,
@@ -167,9 +168,160 @@ export class EnhancedCPPParser {
   }
 
   /**
+   * Extract function parameters from source code
+   * 
+   * Since cfg-exporter doesn't provide parameter info, we parse it from source.
+   * Looks for function signature: "returnType functionName(param1, param2, ...)"
+   * 
+   * CRITICAL FIX (LOGIC.md #7): Improved error handling to distinguish between
+   * "no parameters" and "extraction failed".
+   * 
+   * @param funcName - Function name to search for
+   * @param filePath - Path to source file
+   * @returns Array of parameter names, or empty array if no parameters or extraction failed
+   */
+  private extractParametersFromSource(funcName: string, filePath: string): string[] {
+    try {
+      // CRITICAL FIX (LOGIC.md #7): Validate file exists and is readable
+      if (!fs.existsSync(filePath)) {
+        logWarning('Parser', `File not found for parameter extraction: ${filePath}`, { funcName, filePath });
+        return [];
+      }
+
+      const sourceCode = fs.readFileSync(filePath, 'utf-8');
+      if (!sourceCode || sourceCode.trim().length === 0) {
+        logWarning('Parser', `Empty file for parameter extraction: ${filePath}`, { funcName, filePath });
+        return [];
+      }
+
+      const lines = sourceCode.split('\n');
+      
+      // Pattern to match function signature:
+      // - Optional return type (int, void, etc.)
+      // - Function name
+      // - Parameter list in parentheses
+      // Handles: "int fibonacci(int n)", "void helperA(int x)", etc.
+      // Also handles forward declarations: "int fibonacci(int n);"
+      const funcPattern = new RegExp(
+        `(?:\\w+\\s+)?${funcName}\\s*\\(([^)]*)\\)`,
+        'g'
+      );
+      
+      let foundSignature = false;
+      
+      // Search through all lines for function signature
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // Reset regex lastIndex for each line
+        funcPattern.lastIndex = 0;
+        const match = funcPattern.exec(line);
+        if (match) {
+          foundSignature = true;
+          const paramList = match[1].trim();
+          
+          // Handle empty parameter list (distinct from extraction failure)
+          if (!paramList) {
+            console.log(`[Parser] Function ${funcName} has no parameters`);
+            return [];
+          }
+          
+          // Split parameters by comma, respecting nested parentheses
+          const params: string[] = [];
+          let current = '';
+          let parenDepth = 0;
+          
+          for (const char of paramList) {
+            if (char === '(') {
+              parenDepth++;
+              current += char;
+            } else if (char === ')') {
+              parenDepth--;
+              current += char;
+            } else if (char === ',' && parenDepth === 0) {
+              // Comma at top level - parameter separator
+              const paramName = this.extractParameterName(current.trim());
+              if (paramName) {
+                params.push(paramName);
+              }
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          
+          // Don't forget the last parameter
+          if (current.trim()) {
+            const paramName = this.extractParameterName(current.trim());
+            if (paramName) {
+              params.push(paramName);
+            }
+          }
+          
+          console.log(`[Parser] Extracted ${params.length} parameters for ${funcName}: ${params.join(', ')}`);
+          return params;
+        }
+      }
+      
+      // CRITICAL FIX (LOGIC.md #7): Distinguish between "no signature found" and "error"
+      if (!foundSignature) {
+        logWarning('Parser', `Function signature not found for ${funcName} in ${filePath}`, {
+          funcName,
+          filePath,
+          possibleReasons: [
+            'Function name mismatch',
+            'Function defined in different file',
+            'Parsing pattern mismatch'
+          ]
+        });
+      }
+      
+      return [];
+    } catch (error) {
+      // CRITICAL FIX (LOGIC.md #7): Better error reporting
+      logError('Parser', `Failed to extract parameters for ${funcName} from ${filePath}`, error, {
+        funcName,
+        filePath,
+        impact: 'Parameter definitions may be missing'
+      });
+      // Return empty array but log the error clearly
+      return [];
+    }
+  }
+
+  /**
+   * Extract parameter name from parameter declaration
+   * 
+   * Examples:
+   * - "int n" -> "n"
+   * - "int* ptr" -> "ptr"
+   * - "const char* str" -> "str"
+   * - "int base, int exp" -> "exp" (for the second param)
+   * 
+   * @param paramDecl - Parameter declaration string
+   * @returns Parameter name or empty string
+   */
+  private extractParameterName(paramDecl: string): string {
+    if (!paramDecl) return '';
+    
+    // Remove leading/trailing whitespace
+    const trimmed = paramDecl.trim();
+    
+    // Split by whitespace and take the last token (parameter name)
+    // This handles: "int n", "int* ptr", "const char* str"
+    const parts = trimmed.split(/\s+/);
+    const name = parts[parts.length - 1];
+    
+    // Remove pointer/reference operators from name
+    // Handles: "int* ptr" -> "ptr", "int& ref" -> "ref"
+    const cleanName = name.replace(/[*&\[\]]/g, '');
+    
+    return cleanName;
+  }
+
+  /**
    * Extract CFG from function node
    */
-  private extractCFGFromFunctionNode(funcNode: ASTNode): FunctionCFG | null {
+  private extractCFGFromFunctionNode(funcNode: ASTNode, filePath?: string): FunctionCFG | null {
     if (!funcNode.inner) {
       console.log(`  ✗ No inner property for function ${funcNode.name}`);
       return null;
@@ -275,17 +427,103 @@ export class EnhancedCPPParser {
       exitBlock = blockIds.length > 0 ? blockIds[blockIds.length - 1] : '';
     }
 
+    // Extract parameters from source code
+    const funcName = funcNode.name || 'unknown';
+    const parameters = filePath ? this.extractParametersFromSource(funcName, filePath) : [];
+
     // Build the CFG structure
     const cfg: FunctionCFG = {
-      name: funcNode.name || 'unknown',
+      name: funcName,
       entry: entryBlock || '',
       exit: exitBlock || '',
       blocks: blocks,
-      parameters: [] // CFG dump doesn't provide parameter info
+      parameters: parameters // Extracted from source code
     };
 
-    console.log(`  ✓ Built CFG for ${cfg.name} with ${blocks.size} blocks (entry: ${entryBlock}, exit: ${exitBlock})`);
+    // CRITICAL FIX (LOGIC.md #14): Validate CFG structure before returning
+    const validationErrors = this.validateCFGStructure(cfg);
+    if (validationErrors.length > 0) {
+      console.warn(`[Parser] WARNING: CFG structure validation failed for ${funcName}:`);
+      validationErrors.forEach(error => console.warn(`[Parser]   - ${error}`));
+      // Continue anyway - some errors may be recoverable
+    } else {
+      console.log(`[Parser] CFG structure validation passed for ${funcName}`);
+    }
+
+    console.log(`  ✓ Built CFG for ${cfg.name} with ${blocks.size} blocks (entry: ${entryBlock}, exit: ${exitBlock}), ${parameters.length} parameters`);
     return cfg;
+  }
+
+  /**
+   * Validate CFG structure integrity
+   * 
+   * CRITICAL FIX (LOGIC.md #14): Validates:
+   * - Entry/exit blocks exist and are valid
+   * - All successor/predecessor references point to valid blocks
+   * - Bidirectional consistency (if A->B, then B should reference A as predecessor)
+   * 
+   * @param cfg - FunctionCFG to validate
+   * @returns Array of validation error messages (empty if valid)
+   */
+  private validateCFGStructure(cfg: FunctionCFG): string[] {
+    const errors: string[] = [];
+    
+    // 1. Validate entry block exists
+    if (!cfg.entry || !cfg.blocks.has(cfg.entry)) {
+      errors.push(`Entry block '${cfg.entry}' does not exist in blocks map`);
+    }
+    
+    // 2. Validate exit block exists
+    if (!cfg.exit || !cfg.blocks.has(cfg.exit)) {
+      errors.push(`Exit block '${cfg.exit}' does not exist in blocks map`);
+    }
+    
+    // 3. Validate all successor/predecessor references
+    cfg.blocks.forEach((block, blockId) => {
+      // Check successors
+      block.successors.forEach(succId => {
+        if (!cfg.blocks.has(succId)) {
+          errors.push(`Block ${blockId} has invalid successor reference: ${succId}`);
+        } else {
+          // Check bidirectional consistency
+          const succBlock = cfg.blocks.get(succId)!;
+          if (!succBlock.predecessors.includes(blockId)) {
+            errors.push(`Bidirectional inconsistency: Block ${blockId} -> ${succId}, but ${succId} doesn't list ${blockId} as predecessor`);
+          }
+        }
+      });
+      
+      // Check predecessors
+      block.predecessors.forEach(predId => {
+        if (!cfg.blocks.has(predId)) {
+          errors.push(`Block ${blockId} has invalid predecessor reference: ${predId}`);
+        } else {
+          // Check bidirectional consistency
+          const predBlock = cfg.blocks.get(predId)!;
+          if (!predBlock.successors.includes(blockId)) {
+            errors.push(`Bidirectional inconsistency: Block ${blockId} <- ${predId}, but ${predId} doesn't list ${blockId} as successor`);
+          }
+        }
+      });
+    });
+    
+    // 4. Validate entry block has no predecessors (graph-theoretic property)
+    if (cfg.entry && cfg.blocks.has(cfg.entry)) {
+      const entryBlock = cfg.blocks.get(cfg.entry)!;
+      if (entryBlock.predecessors.length > 0) {
+        errors.push(`Entry block ${cfg.entry} has predecessors: [${entryBlock.predecessors.join(', ')}] (should be 0)`);
+      }
+    }
+    
+    // 5. Validate exit block has no successors (graph-theoretic property)
+    if (cfg.exit && cfg.blocks.has(cfg.exit)) {
+      const exitBlock = cfg.blocks.get(cfg.exit)!;
+      if (exitBlock.successors.length > 0) {
+        errors.push(`Exit block ${cfg.exit} has successors: [${exitBlock.successors.join(', ')}] (should be 0)`);
+      }
+    }
+    
+    return errors;
   }
 
   /**
