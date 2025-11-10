@@ -3,14 +3,13 @@
 ## 📋 **CURRENT PENDING TASKS**
 
 **Sub-tasks**:
-- **0a. Fix blue edges (function call edges) not appearing** - ✅ **COMPLETED** (v1.6)
-- **0b. Fix orange edges (data flow edges) not appearing** - ✅ **COMPLETED** (v1.6)
+- **0a. Fix blue edges (function call edges) not appearing** - ✅ **COMPLETED**
+- **0b. Fix orange edges (data flow edges) not appearing** - ✅ **COMPLETED**
 
 **Details**:
-- Blue edges represent inter-function calls - Fixed Map data structure handling
-- Orange edges represent data flow (reaching definitions) - Fixed blockId usage and improved styling
+- Blue edges represent inter-function calls
+- Orange edges represent data flow (reaching definitions)
 - Both edge types are now working correctly in visualization
-- Panel tracking added for better multi-file management
 
 ### Task 1: Test Alert Visibility
 **Status**: Completed ✅
@@ -31,17 +30,13 @@
 **Status**: Completed ✅
 
 ### Task 7: Improve Webview Error Handling
-**Status**: ✅ **COMPLETED** (v1.6)
+**Status**: Pending
 
-**Completed**:
-- ✅ Enhanced error handling for network failures (CDN loading)
-- ✅ Graceful degradation when vis.js fails to load
-- ✅ Improved debugging panel functionality
-- ✅ Better JSON parsing error handling
-- ✅ Network creation error handling with try-catch blocks
-- ✅ User-friendly error messages with reload option
-- ✅ Timeout handling for script loading (10 seconds)
-- ✅ Retry logic for network initialization
+**Requirements**:
+- Better error handling for network failures
+- Graceful degradation when vis.js fails to load
+- Improved debugging panel functionality
+- Cross-browser compatibility checks
 
 ### Task 8: Verify All Features Working
 **Status**: Pending
@@ -53,7 +48,7 @@
 - Cross-platform testing
 
 ### Task 9: Prepare v1.6 Release
-**Status**: ✅ **COMPLETED** (v1.6.0 released December 2024)
+**Status**: Incomplete  (v1.5.1 released)
 
 ### Task 10: Fix and Review Documentation
 **Status**: Pending

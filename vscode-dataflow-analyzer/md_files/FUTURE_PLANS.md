@@ -1,27 +1,27 @@
 # Future Plans & Roadmap
 
-**Current Version**: v1.6  
+**Current Version**: v1.6.0  
 **Last Updated**: December 2024
 
 ---
 
-## 🎉 **v1.6 RELEASE NOTES**
-
-### Major Fixes
-- ✅ **Fixed Blue Edges (Function Call Edges)**: Resolved Map data structure handling issue in interconnected CFG visualization
-- ✅ **Fixed Orange Edges (Data Flow Edges)**: Corrected reaching definitions edge generation using blockId instead of definitionId
-- ✅ **Improved Edge Visibility**: Enhanced orange edge styling (brighter color, wider width, better dash pattern)
-- ✅ **Panel Tracking**: Added filename-based panel tracking for better multi-file visualization management
-
-### Technical Improvements
-- Proper Map iteration for call graph data structures
-- Enhanced edge processing to preserve vis-network styling
-- Improved logging for debugging edge generation
-- Better error handling and edge deduplication
-
----
-
 ## 📋 **CURRENT PENDING TASKS**
+
+### Task 0: FIX CRITICAL - Interconnected CFG Edges Issue
+**Status**: ✅ **COMPLETED** (v1.6.0)  
+**Priority**: CRITICAL
+
+**Issue**: Only green edges showing, blue and orange edges missing in interconnected CFG visualization.
+
+**Sub-tasks**:
+- **0a. Fix blue edges (function call edges) not appearing** - ✅ **COMPLETED**
+- **0b. Fix orange edges (data flow edges) not appearing** - ✅ **COMPLETED**
+
+**Details**:
+- Blue edges represent inter-function calls - Fixed Map data structure handling
+- Orange edges represent data flow (reaching definitions) - Fixed blockId usage and improved styling
+- Both edge types are now working correctly in visualization
+- Panel tracking added for better multi-file management
 
 ### Task 1: Test Alert Visibility
 **Status**: Completed ✅
