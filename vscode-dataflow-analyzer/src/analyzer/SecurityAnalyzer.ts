@@ -1,5 +1,21 @@
 /**
  * Security Vulnerability Analyzer for Exploit Post-Mortems
+ * 
+ * This module detects security vulnerabilities in C++ code by analyzing:
+ * 1. Tainted data flow to security sinks (SQL injection, command injection, etc.)
+ * 2. Unsafe buffer operations without bounds checking
+ * 3. Memory safety issues (use-after-free, double free)
+ * 4. Format string vulnerabilities
+ * 5. Unsafe function calls
+ * 6. Uninitialized variable usage
+ * 
+ * The analyzer integrates with taint analysis to track data flow from sources
+ * (user input, file I/O, network) to security sinks (dangerous functions).
+ * 
+ * Academic Foundation:
+ * - "Flow-Sensitive Pointer Analysis" (Reps, Horwitz, Sagiv, 1995)
+ * - "Static Analysis for Security" (Livshits & Lam, 2005)
+ * - CWE (Common Weakness Enumeration) database
  */
 
 import { BasicBlock, FunctionCFG, Statement, StatementType } from '../types';
@@ -111,6 +127,15 @@ export class SecurityAnalyzer {
 
   /**
    * Analyze function for security vulnerabilities
+   * 
+   * Performs comprehensive security analysis by checking multiple vulnerability
+   * patterns. Combines taint analysis results with pattern matching to identify
+   * security issues.
+   * 
+   * @param functionCFG - Function control flow graph to analyze
+   * @param taintAnalysis - Taint analysis results mapping variable names to taint info
+   * @param filePath - Path to source file for location reporting
+   * @returns Array of detected vulnerabilities with severity and recommendations
    */
   analyzeVulnerabilities(
     functionCFG: FunctionCFG,
@@ -145,6 +170,22 @@ export class SecurityAnalyzer {
 
   /**
    * Detect tainted data reaching security sinks
+   * 
+   * Identifies vulnerabilities where tainted (untrusted) data flows to dangerous
+   * functions without sanitization. This is the primary taint-based vulnerability
+   * detection mechanism.
+   * 
+   * Algorithm:
+   * 1. Iterate through all function calls in CFG
+   * 2. Check if called function is a security sink
+   * 3. Check if any arguments are tainted
+   * 4. If tainted data reaches sink, create vulnerability report
+   * 5. Track source-to-sink path for exploit analysis
+   * 
+   * @param functionCFG - Function CFG to analyze
+   * @param taintAnalysis - Taint analysis results
+   * @param filePath - Source file path
+   * @returns Array of taint-based vulnerabilities
    */
   private detectTaintedSinkUsage(
     functionCFG: FunctionCFG,
@@ -198,6 +239,13 @@ export class SecurityAnalyzer {
 
   /**
    * Detect buffer overflow patterns
+   * 
+   * Identifies unsafe buffer operations (strcpy, strcat, sprintf, gets) that
+   * may cause buffer overflows. Checks for bounds checking in preceding blocks.
+   * 
+   * @param functionCFG - Function CFG to analyze
+   * @param filePath - Source file path
+   * @returns Array of buffer overflow vulnerabilities
    */
   private detectBufferOverflows(functionCFG: FunctionCFG, filePath: string): Vulnerability[] {
     const vulnerabilities: Vulnerability[] = [];
@@ -243,6 +291,18 @@ export class SecurityAnalyzer {
 
   /**
    * Detect use-after-free patterns
+   * 
+   * Tracks pointer variables that are freed and then used later in the CFG.
+   * This is a critical memory safety vulnerability that can lead to exploitation.
+   * 
+   * Algorithm:
+   * 1. Track all free() calls and the pointers they free
+   * 2. For each subsequent use of freed pointers, create vulnerability
+   * 3. Report the path from free to use
+   * 
+   * @param functionCFG - Function CFG to analyze
+   * @param filePath - Source file path
+   * @returns Array of use-after-free vulnerabilities
    */
   private detectUseAfterFree(functionCFG: FunctionCFG, filePath: string): Vulnerability[] {
     const vulnerabilities: Vulnerability[] = [];
@@ -293,7 +353,14 @@ export class SecurityAnalyzer {
   }
 
   /**
-   * Detect double free
+   * Detect double free vulnerabilities
+   * 
+   * Identifies cases where the same pointer is freed multiple times.
+   * This is a critical memory safety issue that can lead to exploitation.
+   * 
+   * @param functionCFG - Function CFG to analyze
+   * @param filePath - Source file path
+   * @returns Array of double free vulnerabilities
    */
   private detectDoubleFree(functionCFG: FunctionCFG, filePath: string): Vulnerability[] {
     const vulnerabilities: Vulnerability[] = [];
@@ -335,6 +402,14 @@ export class SecurityAnalyzer {
 
   /**
    * Detect format string vulnerabilities
+   * 
+   * Identifies cases where user-controlled format strings are passed to
+   * printf-family functions, which can lead to format string attacks.
+   * 
+   * @param functionCFG - Function CFG to analyze
+   * @param taintAnalysis - Taint analysis results
+   * @param filePath - Source file path
+   * @returns Array of format string vulnerabilities
    */
   private detectFormatStringVulns(
     functionCFG: FunctionCFG,
@@ -423,7 +498,14 @@ export class SecurityAnalyzer {
   }
 
   /**
-   * Detect uninitialized variables
+   * Detect uninitialized variable usage
+   * 
+   * Identifies variables that are used before being initialized.
+   * This can lead to undefined behavior and security issues.
+   * 
+   * @param functionCFG - Function CFG to analyze
+   * @param filePath - Source file path
+   * @returns Array of uninitialized variable vulnerabilities
    */
   private detectUninitializedVariables(functionCFG: FunctionCFG, filePath: string): Vulnerability[] {
     const vulnerabilities: Vulnerability[] = [];
@@ -550,6 +632,11 @@ export class SecurityAnalyzer {
 
   /**
    * Get CWE ID for vulnerability type
+   * 
+   * Maps vulnerability types to Common Weakness Enumeration (CWE) identifiers.
+   * 
+   * @param type - Vulnerability type
+   * @returns CWE ID string (e.g., "CWE-120")
    */
   private getCWEForType(type: VulnerabilityType): string {
     const cweMap: Map<VulnerabilityType, string> = new Map([

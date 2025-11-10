@@ -1,5 +1,16 @@
 /**
- * Extension entry point
+ * VS Code Extension Entry Point
+ * 
+ * This module serves as the main activation point for the C++ Dataflow Analyzer extension.
+ * It handles extension lifecycle, command registration, and coordination between
+ * the analyzer and visualizer components.
+ * 
+ * Key responsibilities:
+ * - Extension activation and deactivation
+ * - Command registration (Show CFG, Analyze Workspace, Analyze Active File, Clear State)
+ * - Configuration management
+ * - File watcher setup for incremental updates
+ * - Error handling and user notifications
  */
 
 import * as vscode from 'vscode';
@@ -9,18 +20,28 @@ import { CFGVisualizer } from './visualizer/CFGVisualizer';
 import { AnalysisConfig } from './types';
 import { StateManager } from './state/StateManager';
 
-let analyzer: DataflowAnalyzer | null = null;
-let visualizer: CFGVisualizer | null = null;
-let debounceTimer: NodeJS.Timeout | null = null;
+// Global extension state
+let analyzer: DataflowAnalyzer | null = null;  // Main dataflow analyzer instance
+let visualizer: CFGVisualizer | null = null;   // CFG visualization component
+let debounceTimer: NodeJS.Timeout | null = null;  // Timer for debouncing keystroke updates
 
+/**
+ * Extension activation function
+ * 
+ * Called by VS Code when the extension is activated. Initializes the analyzer
+ * and visualizer, registers commands, and sets up file watchers.
+ * 
+ * @param context - VS Code extension context for managing subscriptions
+ */
 export function activate(context: vscode.ExtensionContext) {
   console.log('Dataflow Analyzer extension is now active');
 
+  // Determine workspace path from VS Code workspace folders or active editor
   const workspaceFolders = vscode.workspace.workspaceFolders;
   let workspacePath: string;
   
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    // Try to get workspace from active editor
+    // Fallback: Try to get workspace from active editor
     const activeEditor = vscode.window.activeTextEditor;
     if (activeEditor && activeEditor.document.uri.fsPath) {
       const filePath = activeEditor.document.uri.fsPath;
@@ -32,31 +53,33 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
   } else {
+    // Use first workspace folder
     workspacePath = workspaceFolders[0].uri.fsPath;
   }
   
-  // Initialize visualizer
+  // Initialize visualizer component
   visualizer = new CFGVisualizer();
 
-  // Load configuration
+  // Load extension configuration from VS Code settings
   const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
   const analysisConfig: AnalysisConfig = {
-    updateMode: config.get('updateMode', 'save'),
+    updateMode: config.get('updateMode', 'save'),  // 'save' or 'keystroke'
     enableLiveness: config.get('enableLiveness', true),
     enableReachingDefinitions: config.get('enableReachingDefinitions', true),
     enableTaintAnalysis: config.get('enableTaintAnalysis', true),
-    debounceDelay: config.get('debounceDelay', 500),
+    debounceDelay: config.get('debounceDelay', 500),  // Milliseconds for keystroke debouncing
     enableInterProcedural: config.get('enableInterProcedural', true)
   };
 
-  // Initialize analyzer
+  // Initialize main analyzer with workspace path and configuration
   analyzer = new DataflowAnalyzer(workspacePath, analysisConfig);
 
-  // Register commands
+  // Register VS Code commands
   const showCFGCommand = vscode.commands.registerCommand('dataflowAnalyzer.showCFG', async () => {
     if (visualizer) {
       const active = vscode.window.activeTextEditor;
       const filename = active?.document.fileName || undefined;
+      // Create/show CFG visualization panel
       await visualizer.createOrShow(context, filename, 'Viz/Cfg');
       const state = analyzer?.getState();
       if (state) {
@@ -65,6 +88,12 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
+  /**
+   * Register command: Analyze Workspace
+   * 
+   * Analyzes all C++ files in the workspace and displays results in the visualizer.
+   * Shows progress notification and handles errors gracefully.
+   */
   const analyzeWorkspaceCommand = vscode.commands.registerCommand('dataflowAnalyzer.analyzeWorkspace', async () => {
     if (!analyzer) {
       vscode.window.showErrorMessage('Analyzer not initialized');
@@ -127,6 +156,12 @@ export function activate(context: vscode.ExtensionContext) {
     });
   });
 
+  /**
+   * Register command: Analyze Active File
+   * 
+   * Analyzes only the currently active C/C++ file and displays results.
+   * Validates that a C/C++ file is open before proceeding.
+   */
   const analyzeActiveFileCommand = vscode.commands.registerCommand('dataflowAnalyzer.analyzeActiveFile', async () => {
     if (!analyzer) {
       vscode.window.showErrorMessage('Analyzer not initialized');
@@ -160,6 +195,12 @@ export function activate(context: vscode.ExtensionContext) {
     });
   });
 
+  /**
+   * Register command: Clear State
+   * 
+   * Clears all persisted analysis state and reinitializes the analyzer.
+   * Useful for resetting analysis when code structure changes significantly.
+   */
   const clearStateCommand = vscode.commands.registerCommand('dataflowAnalyzer.clearState', () => {
     const stateManager = new StateManager(workspacePath);
     stateManager.clearState();
@@ -209,8 +250,18 @@ export function activate(context: vscode.ExtensionContext) {
   });
 }
 
+/**
+ * Setup file watchers for incremental analysis updates
+ * 
+ * Configures file change listeners based on the update mode:
+ * - 'save': Updates analysis when files are saved
+ * - 'keystroke': Updates analysis on text changes (with debouncing)
+ * 
+ * @param context - VS Code extension context for subscription management
+ * @param config - Analysis configuration containing update mode and debounce delay
+ */
 function setupFileWatchers(context: vscode.ExtensionContext, config: AnalysisConfig) {
-  // Remove existing watchers
+  // Remove existing watchers (if any)
   context.subscriptions.forEach(sub => {
     if (sub && typeof sub.dispose === 'function') {
       // Keep command subscriptions, only remove file watchers if needed
@@ -218,7 +269,7 @@ function setupFileWatchers(context: vscode.ExtensionContext, config: AnalysisCon
   });
 
   if (config.updateMode === 'save') {
-    // Watch for file saves
+    // Watch for file saves - triggers analysis when user saves a C/C++ file
     const saveWatcher = vscode.workspace.onDidSaveTextDocument(async (document) => {
       if (document.languageId === 'cpp' || document.languageId === 'c') {
         if (analyzer) {
@@ -237,7 +288,8 @@ function setupFileWatchers(context: vscode.ExtensionContext, config: AnalysisCon
     });
     context.subscriptions.push(saveWatcher);
   } else if (config.updateMode === 'keystroke') {
-    // Watch for text changes with debouncing
+    // Watch for text changes with debouncing - updates analysis as user types
+    // Debouncing prevents excessive analysis runs during rapid typing
     const changeWatcher = vscode.workspace.onDidChangeTextDocument(async (event) => {
       const document = event.document;
       if (document.languageId === 'cpp' || document.languageId === 'c') {
@@ -265,10 +317,19 @@ function setupFileWatchers(context: vscode.ExtensionContext, config: AnalysisCon
   }
 }
 
+/**
+ * Extension deactivation function
+ * 
+ * Called by VS Code when the extension is deactivated. Cleans up resources:
+ * - Clears debounce timer
+ * - Disposes visualizer and its webview panels
+ */
 export function deactivate() {
+  // Clear debounce timer to prevent memory leaks
   if (debounceTimer) {
     clearTimeout(debounceTimer);
   }
+  // Dispose visualizer and all webview panels
   if (visualizer) {
     visualizer.dispose();
   }

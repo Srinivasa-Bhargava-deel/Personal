@@ -1,20 +1,52 @@
 /**
  * CFG Visualizer Webview
+ * 
+ * This module provides the webview-based visualization for Control Flow Graphs (CFGs).
+ * It creates interactive visualizations using vis-network library and manages multiple
+ * visualization panels for different files and view types.
+ * 
+ * Key features:
+ * - Individual function CFG visualization
+ * - Call graph visualization
+ * - Interconnected CFG visualization (all functions with control flow, call, and data flow edges)
+ * - Panel tracking for multi-file management
+ * - Real-time updates when analysis state changes
+ * 
+ * Edge types in interconnected CFG:
+ * - Green: Control flow edges (within functions)
+ * - Blue: Function call edges (between functions)
+ * - Orange: Data flow edges (reaching definitions)
  */
 
 import * as vscode from 'vscode';
 import { CFG, FunctionCFG, AnalysisState, FileAnalysisState, LivenessInfo, ReachingDefinitionsInfo, ReachingDefinition, TaintInfo } from '../types';
 import { Vulnerability } from '../analyzer/SecurityAnalyzer';
 
+/**
+ * CFGVisualizer manages webview panels for CFG visualization
+ * 
+ * This class handles:
+ * - Creating and managing webview panels
+ * - Preparing graph data for visualization
+ * - Handling user interactions (function selection, tab switching)
+ * - Panel lifecycle management (creation, updates, disposal)
+ */
 export class CFGVisualizer {
+  // Panel tracking: Map of panel keys (filename:viewType) to webview panels
   private panels: Map<string, vscode.WebviewPanel> = new Map(); // Track panels by filename+viewType key
   private panel: vscode.WebviewPanel | undefined; // Current active panel reference
-  private currentState: AnalysisState | null = null;
-  private currentFunction: string | null = null;
-  private visNetworkUri: vscode.Uri | null = null;
+  private currentState: AnalysisState | null = null;  // Current analysis state
+  private currentFunction: string | null = null;  // Currently displayed function
+  private visNetworkUri: vscode.Uri | null = null;  // URI for vis-network library
 
   /**
    * Get panel key from filename and viewType
+   * 
+   * Creates a unique key for tracking panels. Format: "filename:viewType"
+   * 
+   * @param filename - Name of the file being analyzed (optional)
+   * @param viewType - Type of view: 'Viz' for analysis, 'Viz/Cfg' for CFG display
+   * @returns Panel key string
    */
   private getPanelKey(filename: string | undefined, viewType: 'Viz' | 'Viz/Cfg'): string {
     const baseName = filename ? filename.split(/[/\\]/).pop() || filename : 'default';
@@ -23,9 +55,14 @@ export class CFGVisualizer {
 
   /**
    * Create or show the visualizer panel
-   * @param context Extension context
-   * @param filename Name of the file being analyzed (for tab title)
-   * @param viewType Type of view: 'Viz' for analysis, 'Viz/Cfg' for CFG display
+   * 
+   * Creates a new webview panel or reveals an existing one if it already exists
+   * for the given filename and view type. This enables multi-file visualization
+   * where each file gets its own panel.
+   * 
+   * @param context - Extension context for managing subscriptions
+   * @param filename - Name of the file being analyzed (for tab title)
+   * @param viewType - Type of view: 'Viz' for analysis, 'Viz/Cfg' for CFG display
    */
   async createOrShow(context: vscode.ExtensionContext, filename?: string, viewType: 'Viz' | 'Viz/Cfg' = 'Viz'): Promise<void> {
     console.log('[CFGVisualizer] createOrShow called');
@@ -119,9 +156,14 @@ export class CFGVisualizer {
 
   /**
    * Update visualization for a specific file's panel
-   * @param filename Filename to update
-   * @param state Analysis state
-   * @param viewType View type ('Viz' or 'Viz/Cfg')
+   * 
+   * Finds the panel associated with the given filename and view type,
+   * then updates it with the new analysis state. Used by file watchers
+   * to update visualizations when files are saved or changed.
+   * 
+   * @param filename - Filename to update
+   * @param state - Analysis state containing CFG and analysis results
+   * @param viewType - View type ('Viz' or 'Viz/Cfg')
    */
   async updateVisualizationForFile(filename: string, state: AnalysisState, viewType: 'Viz' | 'Viz/Cfg' = 'Viz'): Promise<void> {
     const panelKey = this.getPanelKey(filename, viewType);
@@ -139,6 +181,12 @@ export class CFGVisualizer {
 
   /**
    * Update the webview with current analysis state
+   * 
+   * Updates the visualization with new analysis results. Can optionally
+   * focus on a specific function. If no panel exists, logs a warning.
+   * 
+   * @param state - Complete analysis state with CFG and all analysis results
+   * @param functionName - Optional function name to display (defaults to current or first function)
    */
   async updateVisualization(state: AnalysisState, functionName?: string): Promise<void> {
     console.log('[CFGVisualizer] updateVisualization called');
@@ -388,7 +436,15 @@ export class CFGVisualizer {
   }
 
   /**
-   * Prepare graph data for visualization
+   * Prepare graph data for a single function CFG visualization
+   * 
+   * Converts a FunctionCFG into vis-network compatible format with nodes and edges.
+   * Includes taint analysis highlighting, vulnerability attack paths, liveness info,
+   * and reaching definitions data.
+   * 
+   * @param funcCFG - Function CFG to visualize
+   * @param state - Complete analysis state for accessing analysis results
+   * @returns Graph data object with nodes and edges arrays
    */
   private async prepareGraphData(funcCFG: FunctionCFG, state: AnalysisState): Promise<any> {
     const nodes: any[] = [];
@@ -569,7 +625,17 @@ export class CFGVisualizer {
   }
 
   /**
-   * Prepare interconnected CFG data showing all functions and their relationships
+   * Prepare interconnected CFG data combining all functions
+   * 
+   * Creates a unified graph showing all functions with three edge types:
+   * - Green: Control flow edges (within functions)
+   * - Blue: Function call edges (between functions)
+   * - Orange: Data flow edges (reaching definitions)
+   * 
+   * This is the main visualization for inter-procedural analysis.
+   * 
+   * @param state - Complete analysis state with CFG, call graph, and reaching definitions
+   * @returns Graph data object with nodes, edges, functions list, and groups
    */
   private prepareInterconnectedCFGData(state: AnalysisState): any {
     console.log('[CFGVisualizer] Preparing interconnected CFG data');
@@ -1666,18 +1732,36 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
         }
 
         function initNetwork() {
+            // Check if vis-network is loaded
             if (typeof vis === 'undefined') {
+                logDebug('vis-network not yet loaded, retrying...');
                 setTimeout(initNetwork, 100);
                 return;
             }
 
             logDebug('vis-network loaded, initializing...');
 
-            const vscode = acquireVsCodeApi();
-            const graphDataElement = document.getElementById('graph-data-json');
-            const graphData = JSON.parse(graphDataElement.textContent);
+            try {
+                const vscode = acquireVsCodeApi();
+                const graphDataElement = document.getElementById('graph-data-json');
+                
+                if (!graphDataElement) {
+                    logDebug('ERROR: graph-data-json element not found');
+                    showErrorFallback('Graph data element not found. Please reload the visualization.');
+                    return;
+                }
+                
+                // Parse JSON with error handling
+                let graphData;
+                try {
+                    graphData = JSON.parse(graphDataElement.textContent);
+                } catch (parseError) {
+                    logDebug('ERROR: Failed to parse graph data JSON: ' + parseError);
+                    showErrorFallback('Failed to parse graph data. The analysis may be corrupted.');
+                    return;
+                }
 
-            logDebug('Parsed graph data: ' + graphData.nodes.length + ' nodes, ' + graphData.edges.length + ' edges');
+                logDebug('Parsed graph data: ' + graphData.nodes.length + ' nodes, ' + graphData.edges.length + ' edges');
 
                 // Create the network
                 const nodes = new vis.DataSet(graphData.nodes.map(function(node) {
@@ -1715,41 +1799,57 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
         const edges = new vis.DataSet(graphData.edges);
         
             const container = document.getElementById('network');
-        const data = { nodes, edges };
-        const options = {
-            nodes: {
-                shape: 'box',
-                        font: { size: 11, face: 'Monaco, Menlo, "Ubuntu Mono", monospace' },
-                margin: 10,
-                        widthConstraint: { minimum: 120, maximum: 200 },
-                        heightConstraint: { minimum: 40 }
-            },
-            edges: {
-                        arrows: { to: { enabled: true, scaleFactor: 0.8 } },
-                        smooth: { type: 'cubicBezier', forceDirection: 'vertical' },
-                        color: { color: '#666', highlight: '#0984e3' },
-                        width: 2,
-                        font: { size: 10, align: 'top' }
-            },
-            layout: {
-                hierarchical: {
-                    direction: 'UD',
-                    sortMethod: 'directed',
-                            nodeSpacing: 120,
-                            levelSeparation: 150,
-                            edgeMinimization: false
-                }
-            },
-                    physics: { enabled: false },
-                    interaction: {
-                        hover: true,
-                        tooltipDelay: 200,
-                        multiselect: false
+            if (!container) {
+                logDebug('ERROR: network container element not found');
+                showErrorFallback('Network container element not found. Please reload the visualization.');
+                return;
             }
-        };
-        
-        const network = new vis.Network(container, data, options);
-            logDebug('vis.Network created successfully');
+            
+            const data = { nodes, edges };
+            const options = {
+                nodes: {
+                    shape: 'box',
+                    font: { size: 11, face: 'Monaco, Menlo, "Ubuntu Mono", monospace' },
+                    margin: 10,
+                    widthConstraint: { minimum: 120, maximum: 200 },
+                    heightConstraint: { minimum: 40 }
+                },
+                edges: {
+                    arrows: { to: { enabled: true, scaleFactor: 0.8 } },
+                    smooth: { type: 'cubicBezier', forceDirection: 'vertical' },
+                    color: { color: '#666', highlight: '#0984e3' },
+                    width: 2,
+                    font: { size: 10, align: 'top' }
+                },
+                layout: {
+                    hierarchical: {
+                        direction: 'UD',
+                        sortMethod: 'directed',
+                        nodeSpacing: 120,
+                        levelSeparation: 150,
+                        edgeMinimization: false
+                    }
+                },
+                physics: { enabled: false },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 200,
+                    multiselect: false
+                }
+            };
+            
+            // Create network with error handling
+            try {
+                const network = new vis.Network(container, data, options);
+                logDebug('vis.Network created successfully');
+                
+                // Store network globally for vulnerability path highlighting
+                window.network = network;
+            } catch (networkError) {
+                logDebug('ERROR: Failed to create vis.Network: ' + networkError);
+                showErrorFallback('Failed to create network visualization: ' + networkError.message);
+                return;
+            }
 
             // Handle function selector changes
             const functionSelect = document.getElementById('functionSelect');
@@ -1759,18 +1859,24 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                     logDebug('Function selector changed to: ' + selectedFunction);
 
                     // Send message to extension to update visualization
-                    vscode.postMessage({
-                        type: 'changeFunction',
-                        functionName: selectedFunction
-                    });
+                    try {
+                        vscode.postMessage({
+                            type: 'changeFunction',
+                            functionName: selectedFunction
+                        });
+                    } catch (messageError) {
+                        logDebug('ERROR: Failed to send message to extension: ' + messageError);
+                    }
                 });
                 logDebug('Function selector event listener attached');
-                } else {
-                logDebug('ERROR: functionSelect element not found');
+            } else {
+                logDebug('WARNING: functionSelect element not found (this is OK if no functions available)');
             }
             
             // Handle node click (show info on click)
-            network.on('click', function(params) {
+            if (window.network) {
+                window.network.on('click', function(params) {
+                    try {
                 if (params.nodes.length > 0) {
                     // Clicked on a node - show its info
                     const nodeId = params.nodes[0];
@@ -1811,14 +1917,22 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                             infoDiv.innerHTML = html;
                         }
                     }
-            } else {
-                    // Clicked on empty space - clear info
-                    const infoDiv = document.getElementById('blockInfo');
-                    if (infoDiv) {
-                        infoDiv.innerHTML = '<h3 style="color: #333333;">Block Information</h3><p style="color: #333333;">Click on a node in the graph above to see its details here.</p>';
+                    } else {
+                        // Clicked on empty space - clear info
+                        const infoDiv = document.getElementById('blockInfo');
+                        if (infoDiv) {
+                            infoDiv.innerHTML = '<h3 style="color: #333333;">Block Information</h3><p style="color: #333333;">Click on a node in the graph above to see its details here.</p>';
+                        }
                     }
-                }
-            });
+                    } catch (clickError) {
+                        logDebug('ERROR: Failed to handle node click: ' + clickError);
+                    }
+                });
+            }
+            } catch (initError) {
+                logDebug('ERROR: Failed to initialize network: ' + initError);
+                showErrorFallback('Failed to initialize network visualization: ' + initError.message);
+            }
         }
 
         // Tab switching functionality
@@ -1908,18 +2022,29 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
         // Make highlightVulnerabilityPath available globally
         window.highlightVulnerabilityPath = highlightVulnerabilityPath;
 
-        // Initialize call graph visualization
+        // Initialize call graph visualization with error handling
         function initCallGraph() {
-            const callGraphDataElement = document.getElementById('callgraph-data-json');
-            if (!callGraphDataElement) return;
-            
-            const callGraphData = JSON.parse(callGraphDataElement.textContent);
-            if (!callGraphData || !callGraphData.nodes || callGraphData.nodes.length === 0) {
-                logDebug('No call graph data available');
-                return;
-            }
-            
-            logDebug('Initializing call graph visualization...');
+            try {
+                const callGraphDataElement = document.getElementById('callgraph-data-json');
+                if (!callGraphDataElement) {
+                    logDebug('WARNING: callgraph-data-json element not found');
+                    return;
+                }
+                
+                let callGraphData;
+                try {
+                    callGraphData = JSON.parse(callGraphDataElement.textContent);
+                } catch (parseError) {
+                    logDebug('ERROR: Failed to parse call graph data JSON: ' + parseError);
+                    return;
+                }
+                
+                if (!callGraphData || !callGraphData.nodes || callGraphData.nodes.length === 0) {
+                    logDebug('No call graph data available');
+                    return;
+                }
+                
+                logDebug('Initializing call graph visualization...');
             
             const cgNodes = new vis.DataSet(callGraphData.nodes.map(function(node) {
                 return {
@@ -1953,7 +2078,12 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             }));
             
             const cgContainer = document.getElementById('callgraph-network');
-            if (cgContainer) {
+            if (!cgContainer) {
+                logDebug('ERROR: callgraph-network container not found');
+                return;
+            }
+            
+            try {
                 const cgData = { nodes: cgNodes, edges: cgEdges };
                 const cgOptions = {
                     nodes: {
@@ -1979,10 +2109,11 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                 };
                 
                 const cgNetwork = new vis.Network(cgContainer, cgData, cgOptions);
-                logDebug('Call graph network created');
+                logDebug('Call graph network created successfully');
                 
                 // Handle node click on call graph
                 cgNetwork.on('click', function(params) {
+                    try {
                     if (params.nodes.length > 0) {
                         // Clicked on a node - show its info
                         const nodeId = params.nodes[0];
@@ -2005,25 +2136,41 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                             detailsDiv.innerHTML = '<p style="color: #666666; font-style: italic;">Click on a function node in the graph above to see its details here.</p>';
                         }
                     }
+                    } catch (clickError) {
+                        logDebug('ERROR: Failed to handle call graph node click: ' + clickError);
+                    }
                 });
+            } catch (cgError) {
+                logDebug('ERROR: Failed to create call graph network: ' + cgError);
+            }
+            } catch (initError) {
+                logDebug('ERROR: Failed to initialize call graph: ' + initError);
             }
         }
         
-        // Initialize interconnected CFG network
+        // Initialize interconnected CFG network with error handling
         function initInterconnectedNetwork() {
-            const interconnectedDataElement = document.getElementById('interconnected-data-json');
-            if (!interconnectedDataElement) {
-                logDebug('No interconnected data element found');
-                return;
-            }
-            
-            const interconnectedData = JSON.parse(interconnectedDataElement.textContent);
-            if (!interconnectedData || !interconnectedData.nodes || interconnectedData.nodes.length === 0) {
-                logDebug('No interconnected CFG data available');
-                return;
-            }
-            
-            logDebug('Initializing interconnected CFG visualization with ' + interconnectedData.nodes.length + ' nodes...');
+            try {
+                const interconnectedDataElement = document.getElementById('interconnected-data-json');
+                if (!interconnectedDataElement) {
+                    logDebug('WARNING: interconnected-data-json element not found');
+                    return;
+                }
+                
+                let interconnectedData;
+                try {
+                    interconnectedData = JSON.parse(interconnectedDataElement.textContent);
+                } catch (parseError) {
+                    logDebug('ERROR: Failed to parse interconnected data JSON: ' + parseError);
+                    return;
+                }
+                
+                if (!interconnectedData || !interconnectedData.nodes || interconnectedData.nodes.length === 0) {
+                    logDebug('No interconnected CFG data available');
+                    return;
+                }
+                
+                logDebug('Initializing interconnected CFG visualization with ' + interconnectedData.nodes.length + ' nodes...');
             
             const icContainer = document.getElementById('interconnected-network');
             if (!icContainer) {
@@ -2129,11 +2276,13 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                 }
             }
             
-            const icNetwork = new vis.Network(icContainer, icData, icOptions);
-            logDebug('Interconnected CFG network created successfully');
-            
-            // Handle node click
-            icNetwork.on('click', function(params) {
+            try {
+                const icNetwork = new vis.Network(icContainer, icData, icOptions);
+                logDebug('Interconnected CFG network created successfully');
+                
+                // Handle node click with error handling
+                icNetwork.on('click', function(params) {
+                    try {
                 if (params.nodes.length > 0) {
                     const nodeId = params.nodes[0];
                     const node = interconnectedData.nodes.find(function(n) { return n.id === nodeId; });
@@ -2155,21 +2304,71 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                         infoDiv.innerHTML = '<h4 style="color: #1864ab;">Node Information</h4><p style="color: #666666;">Click on a node to see details</p>';
                     }
                 }
-            });
+                    } catch (clickError) {
+                        logDebug('ERROR: Failed to handle interconnected network node click: ' + clickError);
+                    }
+                });
+            } catch (icError) {
+                logDebug('ERROR: Failed to create interconnected network: ' + icError);
+            }
+            } catch (initError) {
+                logDebug('ERROR: Failed to initialize interconnected network: ' + initError);
+            }
         }
 
-        // Load vis-network from CDN
+        // Load vis-network from CDN with enhanced error handling
         logDebug('Loading vis-network from CDN...');
         var script = document.createElement('script');
         script.src = 'https://unpkg.com/vis-network/standalone/umd/vis-network.min.js';
+        
+        // Timeout handling: fail after 10 seconds
+        var loadTimeout = setTimeout(function() {
+            if (typeof vis === 'undefined') {
+                logDebug('ERROR: vis-network loading timeout after 10 seconds');
+                showErrorFallback('Failed to load vis-network library. Please check your internet connection and try again.');
+            }
+        }, 10000);
+        
         script.onload = function() {
-            logDebug('vis-network loaded from CDN');
-            initNetwork();
+            clearTimeout(loadTimeout);
+            logDebug('vis-network loaded from CDN successfully');
+            // Small delay to ensure vis is fully initialized
+            setTimeout(function() {
+                if (typeof vis !== 'undefined') {
+                    initNetwork();
+                } else {
+                    logDebug('ERROR: vis-network loaded but vis object not available');
+                    showErrorFallback('vis-network library loaded but initialization failed.');
+                }
+            }, 100);
         };
+        
         script.onerror = function() {
-            logDebug('ERROR: Failed to load vis-network');
+            clearTimeout(loadTimeout);
+            logDebug('ERROR: Failed to load vis-network from CDN');
+            showErrorFallback('Failed to load vis-network library. This may be due to network issues or CDN unavailability. Please check your internet connection.');
         };
+        
         document.head.appendChild(script);
+        
+        /**
+         * Show error fallback UI when vis-network fails to load
+         * 
+         * @param errorMessage - Error message to display to user
+         */
+        function showErrorFallback(errorMessage) {
+            const container = document.getElementById('network');
+            if (container) {
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #d63031;">' +
+                    '<h3 style="color: #d63031;">⚠️ Visualization Error</h3>' +
+                    '<p style="color: #333333;">' + errorMessage + '</p>' +
+                    '<button onclick="location.reload()" style="margin-top: 15px; padding: 10px 20px; background: #0984e3; color: white; border: none; border-radius: 5px; cursor: pointer;">Reload Visualization</button>' +
+                    '</div>';
+            }
+            
+            // Also show in debug panel
+            logDebug('ERROR FALLBACK: ' + errorMessage);
+        }
 
         // Handle messages from extension
         window.addEventListener('message', function(event) {

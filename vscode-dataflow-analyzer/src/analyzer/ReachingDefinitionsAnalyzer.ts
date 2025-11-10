@@ -24,6 +24,15 @@ import { BasicBlock, FunctionCFG, ReachingDefinition, ReachingDefinitionsInfo, S
 export class ReachingDefinitionsAnalyzer {
   /**
    * Perform reaching definitions analysis on a function CFG
+   * 
+   * Implements the standard reaching definitions algorithm:
+   * 1. Collect all definitions in the function
+   * 2. Compute GEN and KILL sets for each block
+   * 3. Iteratively compute IN/OUT sets until fixed point
+   * 4. Track propagation paths for each definition
+   * 
+   * @param functionCFG - Function CFG to analyze
+   * @returns Map from block ID to ReachingDefinitionsInfo
    */
   analyze(functionCFG: FunctionCFG): Map<string, ReachingDefinitionsInfo> {
     console.log(`[RD Analysis] Starting reaching definitions analysis for function`);

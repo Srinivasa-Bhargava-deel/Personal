@@ -31,7 +31,17 @@ export class TaintAnalyzer {
   
   /**
    * Perform taint analysis with enhanced source detection and sink detection
-   * Returns both taint map and detected vulnerabilities
+   * 
+   * Tracks the flow of potentially malicious data through the program:
+   * 1. Identifies taint sources (user input, file I/O, network, etc.)
+   * 2. Propagates taint through assignments and function calls
+   * 3. Detects taint sinks (SQL injection, command injection, etc.)
+   * 4. Checks for sanitization between source and sink
+   * 5. Reports vulnerabilities when tainted data reaches sinks unsanitized
+   * 
+   * @param functionCFG - Function CFG to analyze
+   * @param reachingDefinitions - Reaching definitions info for tracking data flow
+   * @returns Object containing taint map and detected vulnerabilities
    */
   analyze(
     functionCFG: FunctionCFG,

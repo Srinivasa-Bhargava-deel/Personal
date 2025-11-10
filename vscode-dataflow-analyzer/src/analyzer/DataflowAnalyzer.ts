@@ -362,7 +362,13 @@ export class DataflowAnalyzer {
   }
 
   /**
-   * Analyze only specific files (strict mode)
+   * Analyze specific files instead of entire workspace
+   * 
+   * Useful for analyzing a subset of files or a single file. Follows the same
+   * analysis pipeline as analyzeWorkspace() but only processes the specified files.
+   * 
+   * @param filePaths - Array of absolute file paths to analyze
+   * @returns Promise<AnalysisState> - Analysis results for the specified files
    */
   async analyzeSpecificFiles(filePaths: string[]): Promise<AnalysisState> {
     const workspacePath = this.currentState!.workspacePath;
@@ -697,7 +703,13 @@ export class DataflowAnalyzer {
   }
 
   /**
-   * Incrementally update analysis for a changed file
+   * Update analysis for a single file (incremental analysis)
+   * 
+   * Re-analyzes a specific file and updates the current state. Used by file watchers
+   * to keep analysis up-to-date as files are modified. Maintains state for other
+   * files that haven't changed.
+   * 
+   * @param filePath - Absolute path to the file to update
    */
   async updateFile(filePath: string): Promise<void> {
     if (!this.currentState) {
@@ -853,6 +865,11 @@ export class DataflowAnalyzer {
 
   /**
    * Get current analysis state
+   * 
+   * Returns the most recent analysis results. Returns null if no analysis
+   * has been performed yet.
+   * 
+   * @returns Current analysis state or null if not available
    */
   getState(): AnalysisState | null {
     return this.currentState;

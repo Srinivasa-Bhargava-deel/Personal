@@ -38,7 +38,7 @@ Perfect for security researchers, developers, and code reviewers who need to und
    - Sanitization detection (input validation, encoding, escaping, whitelisting, type conversion, length limits)
    - Enhanced propagation with taint labels (USER_INPUT, FILE_CONTENT, NETWORK_DATA, etc.)
    - Vulnerability detection with source-to-sink path tracking
-   - Note: Inter-procedural taint propagation is planned for future releases (v1.6+)
+   - Note: Inter-procedural taint propagation is planned for future releases (v1.7+)
 
 4. **Inter-Procedural Analysis (IPA)** (v1.2+)
    - **Call Graph Construction**: Builds complete call graphs showing function call relationships
@@ -396,7 +396,7 @@ vscode-dataflow-analyzer/
      - Taint label propagation
      - Vulnerability detection with source-to-sink path tracking
      - Worklist algorithm with Set-based deduplication
-     - Note: Inter-procedural taint propagation planned for v1.6+
+     - Note: Inter-procedural taint propagation planned for v1.7+
    
    - **CallGraphAnalyzer.ts**: Call graph construction (Phase 1)
      - Function call extraction from CFG statements
@@ -518,7 +518,7 @@ For each statement:
 - Taint label propagation (USER_INPUT, FILE_CONTENT, NETWORK_DATA, etc.)
 - Vulnerability detection with source-to-sink path tracking
 - Worklist algorithm with Set-based deduplication
-- Note: Inter-procedural taint propagation planned for v1.6+
+- Note: Inter-procedural taint propagation planned for v1.7+
 
 #### Inter-Procedural Analysis
 
@@ -679,6 +679,15 @@ This tool is designed for:
 - Built on VSCode Extension API
 - Algorithms from Dragon Book (Aho, Sethi, Ullman) and Engineering a Compiler (Cooper & Torczon)
 
+## 📚 Documentation
+
+- **README.md**: Complete user guide and feature documentation
+- **FUTURE_PLANS.md**: Roadmap and planned enhancements
+- **FRAMEWORK.md**: Technical architecture and design decisions
+- **MANUAL_TESTING_GUIDE.md**: Step-by-step manual testing procedures for v1.6.0
+- **validate_v1.6.sh**: Automated validation script for v1.6.0 improvements
+- **validate_v1.6.md**: Validation checklist and test procedures
+
 ## 📚 References
 
 - [CWE - Common Weakness Enumeration](https://cwe.mitre.org/)
@@ -693,15 +702,32 @@ This tool is designed for:
 - Inter-procedural analysis context sensitivity is limited (context-insensitive only)
 - Some complex C++ features may not be fully parsed
 - Performance may degrade on very large codebases
-- Interconnected CFG visualization: Orange (data flow) and blue (function call) edges may not appear correctly in some cases
+- Inter-procedural taint propagation not yet implemented (planned for v1.7+)
 
 ## 📈 Version History
 
-- **v1.6.0**: Fixed interconnected CFG edge visualization
-  - Fixed blue edges (function call edges) - Corrected Map data structure handling
-  - Fixed orange edges (data flow edges) - Corrected blockId usage and improved styling
-  - Added panel tracking for multi-file visualization management
-  - Improved edge visibility with better colors, widths, and dash patterns
+### v1.7.0 (December 2024)
+- **Added**: Comprehensive JSDoc comments to SecurityAnalyzer.ts
+- **Added**: Manual testing guide (MANUAL_TESTING_GUIDE.md) for visualization verification
+- **Improved**: Documentation organization and completeness
+- **Completed**: Task 11 - Comprehensive code comments
+- **Completed**: Task 7 - Webview error handling improvements
+- **Completed**: Task 10 - Documentation review and updates
+
+### v1.6.0 (December 2024)
+- **Fixed**: Blue edges (function call edges) now correctly display in interconnected CFG
+- **Fixed**: Orange edges (data flow edges) now correctly display with improved visibility
+- **Added**: Panel tracking for multi-file visualization management
+- **Improved**: Enhanced webview error handling with graceful degradation
+- **Improved**: Better edge styling (brighter colors, increased width, better dash patterns)
+- **Added**: Comprehensive error handling for vis-network loading failures
+- **Added**: JSON parsing error handling throughout webview code
+- **Added**: Network creation error handling for all visualization types
+- **Added**: Comprehensive JSDoc comments to all major analyzer files
+- **Added**: Manual testing guide for visualization verification
+- **Technical**: Fixed Map data structure handling for call graph iteration
+- **Technical**: Corrected blockId usage for data flow edge construction
+
 - **v1.5.1**: Documentation consolidation - merged all technical docs into README.md and FUTURE_PLANS.md
 - **v1.5.0**: Interconnected CFG visualization with red-highlighted function nodes
 - **v1.4.0**: Fix critical code review issues, improved entry/exit block detection
@@ -714,5 +740,5 @@ This tool is designed for:
 
 **Built with ❤️ for security researchers and developers**
 
-**Version**: 1.6.0  
-**Last Updated**: November 2025
+**Version**: 1.7.0  
+**Last Updated**: December 2024
