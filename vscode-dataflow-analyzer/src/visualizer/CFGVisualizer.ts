@@ -1665,17 +1665,45 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             debugToggle.classList.add('active');
         }
 
+        // Initialize network with retry logic and error handling
+        var initRetryCount = 0;
+        var maxInitRetries = 50; // 5 seconds max wait
+        
         function initNetwork() {
             if (typeof vis === 'undefined') {
-                setTimeout(initNetwork, 100);
-                return;
+                initRetryCount++;
+                if (initRetryCount < maxInitRetries) {
+                    setTimeout(initNetwork, 100);
+                    return;
+                } else {
+                    logDebug('ERROR: vis-network not available after ' + maxInitRetries + ' retries');
+                    showError('vis-network library failed to initialize. Please refresh the panel.');
+                    return;
+                }
             }
+            
+            // Reset retry count on success
+            initRetryCount = 0;
 
             logDebug('vis-network loaded, initializing...');
 
             const vscode = acquireVsCodeApi();
             const graphDataElement = document.getElementById('graph-data-json');
-            const graphData = JSON.parse(graphDataElement.textContent);
+            if (!graphDataElement) {
+                logDebug('ERROR: Graph data element not found');
+                showError('Graph data not found. Please refresh the panel.');
+                return;
+            }
+            
+            let graphData;
+            try {
+                graphData = JSON.parse(graphDataElement.textContent);
+            } catch (parseError) {
+                logDebug('ERROR: Failed to parse graph data: ' + parseError.message);
+                console.error('JSON parse error:', parseError);
+                showError('Failed to parse graph data.\\n\\nError: ' + parseError.message);
+                return;
+            }
 
             logDebug('Parsed graph data: ' + graphData.nodes.length + ' nodes, ' + graphData.edges.length + ' edges');
 
@@ -1715,6 +1743,12 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
         const edges = new vis.DataSet(graphData.edges);
         
             const container = document.getElementById('network');
+            if (!container) {
+                logDebug('ERROR: Network container element not found');
+                showError('Visualization container not found. Please refresh the panel.');
+                return;
+            }
+            
         const data = { nodes, edges };
         const options = {
             nodes: {
@@ -1748,8 +1782,24 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             }
         };
         
-        const network = new vis.Network(container, data, options);
-            logDebug('vis.Network created successfully');
+            try {
+                const network = new vis.Network(container, data, options);
+                logDebug('vis.Network created successfully');
+                
+                // Store network reference for potential updates
+                window.network = network;
+                
+                // Handle network errors
+                network.on('error', function(params) {
+                    logDebug('Network error: ' + JSON.stringify(params));
+                    console.error('vis-network error:', params);
+                });
+            } catch (error) {
+                logDebug('ERROR: Failed to create vis.Network: ' + (error.message || 'Unknown error'));
+                console.error('Failed to create network:', error);
+                showError('Failed to create visualization network.\\n\\nError: ' + (error.message || 'Unknown error'));
+                return;
+            }
 
             // Handle function selector changes
             const functionSelect = document.getElementById('functionSelect');
@@ -1908,18 +1958,35 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
         // Make highlightVulnerabilityPath available globally
         window.highlightVulnerabilityPath = highlightVulnerabilityPath;
 
-        // Initialize call graph visualization
+        // Initialize call graph visualization with error handling
         function initCallGraph() {
-            const callGraphDataElement = document.getElementById('callgraph-data-json');
-            if (!callGraphDataElement) return;
-            
-            const callGraphData = JSON.parse(callGraphDataElement.textContent);
-            if (!callGraphData || !callGraphData.nodes || callGraphData.nodes.length === 0) {
-                logDebug('No call graph data available');
-                return;
-            }
-            
-            logDebug('Initializing call graph visualization...');
+            try {
+                const callGraphDataElement = document.getElementById('callgraph-data-json');
+                if (!callGraphDataElement) {
+                    logDebug('No call graph data element found');
+                    return;
+                }
+                
+                let callGraphData;
+                try {
+                    callGraphData = JSON.parse(callGraphDataElement.textContent);
+                } catch (parseError) {
+                    logDebug('ERROR: Failed to parse call graph data: ' + parseError.message);
+                    console.error('JSON parse error:', parseError);
+                    return;
+                }
+                
+                if (!callGraphData || !callGraphData.nodes || callGraphData.nodes.length === 0) {
+                    logDebug('No call graph data available');
+                    return;
+                }
+                
+                if (typeof vis === 'undefined') {
+                    logDebug('ERROR: vis-network not available for call graph');
+                    return;
+                }
+                
+                logDebug('Initializing call graph visualization...');
             
             const cgNodes = new vis.DataSet(callGraphData.nodes.map(function(node) {
                 return {
@@ -1978,11 +2045,18 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                     interaction: { hover: true }
                 };
                 
-                const cgNetwork = new vis.Network(cgContainer, cgData, cgOptions);
-                logDebug('Call graph network created');
-                
-                // Handle node click on call graph
-                cgNetwork.on('click', function(params) {
+                try {
+                    const cgNetwork = new vis.Network(cgContainer, cgData, cgOptions);
+                    logDebug('Call graph network created');
+                    
+                    // Handle network errors
+                    cgNetwork.on('error', function(params) {
+                        logDebug('Call graph network error: ' + JSON.stringify(params));
+                        console.error('Call graph network error:', params);
+                    });
+                    
+                    // Handle node click on call graph
+                    cgNetwork.on('click', function(params) {
                     if (params.nodes.length > 0) {
                         // Clicked on a node - show its info
                         const nodeId = params.nodes[0];
@@ -2009,21 +2083,35 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             }
         }
         
-        // Initialize interconnected CFG network
+        // Initialize interconnected CFG network with error handling
         function initInterconnectedNetwork() {
-            const interconnectedDataElement = document.getElementById('interconnected-data-json');
-            if (!interconnectedDataElement) {
-                logDebug('No interconnected data element found');
-                return;
-            }
-            
-            const interconnectedData = JSON.parse(interconnectedDataElement.textContent);
-            if (!interconnectedData || !interconnectedData.nodes || interconnectedData.nodes.length === 0) {
-                logDebug('No interconnected CFG data available');
-                return;
-            }
-            
-            logDebug('Initializing interconnected CFG visualization with ' + interconnectedData.nodes.length + ' nodes...');
+            try {
+                const interconnectedDataElement = document.getElementById('interconnected-data-json');
+                if (!interconnectedDataElement) {
+                    logDebug('No interconnected data element found');
+                    return;
+                }
+                
+                let interconnectedData;
+                try {
+                    interconnectedData = JSON.parse(interconnectedDataElement.textContent);
+                } catch (parseError) {
+                    logDebug('ERROR: Failed to parse interconnected data: ' + parseError.message);
+                    console.error('JSON parse error:', parseError);
+                    return;
+                }
+                
+                if (!interconnectedData || !interconnectedData.nodes || interconnectedData.nodes.length === 0) {
+                    logDebug('No interconnected CFG data available');
+                    return;
+                }
+                
+                if (typeof vis === 'undefined') {
+                    logDebug('ERROR: vis-network not available for interconnected CFG');
+                    return;
+                }
+                
+                logDebug('Initializing interconnected CFG visualization with ' + interconnectedData.nodes.length + ' nodes...');
             
             const icContainer = document.getElementById('interconnected-network');
             if (!icContainer) {
@@ -2129,11 +2217,18 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                 }
             }
             
-            const icNetwork = new vis.Network(icContainer, icData, icOptions);
-            logDebug('Interconnected CFG network created successfully');
-            
-            // Handle node click
-            icNetwork.on('click', function(params) {
+                try {
+                    const icNetwork = new vis.Network(icContainer, icData, icOptions);
+                    logDebug('Interconnected CFG network created successfully');
+                    
+                    // Handle network errors
+                    icNetwork.on('error', function(params) {
+                        logDebug('Interconnected network error: ' + JSON.stringify(params));
+                        console.error('Interconnected network error:', params);
+                    });
+                    
+                    // Handle node click
+                    icNetwork.on('click', function(params) {
                 if (params.nodes.length > 0) {
                     const nodeId = params.nodes[0];
                     const node = interconnectedData.nodes.find(function(n) { return n.id === nodeId; });
@@ -2156,20 +2251,69 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                     }
                 }
             });
+                } catch (error) {
+                    logDebug('ERROR: Failed to create interconnected network: ' + (error.message || 'Unknown error'));
+                    console.error('Failed to create interconnected network:', error);
+                    showError('Failed to create interconnected CFG visualization.\\n\\nError: ' + (error.message || 'Unknown error'));
+                }
+            } catch (error) {
+                logDebug('ERROR: Interconnected network initialization failed: ' + (error.message || 'Unknown error'));
+                console.error('Interconnected network initialization error:', error);
+            }
         }
 
-        // Load vis-network from CDN
+        // Load vis-network from CDN with improved error handling
         logDebug('Loading vis-network from CDN...');
         var script = document.createElement('script');
         script.src = 'https://unpkg.com/vis-network/standalone/umd/vis-network.min.js';
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        
+        var loadTimeout = setTimeout(function() {
+            if (typeof vis === 'undefined') {
+                logDebug('ERROR: vis-network loading timeout after 10 seconds');
+                showError('Failed to load vis-network library. Please check your internet connection and try again.');
+            }
+        }, 10000);
+        
         script.onload = function() {
-            logDebug('vis-network loaded from CDN');
-            initNetwork();
+            clearTimeout(loadTimeout);
+            logDebug('vis-network loaded from CDN successfully');
+            // Verify vis is actually available
+            if (typeof vis !== 'undefined') {
+                initNetwork();
+            } else {
+                logDebug('ERROR: vis-network script loaded but vis object not available');
+                showError('vis-network library loaded but not initialized. Please refresh the panel.');
+            }
         };
-        script.onerror = function() {
-            logDebug('ERROR: Failed to load vis-network');
+        
+        script.onerror = function(error) {
+            clearTimeout(loadTimeout);
+            logDebug('ERROR: Failed to load vis-network from CDN: ' + (error.message || 'Unknown error'));
+            showError('Failed to load visualization library. Please check your internet connection.\\n\\n' +
+                     'Error: ' + (error.message || 'Network error') + '\\n\\n' +
+                     'You can try:\\n' +
+                     '1. Check your internet connection\\n' +
+                     '2. Refresh the visualization panel\\n' +
+                     '3. Check if unpkg.com is accessible');
         };
+        
         document.head.appendChild(script);
+        
+        // Error display function
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.id = 'error-message';
+            errorDiv.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); ' +
+                'background: #f8d7da; border: 2px solid #dc3545; border-radius: 5px; padding: 20px; ' +
+                'max-width: 500px; z-index: 10000; box-shadow: 0 4px 6px rgba(0,0,0,0.1);';
+            errorDiv.innerHTML = '<h3 style="color: #721c24; margin-top: 0;">⚠ Visualization Error</h3>' +
+                '<p style="color: #721c24; white-space: pre-line;">' + message + '</p>' +
+                '<button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px; ' +
+                'background: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer;">Reload Panel</button>';
+            document.body.appendChild(errorDiv);
+        }
 
         // Handle messages from extension
         window.addEventListener('message', function(event) {
