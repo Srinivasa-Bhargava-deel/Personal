@@ -241,6 +241,50 @@ export class DataflowAnalyzer {
         callGraph = cgAnalyzer.buildCallGraph();
         console.log(`[IPA] Call graph built: ${callGraph.functions.size} functions, ${callGraph.calls.length} calls`);
 
+        // PHASE 1.3: Detailed call graph logging for blue edge debugging
+        console.log('[IPA] ========== PHASE 1.3: Detailed Call Graph Analysis ==========');
+        console.log('[IPA] Call graph object keys:', Object.keys(callGraph));
+        console.log('[IPA] callsFrom map exists:', !!callGraph.callsFrom);
+        console.log('[IPA] callsFrom map type:', callGraph.callsFrom ? typeof callGraph.callsFrom : 'N/A');
+        console.log('[IPA] callsFrom map size:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? callGraph.callsFrom.size : Object.keys(callGraph.callsFrom).length) : 'N/A');
+        console.log('[IPA] callsFrom map keys:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? Array.from(callGraph.callsFrom.keys()) : Object.keys(callGraph.callsFrom)) : 'N/A');
+        console.log('[IPA] callsTo map exists:', !!callGraph.callsTo);
+        console.log('[IPA] callsTo map size:', callGraph.callsTo ? (callGraph.callsTo instanceof Map ? callGraph.callsTo.size : Object.keys(callGraph.callsTo).length) : 'N/A');
+        console.log('[IPA] functions map exists:', !!callGraph.functions);
+        console.log('[IPA] functions map size:', callGraph.functions ? (callGraph.functions instanceof Map ? callGraph.functions.size : Object.keys(callGraph.functions).length) : 'N/A');
+        console.log('[IPA] calls array exists:', !!callGraph.calls);
+        console.log('[IPA] calls array length:', callGraph.calls ? callGraph.calls.length : 'N/A');
+
+        if (callGraph.callsFrom) {
+          console.log('[IPA] callsFrom entries:');
+          const callsFromIter = callGraph.callsFrom instanceof Map ? callGraph.callsFrom : Object.entries(callGraph.callsFrom);
+          if (callGraph.callsFrom instanceof Map) {
+            callGraph.callsFrom.forEach((calls: any[], caller: string) => {
+              console.log(`[IPA]   ${caller} calls: ${calls.length} functions`);
+              calls.forEach((call: any, idx: number) => {
+                console.log(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
+              });
+            });
+          } else {
+            Object.entries(callGraph.callsFrom).forEach(([caller, calls]: [string, any]) => {
+              console.log(`[IPA]   ${caller} calls: ${Array.isArray(calls) ? calls.length : 'N/A'} functions`);
+              if (Array.isArray(calls)) {
+                calls.forEach((call: any, idx: number) => {
+                  console.log(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
+                });
+              }
+            });
+          }
+        }
+
+        console.log('[IPA] Sample call objects:');
+        if (callGraph.calls && Array.isArray(callGraph.calls) && callGraph.calls.length > 0) {
+          callGraph.calls.slice(0, 3).forEach((call: any, idx: number) => {
+            console.log(`[IPA] Call ${idx}:`, JSON.stringify(call, null, 2));
+          });
+        }
+        console.log('[IPA] ========== END PHASE 1.3 ==========');
+
         // Phase 3: Inter-procedural reaching definitions
         if (this.config.enableReachingDefinitions && reachingDefinitions.size > 0) {
           // Organize intra-procedural RD by function
@@ -402,6 +446,50 @@ export class DataflowAnalyzer {
         const cgAnalyzer = new CallGraphAnalyzer(cfg.functions);
         callGraph = cgAnalyzer.buildCallGraph();
         console.log(`[IPA] Call graph built: ${callGraph.functions.size} functions, ${callGraph.calls.length} calls`);
+
+        // PHASE 1.3: Detailed call graph logging for blue edge debugging
+        console.log('[IPA] ========== PHASE 1.3: Detailed Call Graph Analysis ==========');
+        console.log('[IPA] Call graph object keys:', Object.keys(callGraph));
+        console.log('[IPA] callsFrom map exists:', !!callGraph.callsFrom);
+        console.log('[IPA] callsFrom map type:', callGraph.callsFrom ? typeof callGraph.callsFrom : 'N/A');
+        console.log('[IPA] callsFrom map size:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? callGraph.callsFrom.size : Object.keys(callGraph.callsFrom).length) : 'N/A');
+        console.log('[IPA] callsFrom map keys:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? Array.from(callGraph.callsFrom.keys()) : Object.keys(callGraph.callsFrom)) : 'N/A');
+        console.log('[IPA] callsTo map exists:', !!callGraph.callsTo);
+        console.log('[IPA] callsTo map size:', callGraph.callsTo ? (callGraph.callsTo instanceof Map ? callGraph.callsTo.size : Object.keys(callGraph.callsTo).length) : 'N/A');
+        console.log('[IPA] functions map exists:', !!callGraph.functions);
+        console.log('[IPA] functions map size:', callGraph.functions ? (callGraph.functions instanceof Map ? callGraph.functions.size : Object.keys(callGraph.functions).length) : 'N/A');
+        console.log('[IPA] calls array exists:', !!callGraph.calls);
+        console.log('[IPA] calls array length:', callGraph.calls ? callGraph.calls.length : 'N/A');
+
+        if (callGraph.callsFrom) {
+          console.log('[IPA] callsFrom entries:');
+          const callsFromIter = callGraph.callsFrom instanceof Map ? callGraph.callsFrom : Object.entries(callGraph.callsFrom);
+          if (callGraph.callsFrom instanceof Map) {
+            callGraph.callsFrom.forEach((calls: any[], caller: string) => {
+              console.log(`[IPA]   ${caller} calls: ${calls.length} functions`);
+              calls.forEach((call: any, idx: number) => {
+                console.log(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
+              });
+            });
+          } else {
+            Object.entries(callGraph.callsFrom).forEach(([caller, calls]: [string, any]) => {
+              console.log(`[IPA]   ${caller} calls: ${Array.isArray(calls) ? calls.length : 'N/A'} functions`);
+              if (Array.isArray(calls)) {
+                calls.forEach((call: any, idx: number) => {
+                  console.log(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
+                });
+              }
+            });
+          }
+        }
+
+        console.log('[IPA] Sample call objects:');
+        if (callGraph.calls && Array.isArray(callGraph.calls) && callGraph.calls.length > 0) {
+          callGraph.calls.slice(0, 3).forEach((call: any, idx: number) => {
+            console.log(`[IPA] Call ${idx}:`, JSON.stringify(call, null, 2));
+          });
+        }
+        console.log('[IPA] ========== END PHASE 1.3 ==========');
 
         // Phase 3: Inter-procedural reaching definitions
         if (this.config.enableReachingDefinitions && reachingDefinitions.size > 0) {

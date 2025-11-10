@@ -697,6 +697,7 @@ This tool is designed for:
 
 ## 📈 Version History
 
+- **v1.6.0**: Fixed blue and orange edges in interconnected CFG visualization, improved edge styling and visibility, added panel tracking
 - **v1.5.1**: Documentation consolidation - merged all technical docs into README.md and FUTURE_PLANS.md
 - **v1.5.0**: Interconnected CFG visualization with red-highlighted function nodes
 - **v1.4.0**: Fix critical code review issues, improved entry/exit block detection
@@ -709,5 +710,5 @@ This tool is designed for:
 
 **Built with ❤️ for security researchers and developers**
 
-**Version**: 1.5.1  
-**Last Updated**: November 2025
+**Version**: 1.6.0  
+**Last Updated**: December 2024

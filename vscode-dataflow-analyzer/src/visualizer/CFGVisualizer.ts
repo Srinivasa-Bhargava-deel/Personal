@@ -3,47 +3,73 @@
  */
 
 import * as vscode from 'vscode';
-import { CFG, FunctionCFG, AnalysisState, FileAnalysisState, LivenessInfo, ReachingDefinitionsInfo, TaintInfo } from '../types';
+import { CFG, FunctionCFG, AnalysisState, FileAnalysisState, LivenessInfo, ReachingDefinitionsInfo, ReachingDefinition, TaintInfo } from '../types';
 import { Vulnerability } from '../analyzer/SecurityAnalyzer';
 
 export class CFGVisualizer {
-  private panel: vscode.WebviewPanel | undefined;
+  private panels: Map<string, vscode.WebviewPanel> = new Map(); // Track panels by filename+viewType key
+  private panel: vscode.WebviewPanel | undefined; // Current active panel reference
   private currentState: AnalysisState | null = null;
   private currentFunction: string | null = null;
   private visNetworkUri: vscode.Uri | null = null;
 
   /**
-   * Create or show the visualizer panel
+   * Get panel key from filename and viewType
    */
-  async createOrShow(context: vscode.ExtensionContext): Promise<void> {
+  private getPanelKey(filename: string | undefined, viewType: 'Viz' | 'Viz/Cfg'): string {
+    const baseName = filename ? filename.split(/[/\\]/).pop() || filename : 'default';
+    return `${baseName}:${viewType}`;
+  }
+
+  /**
+   * Create or show the visualizer panel
+   * @param context Extension context
+   * @param filename Name of the file being analyzed (for tab title)
+   * @param viewType Type of view: 'Viz' for analysis, 'Viz/Cfg' for CFG display
+   */
+  async createOrShow(context: vscode.ExtensionContext, filename?: string, viewType: 'Viz' | 'Viz/Cfg' = 'Viz'): Promise<void> {
     console.log('[CFGVisualizer] createOrShow called');
-    console.log('[CFGVisualizer] Current panel state:', this.panel ? 'exists' : 'null');
-    console.log('[CFGVisualizer] Context extension URI:', context.extensionUri.toString());
+    console.log('[CFGVisualizer] Filename:', filename);
+    console.log('[CFGVisualizer] View type:', viewType);
+
+    const panelKey = this.getPanelKey(filename, viewType);
+    console.log('[CFGVisualizer] Panel key:', panelKey);
+
+    // Check if panel already exists for this key
+    const existingPanel = this.panels.get(panelKey);
+    if (existingPanel) {
+      console.log('[CFGVisualizer] Panel exists for key, revealing it');
+      const column = vscode.window.activeTextEditor
+        ? vscode.window.activeTextEditor.viewColumn
+        : undefined;
+      existingPanel.reveal(column);
+      this.panel = existingPanel; // Set current panel reference
+      return;
+    }
 
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
     console.log('[CFGVisualizer] Target column:', column);
 
-    if (this.panel) {
-      console.log('[CFGVisualizer] Panel already exists, revealing it');
-      console.log('[CFGVisualizer] Panel title:', this.panel.title);
-      console.log('[CFGVisualizer] Panel viewType:', this.panel.viewType);
-      this.panel.reveal(column);
-      console.log('[CFGVisualizer] Panel revealed successfully');
-      return;
+    // Determine panel title based on filename
+    let panelTitle = 'Control Flow Graph Visualizer';
+    if (filename) {
+      const baseName = filename.split(/[/\\]/).pop() || filename;
+      panelTitle = `${baseName}: ${viewType}`;
     }
 
-    console.log('[CFGVisualizer] Creating new webview panel');
+    console.log('[CFGVisualizer] Creating new webview panel with title:', panelTitle);
     console.log('[CFGVisualizer] Panel options:', {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media').toString()]
     });
 
-    this.panel = vscode.window.createWebviewPanel(
+    // Create a new panel
+    const panel = vscode.window.createWebviewPanel(
       'cfgVisualizer',
-      'Control Flow Graph Visualizer',
+      panelTitle,
       column || vscode.ViewColumn.Two,
       {
         enableScripts: true,
@@ -52,21 +78,30 @@ export class CFGVisualizer {
       }
     );
 
-    console.log('[CFGVisualizer] Panel created successfully');
-    console.log('[CFGVisualizer] Panel webview available:', !!this.panel.webview);
-    console.log('[CFGVisualizer] Panel webview CSP source:', this.panel.webview.cspSource);
+    // Store panel in map
+    this.panels.set(panelKey, panel);
+    this.panel = panel; // Set current panel reference
 
-    this.panel.onDidDispose(() => {
-      this.panel = undefined;
+    console.log('[CFGVisualizer] Panel created successfully');
+    console.log('[CFGVisualizer] Total panels tracked:', this.panels.size);
+    console.log('[CFGVisualizer] Panel webview available:', !!panel.webview);
+    console.log('[CFGVisualizer] Panel webview CSP source:', panel.webview.cspSource);
+
+    panel.onDidDispose(() => {
+      console.log('[CFGVisualizer] Panel disposed, removing from tracking');
+      this.panels.delete(panelKey);
+      if (this.panel === panel) {
+        this.panel = undefined;
+      }
     }, null, context.subscriptions);
 
     // Handle messages from webview
-    this.panel.webview.onDidReceiveMessage(
+    panel.webview.onDidReceiveMessage(
       async message => {
         if (message.type === 'changeFunction') {
           console.log('[CFGVisualizer] Function changed to:', message.functionName);
           this.currentFunction = message.functionName;
-          await this.updateWebview();
+          await this.updateWebview(panel);
         }
       },
       null,
@@ -76,9 +111,29 @@ export class CFGVisualizer {
     // Only update webview if we have state, otherwise it will be updated when state is provided
     if (this.currentState) {
       console.log('[CFGVisualizer] Panel created with existing state, updating webview');
-      await this.updateWebview();
+      await this.updateWebview(panel);
     } else {
       console.log('[CFGVisualizer] Panel created without state, will update when state is provided');
+    }
+  }
+
+  /**
+   * Update visualization for a specific file's panel
+   * @param filename Filename to update
+   * @param state Analysis state
+   * @param viewType View type ('Viz' or 'Viz/Cfg')
+   */
+  async updateVisualizationForFile(filename: string, state: AnalysisState, viewType: 'Viz' | 'Viz/Cfg' = 'Viz'): Promise<void> {
+    const panelKey = this.getPanelKey(filename, viewType);
+    const panel = this.panels.get(panelKey);
+    
+    if (panel) {
+      console.log('[CFGVisualizer] Updating visualization for file:', filename, 'viewType:', viewType);
+      this.currentState = state;
+      this.panel = panel;
+      await this.updateWebview(panel);
+    } else {
+      console.log('[CFGVisualizer] No panel found for file:', filename, 'viewType:', viewType);
     }
   }
 
@@ -120,10 +175,12 @@ export class CFGVisualizer {
 
   /**
    * Update webview content
+   * @param panel Optional panel to update (defaults to current panel)
    */
-  private async updateWebview(): Promise<void> {
+  private async updateWebview(panel?: vscode.WebviewPanel): Promise<void> {
     console.log('[CFGVisualizer] updateWebview called');
-    if (!this.panel) {
+    const targetPanel = panel || this.panel;
+    if (!targetPanel) {
       console.log('[CFGVisualizer] No panel, returning');
       return;
     }
@@ -131,7 +188,7 @@ export class CFGVisualizer {
     const state = this.currentState;
     if (!state) {
       console.log('[CFGVisualizer] No state, showing empty HTML');
-      this.panel.webview.html = this.getEmptyHtml('No analysis state available. Please run "Analyze Workspace" or "Analyze Active File" first.');
+      targetPanel.webview.html = this.getEmptyHtml('No analysis state available. Please run "Analyze Workspace" or "Analyze Active File" first.');
       return;
     }
 
@@ -152,7 +209,7 @@ export class CFGVisualizer {
     // Check if any functions were found
     if (state.cfg.functions.size === 0) {
       console.log('[CFGVisualizer] No functions in state, showing empty HTML');
-      this.panel.webview.html = this.getEmptyHtml(
+      targetPanel.webview.html = this.getEmptyHtml(
         'No functions found in the analysis. Make sure your C++ files contain function definitions and that the analysis completed successfully.'
       );
       return;
@@ -177,14 +234,14 @@ export class CFGVisualizer {
 
     if (!funcCFG) {
       console.log('[CFGVisualizer] Could not find funcCFG, showing empty HTML');
-      this.panel.webview.html = this.getEmptyHtml('Could not find function CFG to display.');
+      targetPanel.webview.html = this.getEmptyHtml('Could not find function CFG to display.');
       return;
     }
 
     // Check if function has blocks
     if (funcCFG.blocks.size === 0) {
       console.log('[CFGVisualizer] Function has no blocks:', funcCFG.name);
-      this.panel.webview.html = this.getEmptyHtml(
+      targetPanel.webview.html = this.getEmptyHtml(
         `Function "${funcCFG.name}" has no basic blocks. This might indicate a parsing issue.`
       );
       return;
@@ -230,7 +287,7 @@ export class CFGVisualizer {
       graphData,
       state,
       funcCFG.name,
-      this.panel.webview.cspSource,
+      targetPanel.webview.cspSource,
       callGraphData,
       ipaData,
       taintData,
@@ -240,7 +297,7 @@ export class CFGVisualizer {
     console.log('[CFGVisualizer] Generated HTML length:', htmlContent.length);
     console.log('[CFGVisualizer] Number of script tags:', (htmlContent.match(/<script/g) || []).length);
     console.log('[CFGVisualizer] Number of JSON script tags:', (htmlContent.match(/<script[^>]*type="application\/json"/g) || []).length);
-    console.log('[CFGVisualizer] CSP Source:', this.panel.webview.cspSource);
+    console.log('[CFGVisualizer] CSP Source:', targetPanel.webview.cspSource);
     console.log('[CFGVisualizer] First 500 chars of HTML:', htmlContent.substring(0, 500));
     console.log('[CFGVisualizer] Last 500 chars of HTML:', htmlContent.substring(htmlContent.length - 500));
 
@@ -252,10 +309,10 @@ export class CFGVisualizer {
       console.warn('[CFGVisualizer] WARNING: HTML contains "null" - possible data issue');
     }
 
-    this.panel.webview.html = htmlContent;
+    targetPanel.webview.html = htmlContent;
     console.log('[CFGVisualizer] Webview HTML set successfully');
-    console.log('[CFGVisualizer] Panel visibility state:', this.panel.visible);
-    console.log('[CFGVisualizer] Panel active state:', this.panel.active);
+    console.log('[CFGVisualizer] Panel visibility state:', targetPanel.visible);
+    console.log('[CFGVisualizer] Panel active state:', targetPanel.active);
   }
 
   /**
@@ -583,12 +640,30 @@ export class CFGVisualizer {
     });
 
     // Add inter-function call edges (blue) from call graph
-    if (callGraphData && callGraphData.callGraph) {
+    if (state.callGraph && state.callGraph.callsFrom) {
       console.log('[CFGVisualizer] Adding inter-function call edges');
-      Object.entries(callGraphData.callGraph).forEach(([caller, callees]: [string, any]) => {
-        if (Array.isArray(callees)) {
-          callees.forEach((callee: string) => {
-            // Find entry blocks for caller and callee
+      console.log('[CFGVisualizer] callsFrom type:', state.callGraph.callsFrom instanceof Map ? 'Map' : typeof state.callGraph.callsFrom);
+      console.log('[CFGVisualizer] callsFrom size:', state.callGraph.callsFrom instanceof Map ? state.callGraph.callsFrom.size : Object.keys(state.callGraph.callsFrom).length);
+      
+      const blueEdgeSet = new Set<string>(); // Track unique edges to avoid duplicates
+      
+      // Handle both Map and plain object
+      const callsFromEntries: [string, any][] = state.callGraph.callsFrom instanceof Map
+        ? Array.from(state.callGraph.callsFrom.entries())
+        : Object.entries(state.callGraph.callsFrom);
+      
+      callsFromEntries.forEach(([caller, calls]) => {
+        if (Array.isArray(calls)) {
+          calls.forEach((call: any) => {
+            const callee = call.calleeId;
+            const callSiteBlockId = call.callSite?.blockId;
+            
+            // Skip external functions
+            const externalFunctions = ['printf', 'scanf', 'malloc', 'free', 'strlen', 'strcpy', 'strcat'];
+            if (externalFunctions.includes(callee)) {
+              return;
+            }
+            
             const callerCFG = state.cfg.functions.get(caller);
             const calleeCFG = state.cfg.functions.get(callee);
             
@@ -601,15 +676,30 @@ export class CFGVisualizer {
                 }
               });
 
-              // Find blocks in caller that contain calls to callee
-              callerCFG.blocks.forEach((block, blockId) => {
-                const hasCall = block.statements.some(stmt => 
-                  stmt.text.includes(callee + '(')
-                );
+              // Use callSite.blockId if available, otherwise find block with call
+              let fromBlockId = callSiteBlockId;
+              if (!fromBlockId) {
+                callerCFG.blocks.forEach((block, blockId) => {
+                  const hasCall = block.statements.some(stmt => 
+                    stmt.text.includes(callee + '(')
+                  );
+                  if (hasCall) {
+                    fromBlockId = blockId;
+                  }
+                });
+              }
+              
+              if (fromBlockId && calleeEntryId) {
+                const fromNodeId = `${caller}_${fromBlockId}`;
+                const toNodeId = `${callee}_${calleeEntryId}`;
+                const edgeKey = `${fromNodeId}->${toNodeId}`;
                 
-                if (hasCall && calleeEntryId) {
-                  const fromNodeId = `${caller}_${blockId}`;
-                  const toNodeId = `${callee}_${calleeEntryId}`;
+                // Check if nodes exist and edge not already added
+                const fromExists = nodes.some(n => n.id === fromNodeId);
+                const toExists = nodes.some(n => n.id === toNodeId);
+                
+                if (fromExists && toExists && !blueEdgeSet.has(edgeKey)) {
+                  blueEdgeSet.add(edgeKey);
                   edges.push({
                     from: fromNodeId,
                     to: toNodeId,
@@ -624,24 +714,52 @@ export class CFGVisualizer {
                       toFunction: callee
                     }
                   });
+                } else {
+                  if (!fromExists) {
+                    console.log(`[CFGVisualizer] Blue edge skipped: from node ${fromNodeId} does not exist`);
+                  }
+                  if (!toExists) {
+                    console.log(`[CFGVisualizer] Blue edge skipped: to node ${toNodeId} does not exist`);
+                  }
                 }
-              });
+              }
             }
           });
         }
       });
+      
+      const blueEdgeCount = edges.filter(e => e.metadata && e.metadata.type === 'function_call').length;
+      console.log('[CFGVisualizer] Total blue (function call) edges created:', blueEdgeCount);
     }
 
     // Add data flow edges (orange) based on reaching definitions
     if (state.reachingDefinitions) {
       console.log('[CFGVisualizer] Adding data flow edges');
-      state.reachingDefinitions.forEach((funcRD, funcName) => {
-        Object.entries(funcRD).forEach(([blockId, rdInfo]: [string, any]) => {
+      console.log('[CFGVisualizer] Reaching definitions map size:', state.reachingDefinitions.size);
+      
+      // Reorganize reaching definitions by function name
+      const rdByFunction = new Map<string, Map<string, ReachingDefinitionsInfo>>();
+      state.reachingDefinitions.forEach((rdInfo, key) => {
+        const [funcName, blockId] = key.split('_');
+        if (!rdByFunction.has(funcName)) {
+          rdByFunction.set(funcName, new Map());
+        }
+        rdByFunction.get(funcName)!.set(blockId, rdInfo);
+      });
+      
+      console.log('[CFGVisualizer] Organized RD by function:', rdByFunction.size, 'functions');
+      
+      rdByFunction.forEach((funcRD, funcName) => {
+        console.log(`[CFGVisualizer] Processing function ${funcName} for orange edges`);
+        let funcOrangeEdges = 0;
+        funcRD.forEach((rdInfo, blockId) => {
           if (rdInfo && rdInfo.out) {
-            rdInfo.out.forEach((defs: any[], varName: string) => {
+            // rdInfo.out is a Map<string, ReachingDefinition[]>
+            rdInfo.out.forEach((defs: ReachingDefinition[], varName: string) => {
               defs.forEach(def => {
-                if (def.definitionId && def.definitionId !== blockId) {
-                  const fromNodeId = `${funcName}_${def.definitionId}`;
+                // Use def.blockId (where definition occurs) not def.definitionId (unique ID like "d0")
+                if (def.blockId && def.blockId !== blockId) {
+                  const fromNodeId = `${funcName}_${def.blockId}`;
                   const toNodeId = `${funcName}_${blockId}`;
                   
                   // Only add if both nodes exist
@@ -649,28 +767,51 @@ export class CFGVisualizer {
                   const toExists = nodes.some(n => n.id === toNodeId);
                   
                   if (fromExists && toExists) {
-                    edges.push({
-                      from: fromNodeId,
-                      to: toNodeId,
-                      color: { color: '#ffa94d', highlight: '#fd7e14' },  // Orange for data flow
-                      width: 1,
-                      arrows: 'to',
-                      dashes: [5, 5],
-                      title: `Data Flow: ${varName}`,
-                      metadata: {
-                        type: 'data_flow',
-                        variable: varName,
-                        fromFunction: funcName,
-                        toFunction: funcName
-                      }
-                    });
+                    // Check for duplicate edges
+                    const isDuplicate = edges.some(e => 
+                      e.from === fromNodeId && 
+                      e.to === toNodeId && 
+                      e.metadata?.variable === varName &&
+                      e.metadata?.type === 'data_flow'
+                    );
+                    
+                    if (!isDuplicate) {
+                      funcOrangeEdges++;
+                      edges.push({
+                        from: fromNodeId,
+                        to: toNodeId,
+                        color: { color: '#ff8800', highlight: '#ff6600' },  // Bright orange for data flow
+                        width: 3,  // Increased to make more visible
+                        arrows: 'to',
+                        dashes: [8, 4],  // Dashed line pattern: 8px dash, 4px gap
+                        title: `Data Flow: ${varName} (${def.definitionId})`,
+                        metadata: {
+                          type: 'data_flow',
+                          variable: varName,
+                          fromFunction: funcName,
+                          toFunction: funcName,
+                          definitionId: def.definitionId
+                        }
+                      });
+                    }
+                  } else {
+                    if (!fromExists) {
+                      console.log(`[CFGVisualizer] Orange edge skipped: from node ${fromNodeId} does not exist (def.blockId=${def.blockId}, var=${varName})`);
+                    }
+                    if (!toExists) {
+                      console.log(`[CFGVisualizer] Orange edge skipped: to node ${toNodeId} does not exist (blockId=${blockId}, var=${varName})`);
+                    }
                   }
                 }
               });
             });
           }
         });
+        console.log(`[CFGVisualizer] Function ${funcName}: created ${funcOrangeEdges} orange edges`);
       });
+      
+      const orangeEdgeCount = edges.filter(e => e.metadata && e.metadata.type === 'data_flow').length;
+      console.log('[CFGVisualizer] Total orange (data flow) edges created:', orangeEdgeCount);
     }
 
     console.log(`[CFGVisualizer] Interconnected CFG prepared: ${nodes.length} nodes, ${edges.length} edges`);
@@ -1892,7 +2033,38 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             
             // Create vis.js datasets
             const icNodes = new vis.DataSet(interconnectedData.nodes);
-            const icEdges = new vis.DataSet(interconnectedData.edges);
+            
+            // Process edges to ensure styling is preserved
+            const processedEdges = interconnectedData.edges.map(function(edge) {
+                const processed = {
+                    from: edge.from,
+                    to: edge.to,
+                    arrows: edge.arrows || { to: { enabled: true } },
+                    title: edge.title || '',
+                    metadata: edge.metadata || {}
+                };
+                
+                // Preserve edge-specific styling
+                if (edge.color) {
+                    processed.color = edge.color;
+                }
+                if (edge.width !== undefined) {
+                    processed.width = edge.width;
+                }
+                if (edge.dashes !== undefined) {
+                    processed.dashes = edge.dashes;
+                }
+                
+                return processed;
+            });
+            
+            // Log edge types for debugging
+            const blueEdges = processedEdges.filter(e => e.metadata && e.metadata.type === 'function_call');
+            const orangeEdges = processedEdges.filter(e => e.metadata && e.metadata.type === 'data_flow');
+            const greenEdges = processedEdges.filter(e => !e.metadata || (!e.metadata.type || e.metadata.type === 'control_flow'));
+            logDebug('Edge counts - Blue: ' + blueEdges.length + ', Orange: ' + orangeEdges.length + ', Green: ' + greenEdges.length);
+            
+            const icEdges = new vis.DataSet(processedEdges);
             
             const icData = {
                 nodes: icNodes,
@@ -1907,7 +2079,10 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                 },
                 edges: {
                     smooth: { type: 'cubicBezier' },
-                    arrows: { to: { enabled: true, scaleFactor: 0.5 } }
+                    arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+                    // Don't override individual edge colors/widths
+                    color: { inherit: false },
+                    width: 1  // Default width, but individual edges can override
                 },
                 layout: {
                     hierarchical: {
@@ -2092,6 +2267,9 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
       this.panel.dispose();
       this.panel = undefined;
     }
+    // Dispose all tracked panels
+    this.panels.forEach(panel => panel.dispose());
+    this.panels.clear();
   }
 }
 

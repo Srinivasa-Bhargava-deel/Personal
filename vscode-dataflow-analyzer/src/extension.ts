@@ -55,7 +55,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Register commands
   const showCFGCommand = vscode.commands.registerCommand('dataflowAnalyzer.showCFG', async () => {
     if (visualizer) {
-      await visualizer.createOrShow(context);
+      const active = vscode.window.activeTextEditor;
+      const filename = active?.document.fileName || undefined;
+      await visualizer.createOrShow(context, filename, 'Viz/Cfg');
       const state = analyzer?.getState();
       if (state) {
         await visualizer.updateVisualization(state);
@@ -93,8 +95,21 @@ export function activate(context: vscode.ExtensionContext) {
         const functionCount = state.cfg.functions.size;
         
         if (visualizer) {
-          // Open/show the visualizer panel
-          await visualizer.createOrShow(context);
+          // Determine filename from analyzed files
+          let filename: string | undefined;
+          if (state.fileStates.size > 0) {
+            // Use the first file's name, or workspace name if multiple files
+            const firstFile = Array.from(state.fileStates.keys())[0];
+            if (state.fileStates.size === 1) {
+              filename = firstFile;
+            } else {
+              // Multiple files - use workspace name
+              filename = workspaceFolders?.[0]?.name || 'Workspace';
+            }
+          }
+          
+          // Open/show the visualizer panel with filename
+          await visualizer.createOrShow(context, filename, 'Viz');
           // Update it with the analysis results
           await visualizer.updateVisualization(state);
         }
@@ -132,8 +147,8 @@ export function activate(context: vscode.ExtensionContext) {
         const state = await analyzer!.analyzeSpecificFiles([filePath]);
         const functionCount = state.cfg.functions.size;
         if (visualizer) {
-          // Open/show the visualizer panel
-          await visualizer.createOrShow(context);
+          // Open/show the visualizer panel with active file name
+          await visualizer.createOrShow(context, filePath, 'Viz');
           // Update it with the analysis results
           await visualizer.updateVisualization(state);
         }
@@ -211,7 +226,8 @@ function setupFileWatchers(context: vscode.ExtensionContext, config: AnalysisCon
             await analyzer.updateFile(document.fileName);
             const state = analyzer.getState();
             if (state && visualizer) {
-              await visualizer.updateVisualization(state);
+              // Update visualization for the saved file's panel
+              await visualizer.updateVisualizationForFile(document.fileName, state, 'Viz');
             }
           } catch (error) {
             console.error('Error updating file:', error);
@@ -235,7 +251,8 @@ function setupFileWatchers(context: vscode.ExtensionContext, config: AnalysisCon
               await analyzer.updateFile(document.fileName);
               const state = analyzer.getState();
               if (state && visualizer) {
-                await visualizer.updateVisualization(state);
+                // Update visualization for the changed file's panel
+                await visualizer.updateVisualizationForFile(document.fileName, state, 'Viz');
               }
             } catch (error) {
               console.error('Error updating file:', error);

@@ -2,16 +2,15 @@
 
 ## 📋 **CURRENT PENDING TASKS**
 
-
 **Sub-tasks**:
-- **0a. Fix blue edges (function call edges) not appearing** - Call graph parsing issue
-- **0b. Fix orange edges (data flow edges) not appearing** - RD data structure issue
+- **0a. Fix blue edges (function call edges) not appearing** - ✅ **COMPLETED** (v1.6)
+- **0b. Fix orange edges (data flow edges) not appearing** - ✅ **COMPLETED** (v1.6)
 
 **Details**:
-- Blue edges represent inter-function calls
-- Orange edges represent data flow (reaching definitions)
-- Both edge types are generated but not appearing in visualization
-- Need to verify data structure parsing and edge creation logic
+- Blue edges represent inter-function calls - Fixed Map data structure handling
+- Orange edges represent data flow (reaching definitions) - Fixed blockId usage and improved styling
+- Both edge types are now working correctly in visualization
+- Panel tracking added for better multi-file management
 
 ### Task 1: Test Alert Visibility
 **Status**: Completed ✅
