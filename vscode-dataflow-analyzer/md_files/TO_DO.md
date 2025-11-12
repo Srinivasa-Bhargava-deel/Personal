@@ -135,6 +135,196 @@
 
 ---
 
+## 🚀 **NEW PLANNED TASKS** (First 5)
+
+### Task 12: Improve CFG Block Names in Interconnected CFG
+**Status**: ✅ **COMPLETED** (December 2024)  
+**Priority**: LOW  
+**Estimated Time**: 1 hour
+
+**Completed**:
+- ✅ Updated block label generation to use `block.label` property
+- ✅ Changed format from `fibonacci::4\n[statement text]` to `fibonacci: Entry`
+- ✅ Improved readability: `functionName: BlockLabel` format
+- ✅ Moved statement details to tooltip/title instead of main label
+- ✅ Added fallback logic for missing labels (uses isEntry/isExit properties)
+
+**Location**: `src/visualizer/CFGVisualizer.ts:658-707`
+
+**Impact**: Block names in interconnected CFG are now human-readable and consistent with CFG parser labels.
+
+---
+
+### Task 13: Inter-Procedural Taint Propagation (Phase 5)
+**Status**: ⏳ **PENDING**  
+**Priority**: HIGH  
+**Estimated Time**: 5-6 days  
+**Target Version**: v1.9.0
+
+**Goal**: Track taint flow across function boundaries using IPA infrastructure.
+
+**Sub-tasks**:
+1. **Integrate with Call Graph**:
+   - Use `CallGraphAnalyzer` to identify function calls
+   - Use `ParameterAnalyzer` to map actual arguments to formal parameters
+   - Use `ReturnValueAnalyzer` to track return value taint
+
+2. **Parameter Taint Mapping**:
+   - When calling function f(tainted_arg):
+     - Identify formal parameter corresponding to tainted_arg
+     - Mark formal parameter as tainted in callee's context
+     - Propagate taint within callee function
+     - Track taint in return value if it flows through
+
+3. **Return Value Taint**:
+   - If callee returns tainted data, mark return value as tainted
+   - Track return value taint back to caller
+   - Handle multiple return paths (different return statements)
+
+4. **Global Variable Taint**:
+   - Track taint in global variables
+   - Propagate global taint across function boundaries
+   - Handle global taint in function calls
+
+5. **Taint Summaries**:
+   - Create function summaries describing taint behavior
+   - Example: `strcpy(dest, src)` → dest is tainted if src is tainted
+   - Use summaries for library functions
+
+**Files to Create/Modify**:
+- `src/analyzer/InterProceduralTaintAnalyzer.ts` (new)
+- `src/analyzer/TaintAnalyzer.ts` (modify to use IPA)
+- `src/analyzer/DataflowAnalyzer.ts` (integrate inter-procedural taint)
+
+**Test Cases**:
+- Taint through function call: f(tainted) → formal param tainted → return tainted
+- Multiple functions: input → process → output (taint flows through)
+- Global taint: global_var tainted in f1(), used in f2()
+- Library functions: strcpy(dest, tainted_src) → dest tainted
+
+**Reference**: `md_files/FUTURE_PLANS.md` lines 148-191
+
+---
+
+### Task 14: Context-Sensitive Taint Analysis (Phase 6)
+**Status**: ⏳ **PENDING**  
+**Priority**: HIGH  
+**Estimated Time**: 4-5 days  
+**Target Version**: v1.9.0  
+**Dependencies**: Task 13 (Inter-Procedural Taint Propagation)
+
+**Goal**: Improve precision by tracking taint with call-site context.
+
+**Sub-tasks**:
+1. **Call-Site Context**:
+   - Track taint separately for each call site
+   - Example: `f(user_input)` vs `f("constant")` - different contexts
+   - Use k-limited context (k=1 or k=2) for scalability
+
+2. **Path Sensitivity**:
+   - Track taint along specific execution paths
+   - Handle conditional sanitization: sanitized in one path, not in another
+   - Support "taint removed" annotations per path
+
+3. **Taint State at Call Sites**:
+   - Implement `CallSiteTaintState` interface
+   - Track argument taint by index
+   - Track return value taint
+   - Track global variable taint
+
+4. **Context Merging**:
+   - Merge taint states from multiple call sites
+   - Handle recursion with context limits
+   - Optimize with worklist algorithm
+
+**Files to Create/Modify**:
+- `src/analyzer/ContextSensitiveTaintAnalyzer.ts` (new)
+- `src/analyzer/InterProceduralTaintAnalyzer.ts` (modify)
+
+**Test Cases**:
+- Same function called with tainted vs safe arguments
+- Conditional sanitization: if (validate(x)) use x else reject
+- Recursive functions with taint propagation
+- Multiple call sites to same function with different taint states
+
+**Reference**: `md_files/FUTURE_PLANS.md` lines 192-232
+
+---
+
+### Task 15: Exploitability Scoring
+**Status**: ⏳ **PENDING**  
+**Priority**: MEDIUM  
+**Estimated Time**: 4-5 hours  
+**Target Version**: v1.9.0
+
+**Goal**: Calculate CVSS-like scores for vulnerabilities.
+
+**Sub-tasks**:
+1. **CVSS Integration**:
+   - Industry-standard vulnerability scoring
+   - Attack vector analysis (remote vs local)
+   - Impact assessment (data loss, privilege escalation)
+   - Patch priority scoring
+
+2. **Exploitability Factors**:
+   - Attack vector (network, local, physical)
+   - Attack complexity (low, high)
+   - Privileges required (none, low, high)
+   - User interaction (none, required)
+   - Scope (unchanged, changed)
+
+3. **Impact Metrics**:
+   - Confidentiality impact
+   - Integrity impact
+   - Availability impact
+
+**Files to Create**:
+- `src/analyzer/ExploitabilityScorer.ts` (new)
+
+**Integration Points**:
+- `src/analyzer/TaintAnalyzer.ts` - Add scoring to vulnerabilities
+- `src/visualizer/CFGVisualizer.ts` - Display scores in UI
+
+**Reference**: `md_files/FUTURE_PLANS.md` lines 339-367
+
+---
+
+### Task 16: Patch Suggestion Engine
+**Status**: ⏳ **PENDING**  
+**Priority**: MEDIUM  
+**Estimated Time**: 5-6 hours  
+**Target Version**: v1.10.0
+
+**Goal**: Generate repair suggestions for detected vulnerabilities.
+
+**Sub-tasks**:
+1. **Pattern-Based Fixes**:
+   - Safe function replacements (strcpy → strncpy)
+   - Input validation suggestions
+   - Bounds checking recommendations
+   - Type conversion fixes
+
+2. **Code Pattern Matching**:
+   - Identify vulnerable code patterns
+   - Match to known safe patterns
+   - Generate replacement code
+
+3. **Context-Aware Suggestions**:
+   - Consider surrounding code context
+   - Suggest minimal changes
+   - Preserve functionality
+
+**Files to Create**:
+- `src/analyzer/PatchSuggester.ts` (new)
+
+**Integration Points**:
+- `src/analyzer/TaintAnalyzer.ts` - Generate suggestions for vulnerabilities
+- `src/visualizer/CFGVisualizer.ts` - Display suggestions in UI
+
+**Reference**: `md_files/FUTURE_PLANS.md` lines 370-396
+
+---
+
 ## ✅ **COMPLETED TASKS**
 
 ### Task 0: FIX CRITICAL - Interconnected CFG Edges Issue
@@ -170,4 +360,6 @@
 
 ---
 
-**Next Action**: Continue with LOGIC-1.2 (Fix Taint Analysis Key Format)
+**Next Action**: 
+- ✅ Task 12 completed (CFG Block Names improvement)
+- Continue with Task 8 (Verify All Features Working) or start Task 13 (Inter-Procedural Taint Propagation)

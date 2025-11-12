@@ -657,15 +657,36 @@ export class CFGVisualizer {
       
       funcCFG.blocks.forEach((block, blockId) => {
         const nodeId = `${funcName}_${blockId}`;
-        const label = block.statements.length > 0 
-          ? block.statements[0].text.substring(0, 30) + (block.statements[0].text.length > 30 ? '...' : '')
-          : `Block ${blockId}`;
+        
+        // Create human-readable block label
+        let blockLabel: string;
+        if (block.label && block.label.trim().length > 0) {
+          // Use the block's label (e.g., "Entry", "Exit", "B1", "B2")
+          blockLabel = block.label.trim();
+        } else if (block.isEntry) {
+          blockLabel = 'Entry';
+        } else if (block.isExit) {
+          blockLabel = 'Exit';
+        } else {
+          // Fallback: use block ID or generate a descriptive name
+          blockLabel = `Block ${blockId}`;
+        }
+        
+        // Format: "functionName: BlockLabel" (e.g., "fibonacci: Entry", "power: B1")
+        const nodeLabel = `${funcName}: ${blockLabel}`;
+        
+        // Create detailed title with statement info
+        let title = `Function: ${funcName}\nBlock: ${blockLabel} (ID: ${blockId})\nStatements: ${block.statements.length}`;
+        if (block.statements.length > 0) {
+          const firstStmt = block.statements[0].text.substring(0, 50);
+          title += `\nFirst statement: ${firstStmt}${block.statements[0].text.length > 50 ? '...' : ''}`;
+        }
         
         nodes.push({
           id: nodeId,
-          label: `${funcName}::${blockId}\n${label}`,
+          label: nodeLabel,
           group: functionGroups.get(funcName),
-          title: `Function: ${funcName}\nBlock: ${blockId}\nStatements: ${block.statements.length}`,
+          title: title,
           color: {
             background: '#ff6b6b',  // Red background for all function nodes
             border: '#c92a2a',
