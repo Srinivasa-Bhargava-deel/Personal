@@ -1,3 +1,56 @@
+/**
+ * cfg-exporter.cpp
+ * 
+ * CFG Exporter Tool - Clang/LLVM-based Control Flow Graph Generator
+ * 
+ * PURPOSE:
+ * This C++ tool uses official Clang/LLVM libraries to generate Control Flow Graphs (CFGs)
+ * from C++ source files. It serves as the foundation for all dataflow analysis by providing
+ * theoretically sound, academically correct CFG structures.
+ * 
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This is the FIRST step in the analysis pipeline. It converts C++ source code into
+ * structured CFG data that all subsequent analyses depend on. Without this tool, no
+ * analysis can proceed. It ensures academic correctness by using official Clang CFG
+ * generation algorithms.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - C++ source file path (command-line argument)
+ *   - Compiler arguments (optional, after -- separator)
+ *   - Clang/LLVM libraries (libclang, libLLVM)
+ * 
+ * PROCESSING:
+ *   1. Reads C++ source file from filesystem
+ *   2. Uses clang::tooling::buildASTFromCodeWithArgs() to build AST
+ *   3. Traverses AST using RecursiveASTVisitor
+ *   4. For each function with body:
+ *      - Uses clang::CFG::buildCFG() to generate official Clang CFG
+ *      - Extracts blocks, statements, predecessors, successors
+ *      - Converts to JSON format
+ * 
+ * OUTPUTS:
+ *   - JSON output to stdout containing:
+ *     - Function metadata (name, file, range)
+ *     - CFG blocks with:
+ *       - Block ID, label, entry/exit flags
+ *       - Statements (text, range)
+ *       - Predecessors and successors (control flow edges)
+ *   - JSON output -> ClangASTParser.ts (via stdout/stdin)
+ * 
+ * DEPENDENCIES:
+ *   - Clang/LLVM libraries (libclang, libLLVM)
+ *   - nlohmann/json library (for JSON output)
+ * 
+ * USAGE:
+ *   ./cfg-exporter <source-file> -- -std=c++17 -Iinclude
+ * 
+ * ACADEMIC CORRECTNESS:
+ * Uses official clang::CFG::buildCFG() from libclang/LLVM, ensuring that generated
+ * CFGs follow academic standards for Control Flow Graph construction. This guarantees
+ * that all downstream analyses operate on theoretically sound CFG structures.
+ */
+
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/Basic/SourceManager.h>

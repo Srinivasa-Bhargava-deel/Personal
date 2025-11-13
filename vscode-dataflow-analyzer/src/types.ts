@@ -1,5 +1,47 @@
 /**
- * Core types and interfaces for the dataflow analyzer
+ * types.ts
+ * 
+ * Core Types and Interfaces for the Dataflow Analyzer
+ * 
+ * PURPOSE:
+ * This file defines all core TypeScript interfaces and types used throughout the extension.
+ * It serves as the central type definition hub, ensuring type consistency across all modules.
+ * 
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This file is the FOUNDATION for all type definitions in the extension. Every module
+ * imports types from this file, making it critical for type safety and code maintainability.
+ * Changes to types here affect the entire codebase. It defines the data structures that
+ * flow through the entire analysis pipeline.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - Type definitions from TypeScript language
+ *   - Domain knowledge (CFG theory, dataflow analysis concepts)
+ * 
+ * OUTPUTS:
+ *   - Exported interfaces and types used by:
+ *     - extension.ts: AnalysisConfig, AnalysisState
+ *     - DataflowAnalyzer.ts: CFG, FunctionCFG, AnalysisState, all analysis result types
+ *     - EnhancedCPPParser.ts: BasicBlock, Statement, FunctionCFG
+ *     - LivenessAnalyzer.ts: LivenessInfo
+ *     - ReachingDefinitionsAnalyzer.ts: ReachingDefinitionsInfo, ReachingDefinition
+ *     - TaintAnalyzer.ts: TaintInfo, TaintLabel, TaintVulnerability
+ *     - SecurityAnalyzer.ts: Vulnerability
+ *     - CFGVisualizer.ts: All visualization data types
+ *     - StateManager.ts: AnalysisState (for serialization)
+ * 
+ * KEY TYPE CATEGORIES:
+ * 1. CFG Structures: CFG, FunctionCFG, BasicBlock, Statement
+ * 2. Analysis Results: LivenessInfo, ReachingDefinitionsInfo, TaintInfo
+ * 3. Analysis State: AnalysisState, FileAnalysisState, AnalysisConfig
+ * 4. Taint Analysis: TaintLabel, TaintVulnerability
+ * 5. Position/Range: Position, Range (for source code locations)
+ * 
+ * CRITICAL TYPES:
+ * - AnalysisState: The complete analysis result container, flows from DataflowAnalyzer
+ *   to CFGVisualizer and StateManager
+ * - FunctionCFG: The core CFG structure, flows from EnhancedCPPParser to all analyzers
+ * - TaintInfo: Taint propagation data, flows from TaintAnalyzer to CFGVisualizer
  */
 
 export interface Position {

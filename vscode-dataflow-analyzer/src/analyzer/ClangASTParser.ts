@@ -1,26 +1,57 @@
 /**
- * ClangASTParser - Integration with Clang/LLVM for C++ static analysis
+ * ClangASTParser.ts
  * 
- * This module provides the bridge between the VSCode extension and official Clang/LLVM libraries.
+ * Clang AST Parser - Integration with Clang/LLVM for C++ Static Analysis
  * 
- * Architecture:
- * 1. Uses clang command-line tool to generate Control Flow Graphs (CFGs)
- * 2. Invokes cfg-exporter (custom C++ binary) to parse CFG data
- * 3. Converts Clang CFG output to our internal AST representation
- * 4. Extracts function CFGs for dataflow analysis
+ * PURPOSE:
+ * This module provides the bridge between the VS Code extension and official Clang/LLVM libraries.
+ * It wraps the cfg-exporter C++ binary and handles the communication between the TypeScript
+ * extension and the native CFG generation tool.
  * 
- * Key Features:
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This is the INTERFACE layer between the TypeScript extension and the C++ cfg-exporter tool.
+ * It spawns the cfg-exporter process, reads its JSON output, and converts it to an ASTNode
+ * format that EnhancedCPPParser can process. This enables the extension to leverage official
+ * Clang/LLVM CFG generation without reimplementing it in TypeScript.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - C++ source file path (from EnhancedCPPParser.ts)
+ *   - Compiler arguments (optional, for include paths, etc.)
+ *   - cfg-exporter binary (located at cpp-tools/cfg-exporter/build/cfg-exporter)
+ * 
+ * PROCESSING:
+ *   1. Spawns cfg-exporter process with source file path
+ *   2. Reads JSON output from cfg-exporter stdout
+ *   3. Parses JSON to ASTNode structure
+ *   4. Handles errors and timeouts
+ *   5. Caches include paths for performance
+ * 
+ * OUTPUTS:
+ *   - ASTNode object containing:
+ *     - Functions array with CFG blocks
+ *     - Block metadata (ID, label, entry/exit flags)
+ *     - Statements with text and ranges
+ *     - Predecessors and successors (control flow edges)
+ *   - ASTNode -> EnhancedCPPParser.ts (for further processing)
+ * 
+ * DEPENDENCIES:
+ *   - cfg-exporter.cpp: Native C++ binary that generates CFG JSON
+ *   - Child process API: For spawning cfg-exporter
+ * 
+ * KEY FEATURES:
  * - Official Clang/LLVM integration (NOT a parse-only solution)
  * - CFG block extraction with predecessors/successors
  * - Statement-level granularity for dataflow analysis
  * - Cross-platform support (macOS, Linux, Windows)
+ * - Include path discovery and caching
  * 
- * Academic Foundation:
+ * ACADEMIC FOUNDATION:
  * - CFGs follow the standard compiler textbook representation
  * - Each block contains statements and control flow edges
  * - Entry/exit blocks properly identified
  * 
- * References:
+ * REFERENCES:
  * - Clang/LLVM Documentation
  * - "Engineering a Compiler" (Cooper & Torczon)
  * - "Compilers: Principles, Techniques, and Tools" (Aho, Sethi, Ullman)

@@ -1,34 +1,62 @@
 /**
- * LivenessAnalyzer - Backward dataflow analysis to determine variable liveness.
+ * LivenessAnalyzer.ts
  * 
- * LIVENESS ANALYSIS determines which variables are "live" at each program point.
+ * Liveness Analyzer - Backward Dataflow Analysis for Variable Liveness
  * 
- * Academic Definition (from Cooper & Torczon, "Engineering a Compiler"):
+ * PURPOSE:
+ * Performs backward dataflow analysis to determine which variables are "live" at each
+ * program point. This is critical for optimization (dead code elimination) and security
+ * analysis (use-after-free detection).
  * 
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This analyzer runs as part of the intra-procedural analysis phase in DataflowAnalyzer.
+ * It provides liveness information that is used by CFGVisualizer for visualization and
+ * by SecurityAnalyzer for detecting use-after-free vulnerabilities. Liveness analysis
+ * is a fundamental dataflow analysis that informs many other analyses.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - FunctionCFG object (from DataflowAnalyzer.ts, originally from EnhancedCPPParser.ts)
+ *     containing blocks, statements, and control flow edges
+ * 
+ * PROCESSING:
+ *   1. Computes USE[B] and DEF[B] sets for each block B
+ *   2. Initializes all IN/OUT sets to empty
+ *   3. Iteratively recomputes IN/OUT sets in reverse CFG order:
+ *      - OUT[B] = union of IN[S] for all successors S of B
+ *      - IN[B] = USE[B] union (OUT[B] - DEF[B])
+ *   4. Continues until reaching fixed point (no changes)
+ * 
+ * OUTPUTS:
+ *   - Map<string, LivenessInfo> where:
+ *     - Key: blockId
+ *     - Value: LivenessInfo containing:
+ *       - IN set: Variables live at block entry
+ *       - OUT set: Variables live at block exit
+ *   - Liveness results -> DataflowAnalyzer.ts (aggregated into AnalysisState)
+ *   - Liveness results -> CFGVisualizer.ts (for visualization)
+ *   - Liveness results -> SecurityAnalyzer.ts (for use-after-free detection)
+ * 
+ * DEPENDENCIES:
+ *   - types.ts: FunctionCFG, LivenessInfo, BasicBlock
+ * 
+ * ACADEMIC DEFINITION (from Cooper & Torczon, "Engineering a Compiler"):
  * A variable v is LIVE at a program point p if:
  * - There exists a path from p to a use of v
  * - AND no definition of v appears on that path before the use
  * 
- * This is critical for optimization (e.g., dead code elimination) and 
- * security analysis (e.g., detecting use-after-free).
+ * DATAFLOW EQUATIONS (BACKWARD ANALYSIS):
+ *   OUT[B] = union of IN[S] for all successors S of B
+ *   IN[B] = USE[B] union (OUT[B] - DEF[B])
  * 
  * For each block B:
  *   USE[B] = variables read before being written in B
  *   DEF[B] = variables written in B
  * 
- * Dataflow equations (BACKWARD analysis):
- *   OUT[B] = union of IN[S] for all successors S of B
- *   IN[B] = USE[B] union (OUT[B] - DEF[B])
+ * TIME COMPLEXITY: O(n^2) for n blocks
+ * SPACE COMPLEXITY: O(n * v) for n blocks and v variables
  * 
- * Algorithm:
- * 1. Initialize all IN/OUT sets to empty
- * 2. Iteratively recompute IN/OUT in reverse CFG order
- * 3. Continue until reaching fixed point (no changes)
- * 
- * Time Complexity: O(n^2) for n blocks
- * Space Complexity: O(n * v) for n blocks and v variables
- * 
- * References:
+ * REFERENCES:
  * - "Engineering a Compiler" Chapter 8.6.2
  * - "Compilers: Principles, Techniques, and Tools" Chapter 10.2
  */

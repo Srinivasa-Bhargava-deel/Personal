@@ -1,11 +1,31 @@
 /**
+ * extension.ts
+ * 
  * VS Code Extension Entry Point
  * 
+ * PURPOSE:
  * This module serves as the main activation point for the C++ Dataflow Analyzer extension.
  * It handles extension lifecycle, command registration, and coordination between
  * the analyzer and visualizer components.
  * 
- * Key responsibilities:
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This is the entry point of the entire extension. It initializes all components and
+ * provides the bridge between VS Code's extension API and the analysis engine.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - VS Code extension context (from VS Code API)
+ *   - User commands (Show CFG, Analyze Workspace, Analyze Active File, Clear State)
+ *   - Configuration settings (from VS Code settings)
+ *   - File change events (from VS Code file watchers)
+ * 
+ * OUTPUTS:
+ *   - Initialized DataflowAnalyzer instance -> DataflowAnalyzer.ts
+ *   - Initialized CFGVisualizer instance -> CFGVisualizer.ts
+ *   - Command handlers that trigger analysis workflows
+ *   - File watchers that trigger incremental updates
+ * 
+ * KEY RESPONSIBILITIES:
  * - Extension activation and deactivation
  * - Command registration (Show CFG, Analyze Workspace, Analyze Active File, Clear State)
  * - Configuration management

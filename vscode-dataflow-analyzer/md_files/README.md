@@ -2,7 +2,7 @@
 
 A comprehensive VSCode extension for real-time incremental static/dataflow analysis of C++ code with advanced security vulnerability detection and exploit post-mortem capabilities.
 
-## 🎯 Overview
+##  Overview
 
 This extension provides powerful static analysis capabilities for C++ codebases, focusing on:
 - **Control Flow Graph (CFG) Visualization** - Interactive real-time CFG building using official Clang/LLVM libraries
@@ -14,7 +14,7 @@ This extension provides powerful static analysis capabilities for C++ codebases,
 
 Perfect for security researchers, developers, and code reviewers who need to understand dataflow and identify security vulnerabilities in C++ code.
 
-## ✨ Key Features
+##  Key Features
 
 ### Core Analysis Features
 
@@ -128,7 +128,7 @@ Perfect for security researchers, developers, and code reviewers who need to und
   - Stored in `.vscode/dataflow-state.json`
   - Persists across sessions
 
-## 📋 Requirements
+##  Requirements
 
 ### System Requirements
 
@@ -148,7 +148,7 @@ Perfect for security researchers, developers, and code reviewers who need to und
   - Linux: `sudo apt-get install cmake` or `sudo yum install cmake`
   - Windows: Download from [cmake.org](https://cmake.org/)
 
-## 🚀 Installation & Build Instructions
+##  Installation & Build Instructions
 
 ### Quick Build Summary
 
@@ -253,7 +253,7 @@ Perfect for security researchers, developers, and code reviewers who need to und
    cmake --build . --config Release
    ```
 
-## 📖 Usage
+##  Usage
 
 ### Basic Workflow
 
@@ -308,7 +308,7 @@ Open VSCode settings (`Ctrl+,` or `Cmd+,`) and search for "Dataflow Analyzer":
 - `dataflowAnalyzer.analyzeActiveFile` - Analyze only the active C/C++ source file
 - `dataflowAnalyzer.clearState` - Clear saved analysis state
 
-## 🏗️ Architecture
+##  Architecture
 
 ### Project Structure
 
@@ -452,7 +452,7 @@ vscode-dataflow-analyzer/
    - Per-workspace state management
    - Preserves analysis data across sessions
 
-## 📊 Technical Details
+##  Technical Details
 
 ### Dataflow Analysis Algorithms
 
@@ -560,7 +560,7 @@ For each statement:
 - MAX_ITERATIONS safety checks prevent infinite loops
 - Cycle detection in propagation paths
 
-## 🔍 Vulnerability Detection
+##  Vulnerability Detection
 
 ### Supported Vulnerability Types
 
@@ -605,7 +605,7 @@ Each vulnerability includes:
 - **CWE Information**: Link to MITRE CWE database
 - **Recommendations**: How to fix the vulnerability
 
-## 🛠️ Development
+##  Development
 
 ### Prerequisites
 
@@ -654,7 +654,7 @@ cmake --build .
 3. Set breakpoints in TypeScript files
 4. Use VSCode debugger
 
-## 🔐 Security Considerations
+##  Security Considerations
 
 This tool is designed for:
 - **Static Analysis**: Analyzing source code without execution
@@ -668,18 +668,18 @@ This tool is designed for:
 - Penetration testing
 - Security audits
 
-## 📝 License
+##  License
 
 [Specify your license here]
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - Uses [vis-network](https://visjs.github.io/vis-network/) for graph visualization
 - Integrates with clang/LLVM for AST parsing and CFG generation
 - Built on VSCode Extension API
 - Algorithms from Dragon Book (Aho, Sethi, Ullman) and Engineering a Compiler (Cooper & Torczon)
 
-## 📚 Documentation
+##  Documentation
 
 - **README.md**: Complete user guide and feature documentation
 - **FUTURE_PLANS.md**: Roadmap and planned enhancements
@@ -688,7 +688,7 @@ This tool is designed for:
 - **validate_v1.6.sh**: Automated validation script for v1.6.0 improvements
 - **validate_v1.6.md**: Validation checklist and test procedures
 
-## 📚 References
+##  References
 
 - [CWE - Common Weakness Enumeration](https://cwe.mitre.org/)
 - [Clang Documentation](https://clang.llvm.org/docs/)
@@ -697,14 +697,14 @@ This tool is designed for:
 - [Dragon Book](https://www.pearsonhighered.com/program/Aho-Compilers-Principles-Techniques-and-Tools-2nd-Edition/PGM310509.html)
 - [Engineering a Compiler](https://www.elsevier.com/books/engineering-a-compiler/cooper/978-0-12-811905-1)
 
-## 🐛 Known Issues
+##  Known Issues
 
 - Inter-procedural analysis context sensitivity is limited (context-insensitive only)
 - Some complex C++ features may not be fully parsed
 - Performance may degrade on very large codebases
 - Inter-procedural taint propagation not yet implemented (planned for v1.7+)
 
-## 📈 Version History
+##  Version History
 
 ### v1.8.0 (December 2024)
 - **🎉 MAJOR**: Completed all LOGIC.md fixes (15/15) - comprehensive code quality improvements:

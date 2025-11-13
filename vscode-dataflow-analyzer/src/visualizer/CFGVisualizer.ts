@@ -1,18 +1,70 @@
 /**
- * CFG Visualizer Webview
+ * CFGVisualizer.ts
  * 
- * This module provides the webview-based visualization for Control Flow Graphs (CFGs).
- * It creates interactive visualizations using vis-network library and manages multiple
- * visualization panels for different files and view types.
+ * CFG Visualizer Webview - Interactive Visualization Component
  * 
- * Key features:
+ * PURPOSE:
+ * This module provides the webview-based visualization for Control Flow Graphs (CFGs) and
+ * all analysis results. It creates interactive visualizations using vis-network library
+ * and manages multiple visualization panels for different files and view types.
+ * 
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This is the FINAL step in the analysis pipeline - the user-facing visualization layer.
+ * It takes all analysis results from DataflowAnalyzer and presents them in an interactive
+ * webview. Users interact with this component to explore CFGs, call graphs, taint analysis,
+ * and vulnerabilities. All visualization data is prepared during analysis (backend) and
+ * displayed on-demand when tabs are clicked.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - AnalysisState object (from DataflowAnalyzer.ts) containing:
+ *     - CFG structures (functions, blocks, statements)
+ *     - Liveness analysis results
+ *     - Reaching definitions results
+ *     - Taint analysis results
+ *     - Vulnerability results
+ *     - Call graph
+ *     - Inter-procedural analysis results
+ *     - Pre-prepared visualization data (optional, prepared in backend)
+ *   - VS Code webview API (for creating panels)
+ *   - User interactions (function selection, tab clicks)
+ * 
+ * PROCESSING:
+ *   1. Receives AnalysisState from extension.ts or DataflowAnalyzer
+ *   2. Prepares graph data for vis-network:
+ *      - prepareGraphData(): CFG visualization data
+ *      - prepareCallGraphData(): Call graph visualization data
+ *      - prepareTaintData(): Taint analysis visualization data
+ *      - prepareInterProceduralTaintData(): Inter-procedural taint visualization data
+ *      - prepareInterconnectedCFGData(): Unified CFG visualization data
+ *   3. Generates HTML content with vis-network integration
+ *   4. Handles user interactions (function selection, tab switching)
+ *   5. Updates visualization when analysis state changes
+ * 
+ * OUTPUTS:
+ *   - Webview panels (displayed in VS Code)
+ *   - Interactive visualizations:
+ *     - CFG Tab: Individual function control flow graphs
+ *     - Call Graph Tab: Function call relationships
+ *     - Taint Analysis Tab: Taint sources, sinks, vulnerabilities
+ *     - Inter-Procedural Taint Tab: Cross-function taint propagation
+ *     - Interconnected CFG Tab: Unified view with all edge types
+ *   - User interaction events -> extension.ts (for re-analysis if needed)
+ * 
+ * DEPENDENCIES:
+ *   - types.ts: AnalysisState, FunctionCFG, TaintInfo, etc.
+ *   - vis-network library: Graph visualization engine
+ *   - VS Code webview API: Panel creation and management
+ * 
+ * KEY FEATURES:
  * - Individual function CFG visualization
  * - Call graph visualization
  * - Interconnected CFG visualization (all functions with control flow, call, and data flow edges)
  * - Panel tracking for multi-file management
  * - Real-time updates when analysis state changes
+ * - Backend data preparation (all data ready before tab click)
  * 
- * Edge types in interconnected CFG:
+ * EDGE TYPES IN INTERCONNECTED CFG:
  * - Green: Control flow edges (within functions)
  * - Blue: Function call edges (between functions)
  * - Orange: Data flow edges (reaching definitions)
@@ -487,24 +539,33 @@ export class CFGVisualizer {
     const edges: any[] = [];
 
     // Get taint analysis for this function
+    // Taint analysis results contain information about which variables are tainted
+    // and where taint propagates through the CFG
     const taintInfo = state.taintAnalysis.get(funcCFG.name) || [];
-    const taintedVars = new Set<string>();
-    const taintedBlocks = new Set<string>();
+    const taintedVars = new Set<string>(); // Track all tainted variable names
+    const taintedBlocks = new Set<string>(); // Track blocks that contain tainted variables
     const taintByBlock = new Map<string, Set<string>>(); // blockId -> Set of tainted variables
     
+    // Process each taint entry to build taint tracking structures
+    // This allows us to highlight tainted blocks in the visualization
     taintInfo.forEach((taint: TaintInfo) => {
       if (taint.tainted) {
         taintedVars.add(taint.variable);
         // Mark blocks in propagation path as tainted
+        // Propagation path format: "functionName:blockId" or "blockId"
+        // We extract the blockId to mark blocks that taint flows through
         if (taint.propagationPath && taint.propagationPath.length > 0) {
           taint.propagationPath.forEach((path: string) => {
+            // Extract block ID from path (format: "functionName:blockId" or just "blockId")
             const blockId = path.split(':')[0];
             taintedBlocks.add(blockId);
           });
         }
         // Also mark the source location block as tainted
+        // Source location is where taint was first introduced (e.g., scanf call)
         if (taint.sourceLocation?.blockId) {
           taintedBlocks.add(taint.sourceLocation.blockId);
+          // Track which variables are tainted in each block
           if (!taintByBlock.has(taint.sourceLocation.blockId)) {
             taintByBlock.set(taint.sourceLocation.blockId, new Set());
           }
@@ -547,13 +608,20 @@ export class CFGVisualizer {
       console.log(`Preparing node for block ${blockId}, label: ${block.label}, statements: ${block.statements.length}`);
 
       // Find tainted variables used/defined in this block
+      // This identifies which variables in this block are tainted, either by:
+      // 1. Being defined from a tainted source (e.g., x = tainted_var)
+      // 2. Being used in a tainted context (e.g., printf(tainted_var))
       const blockTaintedVars: string[] = [];
       block.statements.forEach(stmt => {
+        // Check variables defined in this statement (left-hand side of assignments)
+        // If a variable is assigned from a tainted source, it becomes tainted
         stmt.variables?.defined.forEach(v => {
           if (taintedVars.has(v)) {
             blockTaintedVars.push(v);
           }
         });
+        // Check variables used in this statement (right-hand side of assignments, function args)
+        // If a tainted variable is used, the block is marked as containing taint
         stmt.variables?.used.forEach(v => {
           if (taintedVars.has(v)) {
             blockTaintedVars.push(v);
@@ -562,14 +630,19 @@ export class CFGVisualizer {
       });
       
       // If block has tainted variables, mark it as tainted
+      // This ensures blocks are highlighted in red in the visualization
       if (blockTaintedVars.length > 0) {
         taintedBlocks.add(blockId);
       }
       
       // Also check if this block is a source location for any taint
+      // Source locations are where taint is introduced (e.g., scanf, fgets)
+      // This ensures source blocks are always marked as tainted, even if they don't
+      // explicitly use/define tainted variables in their statements
       if (taintByBlock.has(blockId)) {
         taintedBlocks.add(blockId);
         const blockTaintVars = taintByBlock.get(blockId)!;
+        // Merge taint variables from source location tracking
         blockTaintVars.forEach(v => {
           if (!blockTaintedVars.includes(v)) {
             blockTaintedVars.push(v);
@@ -625,23 +698,30 @@ export class CFGVisualizer {
       };
       nodes.push(node);
 
-      // Create edges
+      // Create edges representing control flow between blocks
+      // Each edge connects a block to its successor(s) in the CFG
       block.successors.forEach(succId => {
         // Check if this edge is part of an attack path
+        // Attack paths show the flow of tainted data from source to sink
+        // These edges are highlighted with colors based on vulnerability severity
         let isAttackPathEdge = false;
         let pathColor = '';
         
+        // Check all attack paths to see if this edge is part of any vulnerability path
         attackPaths.forEach((pathInfo, vulnId) => {
           const fromIndex = pathInfo.blocks.indexOf(blockId);
           const toIndex = pathInfo.blocks.indexOf(succId);
+          // Edge is part of attack path if both blocks are consecutive in the path
+          // This means tainted data flows along this edge
           if (fromIndex !== -1 && toIndex !== -1 && toIndex === fromIndex + 1) {
             isAttackPathEdge = true;
-            // Color based on vulnerability severity
+            // Color based on vulnerability severity for visual emphasis
+            // Critical vulnerabilities get the most attention (bright red)
             const vuln = pathInfo.vulnerability;
             if (vuln.severity === 'Critical') pathColor = '#ff0000';
             else if (vuln.severity === 'High') pathColor = '#ff6b6b';
             else if (vuln.severity === 'Medium') pathColor = '#ffa500';
-            else pathColor = '#ffd700';
+            else pathColor = '#ffd700'; // Low severity
           }
         });
 
@@ -821,8 +901,11 @@ export class CFGVisualizer {
       }
       
       const blueEdgeSet = new Set<string>(); // Track unique edges to avoid duplicates
+      // Edge key format: "caller_blockId->callee_blockId"
+      // Using a Set prevents duplicate edges when multiple calls exist between same blocks
       
       // Iterate over Map entries (standardized type)
+      // callsFromMap maps caller function names to arrays of function calls they make
       callsFromMap.forEach((calls, caller) => {
         if (Array.isArray(calls)) {
           calls.forEach((call: any) => {
@@ -831,6 +914,8 @@ export class CFGVisualizer {
             
             // CRITICAL FIX (LOGIC.md #11): Use external function registry instead of hardcoded list
             // Check if function is external by checking if it's not in our CFG functions
+            // External functions (library functions) are not visualized in interconnected CFG
+            // because we don't have their CFG structure
             const isExternal = !state.cfg.functions.has(callee);
             if (isExternal) {
               return; // Skip external functions (library functions)
@@ -841,6 +926,8 @@ export class CFGVisualizer {
             
             if (callerCFG && calleeCFG) {
               // Find entry block of callee
+              // The entry block is where control flow enters the called function
+              // This is typically the first block with no predecessors or marked as entry
               let calleeEntryId = '';
               calleeCFG.blocks.forEach((block, blockId) => {
                 if (block.isEntry || block.predecessors.length === 0) {
@@ -849,12 +936,16 @@ export class CFGVisualizer {
               });
 
               // Use callSite.blockId if available, otherwise find block with call
+              // The call site block is where the function call occurs in the caller
+              // This is needed to draw the edge from caller to callee
               let fromBlockId = callSiteBlockId;
               if (!fromBlockId) {
-              callerCFG.blocks.forEach((block, blockId) => {
-                const hasCall = block.statements.some(stmt => 
-                  stmt.text.includes(callee + '(')
-                );
+                // Fallback: search for block containing the function call
+                // This handles cases where callSite.blockId is not set
+                callerCFG.blocks.forEach((block, blockId) => {
+                  const hasCall = block.statements.some(stmt => 
+                    stmt.text.includes(callee + '(')
+                  );
                   if (hasCall) {
                     fromBlockId = blockId;
                   }

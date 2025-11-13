@@ -1,29 +1,78 @@
 /**
- * Inter-Procedural Taint Analyzer - Task 13
+ * InterProceduralTaintAnalyzer.ts
  * 
- * Tracks taint flow across function boundaries using IPA infrastructure.
+ * Inter-Procedural Taint Analyzer - Cross-Function Taint Propagation
  * 
- * This module extends intra-procedural taint analysis to handle:
+ * PURPOSE:
+ * Extends intra-procedural taint analysis to track taint flow across function boundaries.
+ * Handles parameter taint mapping, return value taint propagation, and library function
+ * taint summaries. This enables detection of vulnerabilities that span multiple functions.
+ * 
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This analyzer runs in the inter-procedural analysis phase in DataflowAnalyzer, after
+ * the call graph is built. It extends the taint analysis results from TaintAnalyzer by
+ * propagating taint across function calls. Its results are critical for detecting
+ * inter-procedural vulnerabilities and are visualized in CFGVisualizer's Inter-Procedural
+ * Taint tab.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - CallGraph object (from CallGraphAnalyzer.ts) containing function call relationships
+ *   - Map<string, FunctionCFG> (from DataflowAnalyzer.ts) containing all function CFGs
+ *   - Map<string, Map<string, TaintInfo[]>> (from TaintAnalyzer.ts) containing intra-procedural
+ *     taint results organized by function and block
+ * 
+ * PROCESSING:
+ *   1. Processes function calls in worklist order:
+ *      - Checks if actual arguments are tainted (using ParameterAnalyzer)
+ *      - Maps taint from actual arguments to formal parameters
+ *      - Propagates taint within callee function
+ *   2. Processes return value taint:
+ *      - Checks if variables used in return statement are tainted
+ *      - Propagates return value taint back to caller
+ *      - Tracks return value assignments (e.g., result = function())
+ *   3. Processes library functions:
+ *      - Uses TaintSummary models for library functions (strcpy, memcpy, etc.)
+ *      - Applies taint summaries to propagate taint through library calls
+ *   4. Iterates until fixed point (no new taint added)
+ * 
+ * OUTPUTS:
+ *   - Map<string, Map<string, TaintInfo[]>> where:
+ *     - Outer key: function name
+ *     - Inner key: block ID
+ *     - Value: Array of TaintInfo objects (including parameter taint, return value taint)
+ *   - Inter-procedural taint results -> DataflowAnalyzer.ts (merged into AnalysisState)
+ *   - Inter-procedural taint results -> ContextSensitiveTaintAnalyzer.ts (for context-sensitive enhancement)
+ *   - Inter-procedural taint results -> CFGVisualizer.ts (for Inter-Procedural Taint tab visualization)
+ * 
+ * DEPENDENCIES:
+ *   - types.ts: FunctionCFG, TaintInfo, TaintLabel
+ *   - CallGraphAnalyzer.ts: CallGraph, FunctionCall
+ *   - ParameterAnalyzer.ts: Parameter mapping and argument derivation analysis
+ *   - ReturnValueAnalyzer.ts: Return value extraction and tracking
+ *   - LoggingConfig.ts: Centralized logging
+ * 
+ * EXTENDS INTRA-PROCEDURAL TAINT ANALYSIS TO HANDLE:
  * 1. Parameter taint mapping: When calling f(tainted_arg), mark formal parameter as tainted
  * 2. Return value taint: If callee returns tainted data, mark return value as tainted
  * 3. Global variable taint: Propagate global taint across function boundaries
  * 4. Taint summaries: Pre-defined models for library functions (e.g., strcpy)
  * 
- * Academic Foundation:
- * - "Interprocedural Dataflow Analysis" (Reps, Horwitz, Sagiv, 1995)
- * - "Flow-Sensitive Pointer Analysis" (Reps, Horwitz, Sagiv, 1995)
- * - Chapter 9: Inter-Procedural Analysis, "Engineering a Compiler"
- * 
- * Example:
- *   void process(char* input) {  // input is tainted
+ * EXAMPLE:
+ *   void process(char* input) {  // input is tainted (parameter taint)
  *     char buffer[100];
  *     strcpy(buffer, input);     // buffer becomes tainted
  *     return buffer;             // return value is tainted
  *   }
  *   void main() {
- *     char* user_input = getchar();  // user_input is tainted
+ *     char* user_input = getchar();  // user_input is tainted (intra-procedural)
  *     char* result = process(user_input);  // result is tainted (inter-procedural)
  *   }
+ * 
+ * ACADEMIC FOUNDATION:
+ * - "Interprocedural Dataflow Analysis" (Reps, Horwitz, Sagiv, 1995)
+ * - "Flow-Sensitive Pointer Analysis" (Reps, Horwitz, Sagiv, 1995)
+ * - Chapter 9: Inter-Procedural Analysis, "Engineering a Compiler"
  */
 
 import { FunctionCFG, TaintInfo, TaintLabel } from '../types';

@@ -29,12 +29,17 @@ export class CPPParser {
     let currentFunction: FunctionInfo | null = null;
     let functionStartLine = 0;
 
+    // Parse line by line, tracking function boundaries using brace depth
+    // This is a simple parser that uses brace matching to identify function bodies
     while (i < lines.length) {
       const line = lines[i].trim();
       
       // Simple function detection (can be improved)
+      // Pattern matches: functionName(parameters) { or functionName(parameters)
+      // Excludes function declarations (ending with ;) and function pointers
       const functionMatch = line.match(/(\w+)\s*\([^)]*\)\s*\{?/);
       if (functionMatch && !inFunction && !line.includes(';')) {
+        // Found start of function definition
         inFunction = true;
         functionStartLine = i;
         currentFunction = {
@@ -44,18 +49,23 @@ export class CPPParser {
           parameters: this.extractParameters(line),
           body: []
         };
+        // If opening brace is on same line, initialize brace depth
         if (line.includes('{')) {
           braceDepth = 1;
         }
       } else if (inFunction && currentFunction) {
-        // Count braces
+        // Inside function body: track brace depth to find function end
+        // Brace depth = 0 means we've closed all braces and exited the function
         for (const char of line) {
           if (char === '{') braceDepth++;
           if (char === '}') braceDepth--;
         }
         
+        // Add line to function body
         currentFunction.body.push({ line: i, content: line });
         
+        // Function ends when brace depth returns to 0
+        // This handles nested braces correctly (e.g., if statements inside functions)
         if (braceDepth === 0) {
           currentFunction.endLine = i;
           functions.push(currentFunction);
@@ -63,7 +73,9 @@ export class CPPParser {
           currentFunction = null;
         }
       } else {
-        // Check for global variable declarations
+        // Outside function: check for global variable declarations
+        // Pattern: type variableName [= value];
+        // Excludes function calls (has '(') and function definitions (has '{')
         const varMatch = line.match(/(\w+)\s+(\w+)\s*[=;]/);
         if (varMatch && !line.includes('(') && !line.includes('{')) {
           globalVars.push(varMatch[2]);
@@ -125,22 +137,29 @@ export class CPPParser {
 
       const statement = this.parseStatement(content, bodyLine.line, statementIdCounter++);
       
+      // CFG construction: conditionals and loops create new basic blocks
+      // This follows the standard CFG definition where control flow splits at conditionals
       if (statement.type === StatementType.CONDITIONAL || statement.type === StatementType.LOOP) {
         // Create new block for conditional/loop
+        // Conditionals (if/else) and loops (while/for) create branch points in the CFG
+        // The new block becomes the entry point for the conditional/loop body
         const newBlockId = `block_${blockIdCounter++}`;
         const newBlock: BasicBlock = {
           id: newBlockId,
-          label: content.substring(0, 30) + '...',
+          label: content.substring(0, 30) + '...', // Truncate long labels
           statements: [statement],
-          predecessors: [currentBlockId],
-          successors: []
+          predecessors: [currentBlockId], // Link back to previous block
+          successors: [] // Will be populated when we encounter the end of conditional/loop
         };
         
+        // Link current block to new block (control flow edge)
         blocks.get(currentBlockId)!.successors.push(newBlockId);
         blocks.set(newBlockId, newBlock);
-        currentBlockId = newBlockId;
+        currentBlockId = newBlockId; // Continue building from new block
       } else {
         // Add to current block
+        // Sequential statements (assignments, declarations, etc.) stay in same block
+        // This follows the basic block definition: maximal sequence of statements with single entry/exit
         const currentBlock = blocks.get(currentBlockId)!;
         currentBlock.statements.push(statement);
       }

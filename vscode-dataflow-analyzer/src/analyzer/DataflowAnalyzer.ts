@@ -1,14 +1,68 @@
 /**
- * Main analyzer orchestrator for the dataflow analysis pipeline.
+ * DataflowAnalyzer.ts
  * 
- * This class coordinates all dataflow analysis components:
- * - Parsing C++ code using the enhanced CPP parser
- * - Running liveness analysis (backward dataflow)
- * - Running reaching definitions analysis (forward dataflow)
- * - Running taint analysis (forward propagation)
- * - Running security vulnerability detection
- * - Managing and persisting analysis state
+ * Main Analyzer Orchestrator for the Dataflow Analysis Pipeline
  * 
+ * PURPOSE:
+ * This class coordinates all dataflow analysis components and orchestrates the complete
+ * analysis workflow from C++ source files to analysis results. It is the central hub
+ * that manages the entire analysis pipeline.
+ * 
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This is the core orchestrator of the analysis system. It coordinates parsing, all
+ * intra-procedural analyses (liveness, reaching definitions, taint), inter-procedural
+ * analyses (call graphs, IPA), and state management. All analysis workflows flow
+ * through this component.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - C++ source files (from file system via extension.ts)
+ *   - Analysis configuration (from extension.ts)
+ *   - Workspace path (from extension.ts)
+ * 
+ * PROCESSING:
+ *   1. Receives file paths -> calls EnhancedCPPParser.parseFile()
+ *   2. Gets CFG structures -> passes to individual analyzers:
+ *      - LivenessAnalyzer.analyze() -> liveness results
+ *      - ReachingDefinitionsAnalyzer.analyze() -> reaching definitions results
+ *      - TaintAnalyzer.analyze() -> taint analysis results
+ *      - SecurityAnalyzer.analyzeVulnerabilities() -> vulnerability results
+ *   3. Builds call graph -> CallGraphAnalyzer.buildCallGraph()
+ *   4. Runs inter-procedural analyses:
+ *      - InterProceduralReachingDefinitions.analyze()
+ *      - InterProceduralTaintAnalyzer.analyze()
+ *      - ContextSensitiveTaintAnalyzer.analyze()
+ *   5. Prepares visualization data -> CFGVisualizer.prepareAllVisualizationData()
+ *   6. Saves state -> StateManager.saveState()
+ * 
+ * OUTPUTS:
+ *   - AnalysisState object containing:
+ *     - CFG structures -> CFGVisualizer.ts (for visualization)
+ *     - Liveness results -> CFGVisualizer.ts
+ *     - Reaching definitions results -> CFGVisualizer.ts
+ *     - Taint analysis results -> CFGVisualizer.ts
+ *     - Vulnerability results -> CFGVisualizer.ts
+ *     - Call graph -> CFGVisualizer.ts
+ *     - Inter-procedural analysis results -> CFGVisualizer.ts
+ *     - Visualization data -> CFGVisualizer.ts
+ *   - Saved state -> StateManager.ts (persisted to .vscode/dataflow-state.json)
+ * 
+ * DEPENDENCIES:
+ *   - EnhancedCPPParser.ts: Parses C++ files to CFG
+ *   - LivenessAnalyzer.ts: Backward dataflow analysis
+ *   - ReachingDefinitionsAnalyzer.ts: Forward dataflow analysis
+ *   - TaintAnalyzer.ts: Taint propagation analysis
+ *   - SecurityAnalyzer.ts: Vulnerability detection
+ *   - CallGraphAnalyzer.ts: Call graph construction
+ *   - InterProceduralReachingDefinitions.ts: IPA reaching definitions
+ *   - InterProceduralTaintAnalyzer.ts: IPA taint propagation
+ *   - ContextSensitiveTaintAnalyzer.ts: Context-sensitive taint analysis
+ *   - ParameterAnalyzer.ts: Parameter mapping
+ *   - ReturnValueAnalyzer.ts: Return value tracking
+ *   - StateManager.ts: State persistence
+ *   - CFGVisualizer.ts: Visualization data preparation
+ * 
+ * ALGORITHM:
  * The analyzer follows the academic dataflow analysis theory from
  * "Engineering a Compiler" (Cooper & Torczon) and the "Dragon Book" (Aho, Sethi, Ullman).
  */

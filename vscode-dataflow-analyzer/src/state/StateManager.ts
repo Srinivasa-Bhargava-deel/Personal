@@ -1,5 +1,75 @@
 /**
- * State management for persisting analysis results
+ * StateManager.ts
+ * 
+ * State Manager - Analysis State Persistence
+ * 
+ * PURPOSE:
+ * Handles persistence of analysis results to disk, enabling the extension to save and
+ * restore analysis state across VS Code sessions. This improves performance by avoiding
+ * re-analysis of unchanged files and provides continuity for users.
+ * 
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This component sits at the END of the analysis pipeline, persisting results after
+ * analysis completes. It also sits at the BEGINNING, loading saved state when the
+ * extension activates. It enables incremental analysis by tracking file changes and
+ * only re-analyzing modified files.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - AnalysisState object (from DataflowAnalyzer.ts) containing:
+ *     - CFG structures
+ *     - Liveness analysis results
+ *     - Reaching definitions results
+ *     - Taint analysis results
+ *     - Vulnerability results
+ *     - Call graph
+ *     - Inter-procedural analysis results
+ *     - File states (for change tracking)
+ *   - Workspace path (from extension.ts)
+ *   - File paths (for computing file hashes)
+ * 
+ * PROCESSING:
+ *   1. Serializes AnalysisState to JSON format:
+ *      - Converts Maps to arrays
+ *      - Converts Sets to arrays
+ *      - Preserves all analysis data
+ *   2. Writes JSON to .vscode/dataflow-state.json
+ *   3. Loads state from disk:
+ *      - Reads JSON file
+ *      - Deserializes to AnalysisState object
+ *      - Reconstructs Maps and Sets
+ *   4. Computes file hashes (SHA-256) for change detection
+ *   5. Clears state when requested
+ * 
+ * OUTPUTS:
+ *   - Saved state file: .vscode/dataflow-state.json (persisted to disk)
+ *   - Loaded AnalysisState object -> DataflowAnalyzer.ts (for incremental analysis)
+ *   - File hash -> DataflowAnalyzer.ts (for change detection)
+ * 
+ * DEPENDENCIES:
+ *   - types.ts: AnalysisState, FileAnalysisState
+ *   - Node.js fs module: File system operations
+ *   - Node.js crypto module: File hash computation
+ *   - VS Code API: Error notifications
+ * 
+ * STORAGE FORMAT:
+ * State is stored as JSON in .vscode/dataflow-state.json with the following structure:
+ * - workspacePath: Workspace root path
+ * - timestamp: Analysis timestamp
+ * - cfg: Serialized CFG structure
+ * - liveness: Serialized liveness results
+ * - reachingDefinitions: Serialized reaching definitions results
+ * - taintAnalysis: Serialized taint analysis results
+ * - vulnerabilities: Serialized vulnerability results
+ * - fileStates: File metadata with hashes for change detection
+ * - callGraph: Serialized call graph
+ * - interProceduralRD: Serialized inter-procedural reaching definitions
+ * - parameterAnalysis: Serialized parameter analysis
+ * - returnValueAnalysis: Serialized return value analysis
+ * 
+ * INCREMENTAL ANALYSIS:
+ * File hashes enable incremental analysis - only files that have changed since the last
+ * analysis are re-analyzed, improving performance for large codebases.
  */
 
 import * as fs from 'fs';

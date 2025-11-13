@@ -329,16 +329,26 @@ export class SanitizationRegistry {
   /**
    * Extract sanitized variable from a sanitization function call
    * 
-   * For functions that return sanitized values: return value is sanitized
-   * For functions that sanitize in-place: output argument is sanitized
+   * Sanitization functions can work in two ways:
+   * 1. Return sanitized value: var = sanitizer(input) -> var is sanitized
+   * 2. In-place sanitization: sanitizer(&var, input) -> var is sanitized
+   * 
+   * This method identifies which variable receives the sanitized value.
+   * 
+   * @param stmtText - Statement text containing the sanitization call
+   * @param sanitizer - Sanitization function definition
+   * @returns Variable name that is sanitized, or null if not found
    */
   extractSanitizedVariable(
     stmtText: string,
     sanitizer: SanitizationFunction
   ): string | null {
     // For return value sanitizers (outputIndex = -1)
+    // These functions return a sanitized value that is assigned to a variable
+    // Example: sanitized = htmlspecialchars(input)
     if (sanitizer.outputIndex === -1) {
-      // Look for assignment: var = sanitizer(...)
+      // Look for assignment pattern: var = sanitizer(...)
+      // Extract the variable name on the left-hand side of assignment
       const assignmentMatch = stmtText.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*/);
       if (assignmentMatch) {
         return assignmentMatch[1];
@@ -347,34 +357,55 @@ export class SanitizationRegistry {
     }
 
     // For in-place sanitizers (outputIndex >= 0)
-    // Extract the output argument
+    // These functions modify a variable passed by reference
+    // Example: strncpy(dest, src, size) -> dest is sanitized
+    // Extract the output argument at the specified index
     const callMatch = stmtText.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)/);
     if (!callMatch) return null;
 
+    // Split arguments by comma (simple parsing - doesn't handle nested calls)
+    // For production, use a more robust parser that handles nested parentheses
     const args = callMatch[2].split(',').map(arg => arg.trim());
     if (sanitizer.outputIndex >= args.length) return null;
 
     const outputArg = args[sanitizer.outputIndex];
     // Extract variable name from argument (remove operators like &, *, etc.)
+    // Handles patterns like: &var, *var, var, var[0], etc.
     const varMatch = outputArg.match(/(?:&|\*)?\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
     return varMatch ? varMatch[1] : null;
   }
 
   /**
    * Extract input variable from a sanitization function call
+   * 
+   * Identifies which variable is being sanitized (the input to the sanitizer).
+   * This is used to track taint removal: if input is tainted and sanitized,
+   * the output variable should no longer be tainted.
+   * 
+   * Example: sanitized = htmlspecialchars(tainted_input)
+   *          -> input variable: "tainted_input"
+   * 
+   * @param stmtText - Statement text containing the sanitization call
+   * @param sanitizer - Sanitization function definition
+   * @returns Variable name that is input to sanitizer, or null if not found
    */
   extractInputVariable(
     stmtText: string,
     sanitizer: SanitizationFunction
   ): string | null {
+    // Extract function call pattern: functionName(arg1, arg2, ...)
     const callMatch = stmtText.match(/([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)/);
     if (!callMatch) return null;
 
+    // Split arguments by comma (simple parsing)
+    // Note: This doesn't handle nested function calls correctly
+    // For production, use a more robust parser
     const args = callMatch[2].split(',').map(arg => arg.trim());
     if (sanitizer.inputIndex >= args.length) return null;
 
     const inputArg = args[sanitizer.inputIndex];
     // Extract variable name from argument
+    // Handles patterns like: &var, *var, var, var[0], etc.
     const varMatch = inputArg.match(/(?:&|\*)?\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
     return varMatch ? varMatch[1] : null;
   }

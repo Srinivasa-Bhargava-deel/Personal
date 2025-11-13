@@ -1,6 +1,6 @@
 # Testing and Validation Summary
 
-## ✅ What Has Been Implemented
+##  What Has Been Implemented
 
 ### 1. Comprehensive Tab Logging
 - **Location**: `src/visualizer/CFGVisualizer.ts`
@@ -25,7 +25,7 @@
   - `DRY_RUN_UI_EXPECTATIONS.md` - Expected UI output for each tab
   - `MANUAL_VALIDATION_STEPS.md` - Manual validation steps (updated with specific counts)
 
-## 📋 Testing Process
+##  Testing Process
 
 ### Step 1: Recompile & Reload
 ```bash
@@ -58,21 +58,21 @@ Parsing logs from: .vscode/logs.txt
 Parsed Functions: [main, get_user_input, process_input, duplicate_string, ...]
 
 ========== VALIDATION RESULTS ==========
-✅ Successes: X
+ Successes: X
 ❌ Issues: 0
 
-✅ SUCCESSES:
+ SUCCESSES:
   test_interprocedural_taint.cpp:main - CFG.totalNodes: 4
   test_interprocedural_taint.cpp:main - CFG.redNodes: 2
   ...
 
-✅ All validations passed!
+ All validations passed!
 ```
 
 ### Step 4: Check Logs Manually
 Search `.vscode/logs.txt` for `[TAB_LOG]` to see all tab visual data.
 
-## 🔍 Expected Results
+##  Expected Results
 
 ### test_interprocedural_taint.cpp
 
@@ -102,7 +102,7 @@ Search `.vscode/logs.txt` for `[TAB_LOG]` to see all tab visual data.
 - CFG Tab: 4-5 nodes, 2-3 red nodes
 - Arithmetic expressions: Should show `isTainted=true` for `n - 1` - check logs for `[InterProceduralTaint] Checking taint for actualArg="n - 1": isTainted=true`
 
-## 🐛 Debugging Issues
+##  Debugging Issues
 
 ### If Automated Validation Fails:
 1. Check `logs.txt` for `[TAB_LOG]` entries
@@ -116,9 +116,9 @@ Search `.vscode/logs.txt` for `[TAB_LOG]` to see all tab visual data.
 3. **Missing inter-procedural taint entries**: Check `[InterProceduralTaint] Added parameter taint` logs
 4. **Call graph edges show "unused"**: Check `[TAB_LOG] Call Graph Tab` - should show edges with labels
 
-## 📝 Next Steps After Testing
+##  Next Steps After Testing
 
-1. **If all tests pass**: ✅ Ready for production
+1. **If all tests pass**:  Ready for production
 2. **If issues found**: 
    - Document issues in logs
    - Fix code based on log analysis
@@ -142,13 +142,13 @@ Search `.vscode/logs.txt` for `[TAB_LOG]` to see all tab visual data.
    - `AUTOMATED_VALIDATION_STEPS.md` - New file with automated testing steps
    - `DRY_RUN_UI_EXPECTATIONS.md` - Comprehensive expected UI output
 
-## ✅ Success Criteria
+##  Success Criteria
 
-- ✅ All tab visual data logged with `[TAB_LOG]` prefix
-- ✅ Automated validation script parses logs correctly
-- ✅ Expected values match actual values from logs
-- ✅ Parameter extraction works correctly (`duplicate_string: src`, `helper_function: x`)
-- ✅ Arithmetic expressions show taint (`n - 1` shows `isTainted=true`)
-- ✅ Inter-procedural taint entries match expected counts
-- ✅ Call graph edges show argument labels (not "unused")
+-  All tab visual data logged with `[TAB_LOG]` prefix
+-  Automated validation script parses logs correctly
+-  Expected values match actual values from logs
+-  Parameter extraction works correctly (`duplicate_string: src`, `helper_function: x`)
+-  Arithmetic expressions show taint (`n - 1` shows `isTainted=true`)
+-  Inter-procedural taint entries match expected counts
+-  Call graph edges show argument labels (not "unused")
 

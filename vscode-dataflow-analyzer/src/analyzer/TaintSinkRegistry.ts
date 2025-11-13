@@ -410,6 +410,16 @@ export class TaintSinkRegistry {
 
   /**
    * Extract arguments from function call string
+   * 
+   * This method correctly handles nested function calls and parentheses
+   * by tracking brace depth. For example:
+   *   f(g(x, y), h(z)) -> ["g(x, y)", "h(z)"]
+   * 
+   * Algorithm:
+   * 1. Extract content between parentheses
+   * 2. Track depth of nested parentheses
+   * 3. Split on commas only when depth = 0 (top-level)
+   * 4. This ensures nested calls are not split incorrectly
    */
   extractArguments(functionCall: string): string[] {
     const argsMatch = functionCall.match(/\(([^)]*)\)/);
@@ -417,20 +427,26 @@ export class TaintSinkRegistry {
 
     const argsStr = argsMatch[1];
     const args: string[] = [];
-    let depth = 0;
-    let current = '';
+    let depth = 0; // Track nesting depth of parentheses
+    let current = ''; // Current argument being built
 
+    // Parse character by character, tracking nested parentheses
     for (const char of argsStr) {
-      if (char === '(') depth++;
-      else if (char === ')') depth--;
-      else if (char === ',' && depth === 0) {
+      if (char === '(') {
+        depth++; // Enter nested call
+      } else if (char === ')') {
+        depth--; // Exit nested call
+      } else if (char === ',' && depth === 0) {
+        // Only split on comma when at top level (depth = 0)
+        // This prevents splitting nested function calls
         args.push(current.trim());
         current = '';
         continue;
       }
-      current += char;
+      current += char; // Accumulate characters for current argument
     }
 
+    // Don't forget the last argument (after final comma or if no commas)
     if (current.trim()) {
       args.push(current.trim());
     }

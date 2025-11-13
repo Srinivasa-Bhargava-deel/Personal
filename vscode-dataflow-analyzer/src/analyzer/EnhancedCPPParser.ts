@@ -1,26 +1,56 @@
 /**
- * EnhancedCPPParser - Control Flow Graph extraction from C++ source
+ * EnhancedCPPParser.ts
  * 
- * This module converts Clang/LLVM CFG output into our internal dataflow analysis format.
+ * Enhanced C++ Parser - Control Flow Graph Extraction from C++ Source
  * 
- * Architecture:
- * 1. Receives CFG JSON from cfg-exporter (Clang/LLVM-based)
- * 2. Parses CFG blocks and their relationships (predecessors/successors)
- * 3. Extracts statements from each block
- * 4. Converts to FunctionCFG structure for dataflow analysis
+ * PURPOSE:
+ * This module converts Clang/LLVM CFG JSON output into our internal dataflow analysis format.
+ * It bridges the gap between the cfg-exporter tool's JSON output and the analysis engine's
+ * internal CFG representation.
  * 
- * Academic Correctness:
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This is the SECOND step in the analysis pipeline (after cfg-exporter). It transforms
+ * raw CFG JSON data into structured FunctionCFG objects that all analyzers can work with.
+ * Without this parser, the CFG data from cfg-exporter cannot be used by the analysis engine.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - CFG JSON data (from ClangASTParser.ts, which reads from cfg-exporter stdout)
+ *   - Source file path (for context)
+ * 
+ * PROCESSING:
+ *   1. Receives JSON from ClangASTParser.parseFile()
+ *   2. Parses CFG blocks and their relationships (predecessors/successors)
+ *   3. Extracts statements from each block
+ *   4. Identifies entry/exit blocks using graph-theoretic properties
+ *   5. Extracts function parameters from source code
+ *   6. Converts to FunctionCFG structure
+ * 
+ * OUTPUTS:
+ *   - FunctionInfo[] array containing:
+ *     - Function name
+ *     - FunctionCFG structure with:
+ *       - Blocks Map (blockId -> BasicBlock)
+ *       - Entry/exit block IDs
+ *       - Parameters array
+ *   - FunctionCFG objects -> DataflowAnalyzer.ts (for analysis)
+ * 
+ * DEPENDENCIES:
+ *   - ClangASTParser.ts: Provides JSON CFG data
+ *   - types.ts: Provides CFG, FunctionCFG, BasicBlock, Statement interfaces
+ * 
+ * KEY DISTINCTION:
+ * - Does NOT parse C++ syntax directly
+ * - Works exclusively with Clang/LLVM CFG output (official libraries)
+ * - Ensures theoretical soundness of generated CFGs
+ * 
+ * ACADEMIC CORRECTNESS:
  * - CFG blocks represent "basic blocks" - maximal sequences of statements
  *   with a single entry point and exit point
  * - Edges represent control flow (jumps, branches, returns)
  * - Each block contains statements to be analyzed for variable definition/use
  * 
- * Key Distinction:
- * - Does NOT parse C++ syntax directly
- * - Works exclusively with Clang/LLVM CFG output (official libraries)
- * - Ensures theoretical soundness of generated CFGs
- * 
- * References:
+ * REFERENCES:
  * - "Engineering a Compiler" Chapter 4 (Control Flow Graphs)
  * - Clang CFG Generation Algorithm
  */

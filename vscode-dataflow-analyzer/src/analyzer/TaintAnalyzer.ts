@@ -1,8 +1,81 @@
 /**
- * Taint Analysis - tracks tainted data flow
+ * TaintAnalyzer.ts
  * 
- * Enhanced implementation with comprehensive source detection (Phase 1)
- * Supports user input, file I/O, network, environment, command line, database, and configuration sources
+ * Taint Analyzer - Forward Taint Propagation Analysis
+ * 
+ * PURPOSE:
+ * Performs forward taint propagation analysis to track the flow of potentially malicious
+ * or unsafe data through the program. Identifies taint sources, propagates taint through
+ * assignments and function calls, detects taint sinks, and reports vulnerabilities when
+ * tainted data reaches security sinks without sanitization.
+ * 
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This analyzer runs as part of the intra-procedural analysis phase in DataflowAnalyzer.
+ * It is critical for security vulnerability detection, identifying paths from taint sources
+ * (user input, file I/O, network) to security sinks (SQL injection, command injection, etc.).
+ * Its results are visualized in CFGVisualizer and used by SecurityAnalyzer for vulnerability
+ * reporting. Inter-procedural taint propagation is handled by InterProceduralTaintAnalyzer.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - FunctionCFG object (from DataflowAnalyzer.ts, originally from EnhancedCPPParser.ts)
+ *   - ReachingDefinitionsInfo Map (from ReachingDefinitionsAnalyzer.ts) for tracking data flow
+ *   - TaintSourceRegistry: Registry of taint source functions (scanf, gets, fgets, etc.)
+ *   - TaintSinkRegistry: Registry of taint sink functions (printf, system, SQL queries, etc.)
+ *   - SanitizationRegistry: Registry of sanitization functions (validation, encoding, etc.)
+ * 
+ * PROCESSING:
+ *   1. Detects taint sources in statements (using TaintSourceRegistry)
+ *   2. Propagates taint forward through assignments:
+ *      - If RHS is tainted, mark LHS as tainted
+ *      - Track propagation path from source to current point
+ *   3. Detects taint sinks in statements (using TaintSinkRegistry)
+ *   4. Checks if tainted variables reach sinks without sanitization
+ *   5. Detects sanitization points (using SanitizationRegistry)
+ *   6. Removes taint from sanitized variables
+ *   7. Reports vulnerabilities when tainted data reaches sinks unsanitized
+ * 
+ * OUTPUTS:
+ *   - TaintResult object containing:
+ *     - taintMap: Map<blockId, TaintInfo[]> - Taint information per block
+ *     - vulnerabilities: TaintVulnerability[] - Detected vulnerabilities with source-to-sink paths
+ *   - Taint results -> DataflowAnalyzer.ts (aggregated into AnalysisState)
+ *   - Taint results -> InterProceduralTaintAnalyzer.ts (for cross-function taint propagation)
+ *   - Taint results -> CFGVisualizer.ts (for visualization)
+ *   - Taint results -> SecurityAnalyzer.ts (for vulnerability reporting)
+ * 
+ * DEPENDENCIES:
+ *   - types.ts: FunctionCFG, TaintInfo, TaintLabel, TaintVulnerability, ReachingDefinitionsInfo
+ *   - TaintSourceRegistry.ts: Taint source detection
+ *   - TaintSinkRegistry.ts: Taint sink detection
+ *   - SanitizationRegistry.ts: Sanitization detection
+ *   - FunctionCallExtractor.ts: Function call extraction from statements
+ * 
+ * TAINT SOURCE CATEGORIES:
+ * - User input: scanf, gets, fgets, read, cin
+ * - File I/O: fread, fgets, read
+ * - Network: recv, recvfrom, read (socket)
+ * - Environment: getenv
+ * - Command line: argv
+ * - Database: SQL query results
+ * - Configuration: config file reads
+ * 
+ * TAINT SINK CATEGORIES:
+ * - SQL injection: SQL query construction
+ * - Command injection: system(), popen(), exec*()
+ * - Format string: printf family with user-controlled format
+ * - Path traversal: file operations
+ * - Buffer overflow: strcpy, strcat, sprintf
+ * - Code injection: eval, exec
+ * - Integer overflow: arithmetic operations
+ * 
+ * SANITIZATION TYPES:
+ * - Input validation: bounds checking, type checking
+ * - Encoding: HTML encoding, URL encoding
+ * - Escaping: SQL escaping, shell escaping
+ * - Whitelisting: allowlist validation
+ * - Type conversion: safe type conversions
+ * - Length limits: buffer size limits
  */
 
 import { BasicBlock, FunctionCFG, TaintInfo, ReachingDefinitionsInfo, StatementType, TaintVulnerability, Statement, TaintLabel } from '../types';

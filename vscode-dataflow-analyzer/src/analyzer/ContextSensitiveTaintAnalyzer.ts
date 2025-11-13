@@ -1,20 +1,64 @@
 /**
- * Context-Sensitive Taint Analyzer - Task 14
+ * ContextSensitiveTaintAnalyzer.ts
  * 
- * Improves precision by tracking taint with call-site context.
+ * Context-Sensitive Taint Analyzer - Precision Enhancement for Inter-Procedural Taint
  * 
- * This module extends inter-procedural taint analysis with:
+ * PURPOSE:
+ * Improves precision of inter-procedural taint analysis by tracking taint with call-site
+ * context. This reduces false positives by distinguishing taint flows from different call
+ * sites, enabling more accurate vulnerability detection.
+ * 
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This analyzer runs in the inter-procedural analysis phase in DataflowAnalyzer, after
+ * InterProceduralTaintAnalyzer. It enhances the context-insensitive taint results with
+ * call-site context, improving precision. This is Task 14 of the development plan and
+ * represents an advanced analysis technique.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - CallGraph object (from CallGraphAnalyzer.ts) containing function call relationships
+ *   - Map<string, FunctionCFG> (from DataflowAnalyzer.ts) containing all function CFGs
+ *   - Map<string, Map<string, TaintInfo[]>> (from InterProceduralTaintAnalyzer.ts) containing
+ *     context-insensitive inter-procedural taint results
+ * 
+ * PROCESSING:
+ *   1. Builds call-site context for each function call:
+ *      - Tracks call stack (caller -> callee -> ...)
+ *      - Applies k-limited context (k=1 or k=2) for scalability
+ *      - Creates unique context ID for each call site
+ *   2. Tracks taint state per call site:
+ *      - Argument taint by index (using ParameterAnalyzer)
+ *      - Return value taint
+ *      - Global variable taint
+ *   3. Propagates taint with context:
+ *      - Separates taint flows from different call sites
+ *      - Merges contexts when k-limit is reached
+ *   4. Uses worklist algorithm for fixed-point iteration
+ *   5. Propagates return value taint back to caller with context
+ * 
+ * OUTPUTS:
+ *   - Map<string, Map<string, TaintInfo[]>> where:
+ *     - Outer key: function name
+ *     - Inner key: block ID
+ *     - Value: Array of TaintInfo objects with call-site context
+ *   - Context-sensitive taint results -> DataflowAnalyzer.ts (merged into AnalysisState)
+ *   - Context-sensitive taint results -> CFGVisualizer.ts (for visualization)
+ * 
+ * DEPENDENCIES:
+ *   - types.ts: FunctionCFG, TaintInfo
+ *   - CallGraphAnalyzer.ts: CallGraph, FunctionCall
+ *   - InterProceduralTaintAnalyzer.ts: Base inter-procedural taint results
+ *   - ParameterAnalyzer.ts: Argument derivation analysis
+ *   - ReturnValueAnalyzer.ts: Return value extraction
+ *   - LoggingConfig.ts: Centralized logging
+ * 
+ * EXTENDS INTER-PROCEDURAL TAINT ANALYSIS WITH:
  * 1. Call-site context: Track taint separately for each call site
  * 2. Path sensitivity: Track taint along specific execution paths
  * 3. Context merging: Merge taint states from multiple call sites
  * 4. K-limited context: Use k=1 or k=2 for scalability
  * 
- * Academic Foundation:
- * - "Interprocedural Dataflow Analysis via Graph Reachability" (Reps, Horwitz, Sagiv, 1995)
- * - "Context-Sensitive Interprocedural Analysis" (Sharir & Pnueli, 1981)
- * - Chapter 9: Inter-Procedural Analysis, "Engineering a Compiler"
- * 
- * Example:
+ * EXAMPLE:
  *   void process(char* input) {
  *     // Process input
  *   }
@@ -24,6 +68,11 @@
  *     process(user_input);  // Context 1: tainted argument
  *     process(constant);    // Context 2: safe argument
  *   }
+ * 
+ * ACADEMIC FOUNDATION:
+ * - "Interprocedural Dataflow Analysis via Graph Reachability" (Reps, Horwitz, Sagiv, 1995)
+ * - "Context-Sensitive Interprocedural Analysis" (Sharir & Pnueli, 1981)
+ * - Chapter 9: Inter-Procedural Analysis, "Engineering a Compiler"
  */
 
 import { FunctionCFG, TaintInfo } from '../types';

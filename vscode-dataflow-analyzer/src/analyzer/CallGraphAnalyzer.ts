@@ -1,11 +1,50 @@
 /**
- * CallGraphAnalyzer - Builds call graphs for inter-procedural analysis
+ * CallGraphAnalyzer.ts
  * 
- * This module implements Phase 1 of the IPA framework:
- * - Build call graph infrastructure
- * - Extract function calls from CFG
- * - Create caller/callee relationships
+ * Call Graph Analyzer - Function Call Relationship Construction
  * 
+ * PURPOSE:
+ * Builds call graphs for inter-procedural analysis by extracting function calls from CFG
+ * statements and creating caller/callee relationship maps. This is Phase 1 of the IPA
+ * framework and is a prerequisite for all inter-procedural analyses.
+ * 
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This analyzer runs in the inter-procedural analysis phase in DataflowAnalyzer. It provides
+ * the call graph infrastructure that all inter-procedural analyses depend on, including
+ * InterProceduralReachingDefinitions, InterProceduralTaintAnalyzer, and ContextSensitiveTaintAnalyzer.
+ * Without a call graph, no inter-procedural analysis can proceed.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - Map<string, FunctionCFG> (from DataflowAnalyzer.ts) containing all function CFGs
+ *     in the workspace
+ * 
+ * PROCESSING:
+ *   1. Indexes all functions with metadata (name, parameters, return type)
+ *   2. Extracts function calls from CFG statements using FunctionCallExtractor
+ *   3. Builds caller->callee relationship map (callsFrom)
+ *   4. Builds callee->caller relationship map (callsTo)
+ *   5. Analyzes recursion patterns (direct, mutual, tail recursion)
+ *   6. Identifies external/library functions
+ * 
+ * OUTPUTS:
+ *   - CallGraph object containing:
+ *     - functions: Map of function metadata
+ *     - calls: Array of FunctionCall objects
+ *     - callsFrom: Map<callerName, FunctionCall[]> - Which functions each function calls
+ *     - callsTo: Map<calleeName, FunctionCall[]> - Which functions call each function
+ *     - recursion: Recursion analysis results
+ *   - Call graph -> DataflowAnalyzer.ts (stored in AnalysisState)
+ *   - Call graph -> InterProceduralReachingDefinitions.ts (for IPA RD)
+ *   - Call graph -> InterProceduralTaintAnalyzer.ts (for IPA taint)
+ *   - Call graph -> ContextSensitiveTaintAnalyzer.ts (for context-sensitive taint)
+ *   - Call graph -> CFGVisualizer.ts (for call graph visualization)
+ * 
+ * DEPENDENCIES:
+ *   - types.ts: FunctionCFG, BasicBlock, Statement
+ *   - FunctionCallExtractor.ts: Extracts function calls from statements
+ * 
+ * CALL GRAPH REPRESENTATION:
  * A call graph represents function call relationships in a program.
  * It answers: "Which functions call which other functions?"
  * 
@@ -15,7 +54,7 @@
  * bar() -> []
  * printf() -> []             (external library)
  * 
- * Academic Foundation:
+ * ACADEMIC FOUNDATION:
  * - "Interprocedural Constant Propagation" (Callahan et al., 1986)
  * - Chapter 9: Inter-Procedural Analysis, "Engineering a Compiler"
  */

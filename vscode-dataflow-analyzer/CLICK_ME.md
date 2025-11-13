@@ -1,15 +1,15 @@
-# 🚀 CLICK_ME.md - Agent Onboarding Guide
+#  CLICK_ME.md - Agent Onboarding Guide
 
 **Last Updated**: December 2024  
 **Current Version**: v1.8.0  
-**Status**: All LOGIC.md fixes completed (15/15) ✅
+**Status**: All LOGIC.md fixes completed (15/15) 
 
 ---
 
-## 📋 **QUICK START - GET CONTEXT IN 5 MINUTES**
+##  **QUICK START - GET CONTEXT IN 5 MINUTES**
 
 ### Step 1: Understand Current State (2 min)
-1. **Read this file completely** - You're doing it! ✅
+1. **Read this file completely** - You're doing it! 
 2. **Check `md_files/TO_DO.md`** - See what's completed and what's pending
 3. **Read `LOGIC.md`** - Understand what fixes were completed (all 15/15 done)
 4. **Check `md_files/README.md`** - Understand the project's purpose and features
@@ -19,22 +19,22 @@
 vscode-dataflow-analyzer/
 ├── src/
 │   ├── analyzer/          # Core analysis engines
-│   │   ├── LivenessAnalyzer.ts          # ✅ Fixed: MAX_ITERATIONS, null checks, fixed-point
-│   │   ├── ReachingDefinitionsAnalyzer.ts # ✅ Fixed: GEN set, propagation paths
-│   │   ├── DataflowAnalyzer.ts           # ✅ Fixed: Race condition, RD map collection
-│   │   ├── EnhancedCPPParser.ts          # ✅ Fixed: Error handling, CFG validation
+│   │   ├── LivenessAnalyzer.ts          #  Fixed: MAX_ITERATIONS, null checks, fixed-point
+│   │   ├── ReachingDefinitionsAnalyzer.ts #  Fixed: GEN set, propagation paths
+│   │   ├── DataflowAnalyzer.ts           #  Fixed: Race condition, RD map collection
+│   │   ├── EnhancedCPPParser.ts          #  Fixed: Error handling, CFG validation
 │   │   └── TaintAnalyzer.ts              # Uses RD analysis
 │   ├── visualizer/
-│   │   └── CFGVisualizer.ts              # ✅ Fixed: Map/Object, memory leak, type guards
+│   │   └── CFGVisualizer.ts              #  Fixed: Map/Object, memory leak, type guards
 │   ├── utils/
-│   │   └── ErrorLogger.ts                # ✅ NEW: Centralized error logging
+│   │   └── ErrorLogger.ts                #  NEW: Centralized error logging
 │   └── extension.ts                      # VS Code extension entry point
 ├── md_files/              # Documentation
 │   ├── TO_DO.md           # Current task list
 │   ├── README.md          # Main documentation
 │   ├── FUTURE_PLANS.md    # Roadmap
 │   └── FRAMEWORK.md       # Development methodology
-├── LOGIC.md               # All fixes completed ✅
+├── LOGIC.md               # All fixes completed 
 └── test_complex_calls.cpp  # Test file for validation
 ```
 
@@ -52,26 +52,26 @@ git status
 
 ---
 
-## ✅ **WHAT WAS JUST COMPLETED**
+##  **WHAT WAS JUST COMPLETED**
 
 ### **All LOGIC.md Fixes (15/15) - December 2024**
 
-**Phase 1: Critical Algorithm Fixes** ✅
+**Phase 1: Critical Algorithm Fixes** 
 - LOGIC-1.1: MAX_ITERATIONS in LivenessAnalyzer
 - LOGIC-1.2: Taint Analysis RD Map collection fix
 - LOGIC-1.3: Null checks in block access
 
-**Phase 2: Concurrency and Safety** ✅
+**Phase 2: Concurrency and Safety** 
 - LOGIC-2.1: Race condition mutex for file updates
 - LOGIC-2.2: Propagation path tracking fix
 - LOGIC-2.3: Error handling improvements
 
-**Phase 3: Algorithm Correctness** ✅
+**Phase 3: Algorithm Correctness** 
 - LOGIC-3.1: GEN set computation for parameters
 - LOGIC-3.2: Fixed-point detection fix
 - LOGIC-3.3: CFG structure validation
 
-**Phase 4: Code Quality** ✅
+**Phase 4: Code Quality** 
 - LOGIC-4.1: Map vs Object consistency
 - LOGIC-4.2: Panel memory leak fix
 - LOGIC-4.3: Error logging utility (new file)
@@ -79,11 +79,11 @@ git status
 - LOGIC-4.4: Hardcoded list removal
 - LOGIC-4.6: Type guards added
 
-**Status**: All fixes compiled, validated, and documented ✅
+**Status**: All fixes compiled, validated, and documented 
 
 ---
 
-## 📝 **IMMEDIATE NEXT STEPS**
+##  **IMMEDIATE NEXT STEPS**
 
 ### **Priority 1: Testing & Validation** 🔴 HIGH
 1. **Run validation script**: `./validate_phases_1_3.sh`
@@ -117,29 +117,29 @@ See `md_files/FUTURE_PLANS.md` for:
 
 ---
 
-## 🔍 **KEY FILES TO UNDERSTAND**
+##  **KEY FILES TO UNDERSTAND**
 
 ### **Core Analysis Files**
 - **`src/analyzer/LivenessAnalyzer.ts`**
   - Backward dataflow analysis
-  - ✅ Fixed: MAX_ITERATIONS, null checks, atomic updates
+  -  Fixed: MAX_ITERATIONS, null checks, atomic updates
   
 - **`src/analyzer/ReachingDefinitionsAnalyzer.ts`**
   - Forward dataflow analysis
-  - ✅ Fixed: GEN set computation, propagation paths
+  -  Fixed: GEN set computation, propagation paths
   
 - **`src/analyzer/DataflowAnalyzer.ts`**
   - Orchestrates all analyses
-  - ✅ Fixed: Race condition mutex, RD map collection
+  -  Fixed: Race condition mutex, RD map collection
   
 - **`src/analyzer/EnhancedCPPParser.ts`**
   - CFG extraction from Clang output
-  - ✅ Fixed: Error handling, CFG validation
+  -  Fixed: Error handling, CFG validation
 
 ### **Visualization**
 - **`src/visualizer/CFGVisualizer.ts`**
   - Webview panel management
-  - ✅ Fixed: Map/Object handling, memory leaks, type guards
+  -  Fixed: Map/Object handling, memory leaks, type guards
 
 ### **Documentation**
 - **`md_files/TO_DO.md`** - Current task list (all LOGIC fixes complete)
@@ -149,7 +149,7 @@ See `md_files/FUTURE_PLANS.md` for:
 
 ---
 
-## 🛠️ **DEVELOPMENT WORKFLOW**
+##  **DEVELOPMENT WORKFLOW**
 
 ### **Following FRAMEWORK.md Methodology**
 1. **Divide tasks into phases**
@@ -165,17 +165,17 @@ See `md_files/FUTURE_PLANS.md` for:
 4. **Check logs**: `.vscode/logs.txt`
 
 ### **Code Quality Standards**
-- ✅ All algorithms have termination guarantees
-- ✅ All concurrent operations are protected
-- ✅ All errors are logged consistently
-- ✅ All inputs are validated
-- ✅ Type guards instead of non-null assertions
+-  All algorithms have termination guarantees
+-  All concurrent operations are protected
+-  All errors are logged consistently
+-  All inputs are validated
+-  Type guards instead of non-null assertions
 
 ---
 
-## 📊 **CURRENT PROJECT STATUS**
+##  **CURRENT PROJECT STATUS**
 
-### **Completed** ✅
+### **Completed** 
 - All LOGIC.md fixes (15/15)
 - Blue edges (function calls) working
 - Orange edges (data flow) working
@@ -185,7 +185,7 @@ See `md_files/FUTURE_PLANS.md` for:
 
 ### **In Progress** 🔄
 - Task 8: Verify All Features Working
-  - Automated validation: ✅ Done
+  - Automated validation:  Done
   - Manual testing: ⏳ Pending user verification
   - End-to-end testing: ⏳ Pending
 
@@ -213,9 +213,9 @@ See `md_files/FUTURE_PLANS.md` for:
 3. Open CFG Visualizer
 4. Switch to "Interconnected CFG" tab
 5. Verify:
-   - ✅ Green edges (control flow)
-   - ✅ Blue edges (function calls) - should see ~10
-   - ✅ Orange edges (data flow) - should see ~28
+   -  Green edges (control flow)
+   -  Blue edges (function calls) - should see ~10
+   -  Orange edges (data flow) - should see ~28
 6. Check `.vscode/logs.txt` for analysis output
 
 ### **Key Test Files**
@@ -251,7 +251,7 @@ See `md_files/FUTURE_PLANS.md` for:
 
 ---
 
-## 📚 **IMPORTANT CONTEXT**
+##  **IMPORTANT CONTEXT**
 
 ### **Project Purpose**
 VS Code extension for C++ dataflow analysis with:
@@ -331,10 +331,10 @@ npm run watch        # Watch mode
 
 ---
 
-## 🎯 **WHAT TO DO NEXT**
+##  **WHAT TO DO NEXT**
 
 ### **Immediate Actions**
-1. ✅ Read this file (you're doing it!)
+1.  Read this file (you're doing it!)
 2. ⏳ Run validation: `./validate_phases_1_3.sh`
 3. ⏳ Test visualization with `test_complex_calls.cpp`
 4. ⏳ Check `.vscode/logs.txt` for any errors
@@ -354,7 +354,7 @@ npm run watch        # Watch mode
 
 ---
 
-## 📝 **NOTES FOR FUTURE AGENTS**
+##  **NOTES FOR FUTURE AGENTS**
 
 1. **Always follow FRAMEWORK.md** - It's the development methodology
 2. **Add logging** - Every fix should have comprehensive logging
@@ -364,7 +364,7 @@ npm run watch        # Watch mode
 
 ---
 
-## ✅ **VERIFICATION CHECKLIST**
+##  **VERIFICATION CHECKLIST**
 
 Before considering work complete:
 - [ ] Code compiles without errors
@@ -378,7 +378,7 @@ Before considering work complete:
 
 **Last Agent**: Completed all LOGIC.md fixes (15/15)  
 **Next Agent**: Continue with testing and future enhancements  
-**Status**: Ready for next phase 🚀
+**Status**: Ready for next phase 
 
 ---
 

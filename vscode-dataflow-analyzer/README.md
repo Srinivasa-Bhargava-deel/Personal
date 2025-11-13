@@ -2,7 +2,7 @@
 
 A comprehensive VSCode extension for real-time incremental static/dataflow analysis of C++ code with advanced security vulnerability detection and exploit post-mortem capabilities.
 
-## 🎯 Overview
+## Overview
 
 This extension provides powerful static analysis capabilities for C++ codebases, focusing on:
 - **Control Flow Graph (CFG) Visualization** - Interactive real-time CFG building using official Clang/LLVM libraries
@@ -14,7 +14,7 @@ This extension provides powerful static analysis capabilities for C++ codebases,
 
 Perfect for security researchers, developers, and code reviewers who need to understand dataflow and identify security vulnerabilities in C++ code.
 
-## ✨ Key Features
+## Key Features
 
 ### Core Analysis Features
 
@@ -128,7 +128,7 @@ Perfect for security researchers, developers, and code reviewers who need to und
   - Stored in `.vscode/dataflow-state.json`
   - Persists across sessions
 
-## 📋 Requirements
+## Requirements
 
 ### System Requirements
 
@@ -148,22 +148,36 @@ Perfect for security researchers, developers, and code reviewers who need to und
   - Linux: `sudo apt-get install cmake` or `sudo yum install cmake`
   - Windows: Download from [cmake.org](https://cmake.org/)
 
-## 🚀 Installation & Build Instructions
+## Installation & Build Instructions
 
-### Quick Build Summary
+### Prerequisites Checklist
 
-1. **Install System Dependencies**
+Before starting, ensure you have:
+- **VS Code** 1.80.0 or higher installed
+- **Node.js** 20.0.0 or higher (for extension development)
+- **Clang/LLVM** 21.1.5 or higher (for CFG generation)
+- **CMake** 3.16 or higher (for building cfg-exporter)
+- **Git** (for cloning the repository)
+
+### Quick Start (All Platforms)
+
+1. **Clone the repository**
    ```bash
-   # macOS
-   brew install llvm cmake node
-   
-   # Linux (Ubuntu/Debian)
-   sudo apt-get install clang clang++ cmake build-essential nodejs
-   
-   # Windows: Install from https://llvm.org, https://cmake.org, https://nodejs.org
+   git clone <repository-url>
+   cd vscode-dataflow-analyzer
    ```
 
-2. **Build CFG Exporter**
+2. **Install Node.js dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Build the TypeScript extension**
+   ```bash
+   npm run compile
+   ```
+
+4. **Build the CFG exporter tool**
    ```bash
    cd cpp-tools/cfg-exporter
    mkdir -p build && cd build
@@ -171,89 +185,387 @@ Perfect for security researchers, developers, and code reviewers who need to und
    cmake --build .
    ```
 
-3. **Build TypeScript Extension**
+5. **Verify installation**
    ```bash
-   cd /path/to/vscode-dataflow-analyzer
-   npm install
-   npm run compile
+   # Check cfg-exporter binary exists
+   ls -la build/cfg-exporter  # macOS/Linux
+   dir build\cfg-exporter.exe  # Windows
+   
+   # Test cfg-exporter
+   ./build/cfg-exporter --help  # macOS/Linux
+   build\cfg-exporter.exe --help  # Windows
    ```
 
-4. **Run Extension**
-   - Open project in VSCode: `code .`
+6. **Run the extension**
+   - Open the project in VS Code: `code .`
    - Press `F5` to launch Extension Development Host
-   - Open a C++ workspace
-   - Run "Analyze Workspace" command
+   - Open a C++ workspace or file
+   - Run "Analyze Workspace" command from Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
+
+---
 
 ### Detailed Platform-Specific Instructions
 
 #### macOS Setup
 
-1. **Install Homebrew** (if not already installed)
-   ```bash
-   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-   ```
+**Step 1: Install Homebrew** (if not already installed)
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
 
-2. **Install Required Tools**
-   ```bash
-   brew install node cmake llvm
-   ```
+**Step 2: Install Required Dependencies**
+```bash
+# Install Node.js, CMake, and LLVM
+brew install node cmake llvm
 
-3. **Configure LLVM Path** (for Homebrew LLVM)
-   Add to `~/.zshrc` or `~/.bash_profile`:
-   ```bash
-   export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
-   export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
-   export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
-   ```
-   Then: `source ~/.zshrc`
+# Verify installations
+node --version    # Should be v20.0.0 or higher
+npm --version     # Should be 9.0.0 or higher
+cmake --version   # Should be 3.16 or higher
+clang --version   # Should be 21.1.5 or higher
+```
 
-4. **Build CFG Exporter**
-   ```bash
-   cd cpp-tools/cfg-exporter
-   mkdir -p build && cd build
-   cmake .. -DLLVM_DIR=/opt/homebrew/opt/llvm/lib/cmake/llvm
-   cmake --build .
-   ```
+**Step 3: Configure LLVM Path** (for Homebrew LLVM)
+
+For **Apple Silicon (M1/M2/M3)** Macs, add to `~/.zshrc`:
+```bash
+export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
+export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+```
+
+For **Intel Macs**, add to `~/.zshrc`:
+```bash
+export PATH="/usr/local/opt/llvm/bin:$PATH"
+export LDFLAGS="-L/usr/local/opt/llvm/lib"
+export CPPFLAGS="-I/usr/local/opt/llvm/include"
+```
+
+Then reload your shell:
+```bash
+source ~/.zshrc
+```
+
+**Step 4: Build CFG Exporter**
+```bash
+cd cpp-tools/cfg-exporter
+mkdir -p build && cd build
+
+# For Apple Silicon Macs
+cmake .. -DLLVM_DIR=/opt/homebrew/opt/llvm/lib/cmake/llvm
+
+# For Intel Macs
+cmake .. -DLLVM_DIR=/usr/local/opt/llvm/lib/cmake/llvm
+
+# Build
+cmake --build .
+
+# Verify binary was created
+ls -la cfg-exporter
+```
+
+**Step 5: Install Extension Dependencies**
+```bash
+cd /path/to/vscode-dataflow-analyzer
+npm install
+```
+
+**Step 6: Compile TypeScript**
+```bash
+npm run compile
+```
+
+**Step 7: Run Extension**
+```bash
+# Open in VS Code
+code .
+
+# Press F5 in VS Code to launch Extension Development Host
+# Or use Command Palette: "Debug: Start Debugging"
+```
+
+**Troubleshooting macOS:**
+- If `cmake` can't find LLVM, specify the path explicitly: `cmake .. -DLLVM_DIR=/opt/homebrew/opt/llvm/lib/cmake/llvm`
+- If you get "command not found" for clang, ensure LLVM is in your PATH
+- For M1/M2 Macs, ensure you're using the ARM64 version of Node.js
+
+---
 
 #### Linux Setup
 
-1. **Install Required Tools**
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get install -y nodejs npm cmake clang clang++ llvm llvm-dev build-essential git
-   
-   # RedHat/CentOS/Fedora
-   sudo yum install -y nodejs npm cmake clang clang-tools-extra llvm llvm-devel gcc gcc-c++ make git
-   ```
+**Step 1: Install Required Dependencies**
 
-2. **Build CFG Exporter**
-   ```bash
-   cd cpp-tools/cfg-exporter
-   mkdir -p build && cd build
-   cmake ..
-   cmake --build .
-   ```
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+    nodejs npm \
+    cmake \
+    clang clang++ \
+    llvm llvm-dev \
+    build-essential \
+    git
+
+# Verify installations
+node --version
+npm --version
+cmake --version
+clang --version
+```
+
+**RedHat/CentOS/Fedora:**
+```bash
+# For Fedora
+sudo dnf install -y nodejs npm cmake clang clang-tools-extra llvm llvm-devel gcc gcc-c++ make git
+
+# For CentOS/RHEL (may need EPEL repository)
+sudo yum install -y epel-release
+sudo yum install -y nodejs npm cmake clang clang-tools-extra llvm llvm-devel gcc gcc-c++ make git
+
+# Verify installations
+node --version
+npm --version
+cmake --version
+clang --version
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S nodejs npm cmake clang llvm base-devel git
+
+# Verify installations
+node --version
+npm --version
+cmake --version
+clang --version
+```
+
+**Step 2: Build CFG Exporter**
+```bash
+cd cpp-tools/cfg-exporter
+mkdir -p build && cd build
+cmake ..
+cmake --build .
+
+# Verify binary was created
+ls -la cfg-exporter
+```
+
+**Step 3: Install Extension Dependencies**
+```bash
+cd /path/to/vscode-dataflow-analyzer
+npm install
+```
+
+**Step 4: Compile TypeScript**
+```bash
+npm run compile
+```
+
+**Step 5: Run Extension**
+```bash
+# Open in VS Code
+code .
+
+# Press F5 in VS Code to launch Extension Development Host
+```
+
+**Troubleshooting Linux:**
+- If Node.js version is too old, use NodeSource repository:
+  ```bash
+  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  sudo apt-get install -y nodejs
+  ```
+- If CMake can't find LLVM, install `llvm-dev` package
+- Ensure `clang++` is available: `which clang++`
+
+---
 
 #### Windows Setup
 
-1. **Install Node.js**: Download from [nodejs.org](https://nodejs.org/) (LTS version, 20.x or higher)
-
-2. **Install CMake**: Download from [cmake.org](https://cmake.org/download/) - Choose "Windows x64 Installer", select "Add CMake to system PATH"
-
-3. **Install LLVM/Clang**: Download from [llvm.org](https://github.com/llvm/llvm-project/releases) - Choose "LLVM-21.1.5-win64.exe", select "Add LLVM to the system PATH"
-
-4. **Install Visual Studio Build Tools**: Download from [visualstudio.microsoft.com](https://visualstudio.microsoft.com/downloads/) - Choose "Desktop development with C++" and "CMake tools for Windows"
-
-5. **Build CFG Exporter**
+**Step 1: Install Node.js**
+1. Download Node.js LTS (20.x or higher) from [nodejs.org](https://nodejs.org/)
+2. Run the installer (`node-v20.x.x-x64.msi`)
+3. Select "Add to PATH" during installation
+4. Verify installation:
    ```powershell
-   cd cpp-tools\cfg-exporter
-   mkdir build -Force
-   cd build
-   cmake ..
-   cmake --build . --config Release
+   node --version
+   npm --version
    ```
 
-## 📖 Usage
+**Step 2: Install CMake**
+1. Download CMake from [cmake.org/download](https://cmake.org/download/)
+2. Choose "Windows x64 Installer" (`.msi` file)
+3. Run the installer
+4. **Important**: Check "Add CMake to the system PATH for all users" during installation
+5. Verify installation:
+   ```powershell
+   cmake --version
+   ```
+
+**Step 3: Install LLVM/Clang**
+1. Download LLVM from [llvm.org](https://github.com/llvm/llvm-project/releases)
+2. Choose "LLVM-21.1.5-win64.exe" (or latest version)
+3. Run the installer
+4. **Important**: Check "Add LLVM to the system PATH" during installation
+5. Verify installation:
+   ```powershell
+   clang --version
+   ```
+
+**Step 4: Install Visual Studio Build Tools**
+1. Download Visual Studio Build Tools from [visualstudio.microsoft.com/downloads](https://visualstudio.microsoft.com/downloads/)
+2. Run the installer
+3. Select "Desktop development with C++" workload
+4. Also select "CMake tools for Windows" (optional but recommended)
+5. Click "Install"
+
+**Step 5: Build CFG Exporter**
+
+Open **PowerShell** or **Command Prompt** (as Administrator recommended):
+
+```powershell
+# Navigate to project directory
+cd cpp-tools\cfg-exporter
+
+# Create build directory
+mkdir build -Force
+cd build
+
+# Configure with CMake
+cmake ..
+
+# Build (Release configuration)
+cmake --build . --config Release
+
+# Verify binary was created
+dir cfg-exporter.exe
+```
+
+**Alternative: Using Visual Studio Developer Command Prompt**
+```cmd
+# Open "x64 Native Tools Command Prompt for VS 2022" from Start Menu
+cd cpp-tools\cfg-exporter
+mkdir build
+cd build
+cmake .. -G "Visual Studio 17 2022" -A x64
+cmake --build . --config Release
+```
+
+**Step 6: Install Extension Dependencies**
+```powershell
+cd C:\path\to\vscode-dataflow-analyzer
+npm install
+```
+
+**Step 7: Compile TypeScript**
+```powershell
+npm run compile
+```
+
+**Step 8: Run Extension**
+1. Open VS Code: `code .`
+2. Press `F5` to launch Extension Development Host
+3. Or use Command Palette (`Ctrl+Shift+P`): "Debug: Start Debugging"
+
+**Troubleshooting Windows:**
+- If `cmake` command not found, restart your terminal/PowerShell after installing CMake
+- If `clang` command not found, restart your terminal/PowerShell after installing LLVM
+- If build fails with "MSBuild not found", ensure Visual Studio Build Tools are installed
+- For CMake errors, try: `cmake .. -G "Visual Studio 17 2022" -A x64`
+- Ensure you're using PowerShell or Command Prompt (not Git Bash) for Windows-specific commands
+
+---
+
+### Verification Steps
+
+After installation, verify everything works:
+
+**1. Verify cfg-exporter binary:**
+```bash
+# macOS/Linux
+./cpp-tools/cfg-exporter/build/cfg-exporter --help
+
+# Windows
+cpp-tools\cfg-exporter\build\cfg-exporter.exe --help
+```
+
+**2. Test with a sample C++ file:**
+```bash
+# Create a test file
+echo 'int main() { return 0; }' > test.cpp
+
+# macOS/Linux
+./cpp-tools/cfg-exporter/build/cfg-exporter test.cpp -- -std=c++17
+
+# Windows
+cpp-tools\cfg-exporter\build\cfg-exporter.exe test.cpp -- -std=c++17
+```
+
+**3. Verify TypeScript compilation:**
+```bash
+npm run compile
+# Should complete without errors
+ls out/extension.js  # macOS/Linux
+dir out\extension.js  # Windows
+```
+
+**4. Test Extension in VS Code:**
+- Press `F5` to launch Extension Development Host
+- Open a C++ file
+- Run "Analyze Workspace" command
+- Check that CFG visualization appears
+
+---
+
+### Common Issues & Solutions
+
+**Issue: "cfg-exporter binary not found"**
+- **Solution**: Ensure you've built the cfg-exporter tool (Step 4 in platform-specific instructions)
+- **Verify**: Check that `cpp-tools/cfg-exporter/build/cfg-exporter` (or `.exe` on Windows) exists
+
+**Issue: "CMake can't find LLVM"**
+- **macOS**: Specify LLVM path: `cmake .. -DLLVM_DIR=/opt/homebrew/opt/llvm/lib/cmake/llvm`
+- **Linux**: Install `llvm-dev` package: `sudo apt-get install llvm-dev`
+- **Windows**: Ensure LLVM is added to PATH and restart terminal
+
+**Issue: "Node.js version too old"**
+- **Solution**: Install Node.js 20.x or higher from [nodejs.org](https://nodejs.org/)
+- **Verify**: `node --version` should show v20.0.0 or higher
+
+**Issue: "TypeScript compilation errors"**
+- **Solution**: Run `npm install` to ensure all dependencies are installed
+- **Verify**: Check `package.json` has correct TypeScript version (5.0.0+)
+
+**Issue: "Extension doesn't activate"**
+- **Solution**: Check VS Code version (must be 1.80.0+)
+- **Verify**: Check Developer Console (`Help > Toggle Developer Tools`) for errors
+
+---
+
+### Development Workflow
+
+**Watch Mode (Auto-compile on changes):**
+```bash
+npm run watch
+```
+
+**Manual Compilation:**
+```bash
+npm run compile
+```
+
+**Linting:**
+```bash
+npm run lint
+```
+
+**Running Tests:**
+```bash
+npm test
+```
+
+## Usage
 
 ### Basic Workflow
 
@@ -308,7 +620,7 @@ Open VSCode settings (`Ctrl+,` or `Cmd+,`) and search for "Dataflow Analyzer":
 - `dataflowAnalyzer.analyzeActiveFile` - Analyze only the active C/C++ source file
 - `dataflowAnalyzer.clearState` - Clear saved analysis state
 
-## 🏗️ Architecture
+## Architecture
 
 ### Project Structure
 
@@ -452,7 +764,7 @@ vscode-dataflow-analyzer/
    - Per-workspace state management
    - Preserves analysis data across sessions
 
-## 📊 Technical Details
+## Technical Details
 
 ### Dataflow Analysis Algorithms
 
@@ -560,7 +872,7 @@ For each statement:
 - MAX_ITERATIONS safety checks prevent infinite loops
 - Cycle detection in propagation paths
 
-## 🔍 Vulnerability Detection
+## Vulnerability Detection
 
 ### Supported Vulnerability Types
 
@@ -605,7 +917,7 @@ Each vulnerability includes:
 - **CWE Information**: Link to MITRE CWE database
 - **Recommendations**: How to fix the vulnerability
 
-## 🛠️ Development
+## Development
 
 ### Prerequisites
 
@@ -654,7 +966,7 @@ cmake --build .
 3. Set breakpoints in TypeScript files
 4. Use VSCode debugger
 
-## 🔐 Security Considerations
+## Security Considerations
 
 This tool is designed for:
 - **Static Analysis**: Analyzing source code without execution
@@ -668,18 +980,18 @@ This tool is designed for:
 - Penetration testing
 - Security audits
 
-## 📝 License
+## License
 
 [Specify your license here]
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Uses [vis-network](https://visjs.github.io/vis-network/) for graph visualization
 - Integrates with clang/LLVM for AST parsing and CFG generation
 - Built on VSCode Extension API
 - Algorithms from Dragon Book (Aho, Sethi, Ullman) and Engineering a Compiler (Cooper & Torczon)
 
-## 📚 References
+## References
 
 - [CWE - Common Weakness Enumeration](https://cwe.mitre.org/)
 - [Clang Documentation](https://clang.llvm.org/docs/)
@@ -688,14 +1000,14 @@ This tool is designed for:
 - [Dragon Book](https://www.pearsonhighered.com/program/Aho-Compilers-Principles-Techniques-and-Tools-2nd-Edition/PGM310509.html)
 - [Engineering a Compiler](https://www.elsevier.com/books/engineering-a-compiler/cooper/978-0-12-811905-1)
 
-## 🐛 Known Issues
+## Known Issues
 
 - Inter-procedural analysis context sensitivity is limited (context-insensitive only)
 - Some complex C++ features may not be fully parsed
 - Performance may degrade on very large codebases
 - Interconnected CFG visualization: Orange (data flow) and blue (function call) edges may not appear correctly in some cases
 
-## 📈 Version History
+## Version History
 
 - **v1.5.1**: Documentation consolidation - merged all technical docs into README.md and FUTURE_PLANS.md
 - **v1.5.0**: Interconnected CFG visualization with red-highlighted function nodes

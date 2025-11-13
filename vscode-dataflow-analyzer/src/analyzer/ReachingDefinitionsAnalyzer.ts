@@ -1,22 +1,68 @@
 /**
- * Reaching Definitions Analysis
+ * ReachingDefinitionsAnalyzer.ts
  * 
- * Academic theory (from Cooper & Torczon, Aho-Sethi-Ullman):
+ * Reaching Definitions Analyzer - Forward Dataflow Analysis
  * 
- * REACHING DEFINITIONS: A definition d reaches a program point p if there 
- * exists a path from d to p such that d is not "killed" (overwritten) along 
- * the path.
+ * PURPOSE:
+ * Performs forward dataflow analysis to track where variable definitions reach through
+ * the program. This identifies all definitions that can reach each use point, enabling
+ * definition-use chain analysis and supporting taint analysis.
  * 
- * For each block B:
- *   GEN[B] = definitions generated (assigned) in B
- *   KILL[B] = all definitions of variables that are redefined in B 
- *              (from ALL other blocks)
- *   
- * Dataflow equations:
+ * SIGNIFICANCE IN OVERALL FLOW:
+ * This analyzer runs as part of the intra-procedural analysis phase in DataflowAnalyzer.
+ * Its results are critical for TaintAnalyzer (which uses reaching definitions to track
+ * taint propagation) and for CFGVisualizer (which visualizes definition-use chains).
+ * Reaching definitions analysis provides the foundation for many other analyses.
+ * 
+ * DATA FLOW:
+ * INPUTS:
+ *   - FunctionCFG object (from DataflowAnalyzer.ts, originally from EnhancedCPPParser.ts)
+ *     containing blocks, statements, and control flow edges
+ * 
+ * PROCESSING:
+ *   1. Collects ALL definitions in the function (including function parameters at entry block)
+ *   2. Computes GEN[B] and KILL[B] sets for each block B:
+ *      - GEN[B] = definitions generated (assigned) in B
+ *      - KILL[B] = all definitions of variables that are redefined in B (from ALL blocks)
+ *   3. Initializes IN/OUT sets
+ *   4. Iteratively computes IN/OUT sets in forward CFG order:
+ *      - IN[B] = union of OUT[P] for all predecessors P of B
+ *      - OUT[B] = GEN[B] union (IN[B] - KILL[B])
+ *   5. Tracks propagation paths for each definition
+ *   6. Continues until reaching fixed point (no changes)
+ * 
+ * OUTPUTS:
+ *   - Map<string, ReachingDefinitionsInfo> where:
+ *     - Key: blockId
+ *     - Value: ReachingDefinitionsInfo containing:
+ *       - GEN map: Definitions generated in this block
+ *       - KILL map: Definitions killed in this block
+ *       - IN map: Definitions reaching block entry
+ *       - OUT map: Definitions reaching block exit
+ *       - Each definition includes propagation path history
+ *   - Reaching definitions results -> DataflowAnalyzer.ts (aggregated into AnalysisState)
+ *   - Reaching definitions results -> TaintAnalyzer.ts (for taint propagation tracking)
+ *   - Reaching definitions results -> CFGVisualizer.ts (for visualization)
+ *   - Reaching definitions results -> InterProceduralReachingDefinitions.ts (for IPA)
+ * 
+ * DEPENDENCIES:
+ *   - types.ts: FunctionCFG, ReachingDefinitionsInfo, ReachingDefinition, BasicBlock, Statement
+ * 
+ * ACADEMIC THEORY (from Cooper & Torczon, Aho-Sethi-Ullman):
+ * REACHING DEFINITIONS: A definition d reaches a program point p if there exists a path
+ * from d to p such that d is not "killed" (overwritten) along the path.
+ * 
+ * DATAFLOW EQUATIONS (FORWARD ANALYSIS):
  *   IN[B] = union of OUT[P] for all predecessors P of B
  *   OUT[B] = GEN[B] union (IN[B] - KILL[B])
  * 
  * This is a forward analysis that terminates when reaching a fixed point.
+ * 
+ * FEATURES:
+ * - Tracks complete propagation paths for each definition
+ * - Includes function parameters as definitions at entry block (academic standard)
+ * - MAX_ITERATIONS safety check to prevent infinite loops
+ * - Cycle detection in propagation paths
  */
 
 import { BasicBlock, FunctionCFG, ReachingDefinition, ReachingDefinitionsInfo, Statement } from '../types';
