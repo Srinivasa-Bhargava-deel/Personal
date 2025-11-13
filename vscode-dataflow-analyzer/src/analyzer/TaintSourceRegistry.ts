@@ -214,15 +214,20 @@ export class TaintSourceRegistry {
       return match ? match[1] : null;
     }
 
-    // For gets-like functions: gets(buffer) -> buffer
+    // For gets-like functions: gets(buffer) -> buffer, fgets(buffer, size, stream) -> buffer
     if (source.functionName === 'gets' || source.functionName === 'fgets') {
-      const match = functionCall.match(/\([^,]*,\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
-      if (!match) {
-        // Try single argument: gets(buffer)
+      // Extract first argument (argumentIndex 0) - this is the buffer that gets tainted
+      const args = this.extractArguments(functionCall);
+      if (args.length > 0) {
+        // Remove any leading/trailing whitespace and extract variable name
+        const firstArg = args[0].trim();
+        // Handle cases like "buffer", "*buffer", "&buffer"
+        const varMatch = firstArg.match(/(?:[&*]\s*)?([a-zA-Z_][a-zA-Z0-9_]*)/);
+        return varMatch ? varMatch[1] : null;
+      }
+      // Fallback: try single argument pattern
         const singleArgMatch = functionCall.match(/\(([a-zA-Z_][a-zA-Z0-9_]*)/);
         return singleArgMatch ? singleArgMatch[1] : null;
-      }
-      return match[1];
     }
 
     // For read-like functions: read(fd, buffer, size) -> buffer

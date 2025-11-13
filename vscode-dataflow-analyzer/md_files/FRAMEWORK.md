@@ -1,7 +1,8 @@
--divide each item in to_do.md into multiple phases.
+-divide each listed item/major feature in to_do.md into multiple phases.
 -divide each phase into sub tasks.
 -save this in a temporary .md file
--flow changes from current task to next subtask ONLY after validation of current tasks execution
+-flow changes from current subtask to next subtask ONLY after both A and B are done: A)automatic validation of current tasks execution
+B) prompt the user for validation validation in case of testing scenarios involving visualizers, UI etc.
 -refer to example "" PLAN_FOR0a.md- given here in double quotes
 
 

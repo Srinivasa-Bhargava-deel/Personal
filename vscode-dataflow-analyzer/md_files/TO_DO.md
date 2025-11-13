@@ -1,7 +1,7 @@
 # TODO List - VS Code Dataflow Analyzer
 
 **Last Updated**: December 2024  
-**Current Version**: v1.8.0
+**Current Version**: v1.8.1
 
 ---
 
@@ -362,4 +362,6 @@
 
 **Next Action**: 
 - ✅ Task 12 completed (CFG Block Names improvement)
-- Continue with Task 8 (Verify All Features Working) or start Task 13 (Inter-Procedural Taint Propagation)
+- ✅ Task 13 completed (Inter-Procedural Taint Propagation)
+- ✅ Validation complete for `test_arithmetic_taint.cpp` and `test_interprocedural_taint.cpp`
+- ⏳ Ready for Task 14 (Context-Sensitive Taint Analysis)

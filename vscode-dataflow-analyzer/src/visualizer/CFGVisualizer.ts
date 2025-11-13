@@ -19,8 +19,9 @@
  */
 
 import * as vscode from 'vscode';
-import { CFG, FunctionCFG, AnalysisState, FileAnalysisState, LivenessInfo, ReachingDefinitionsInfo, ReachingDefinition, TaintInfo } from '../types';
+import { CFG, FunctionCFG, AnalysisState, FileAnalysisState, LivenessInfo, ReachingDefinitionsInfo, ReachingDefinition, TaintInfo, TaintLabel } from '../types';
 import { Vulnerability } from '../analyzer/SecurityAnalyzer';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 /**
  * CFGVisualizer manages webview panels for CFG visualization
@@ -129,7 +130,7 @@ export class CFGVisualizer {
       // CRITICAL FIX (LOGIC.md #9): Ensure panel is removed from Map to prevent memory leak
       this.panels.delete(panelKey);
       if (this.panel === panel) {
-        this.panel = undefined;
+      this.panel = undefined;
       }
       console.log(`[CFGVisualizer] Panel ${panelKey} removed. Remaining panels: ${this.panels.size}`);
     }, null, context.subscriptions);
@@ -299,30 +300,60 @@ export class CFGVisualizer {
 
     console.log('[CFGVisualizer] Function', funcCFG.name, 'has', funcCFG.blocks.size, 'blocks');
 
-    // Prepare data for visualization
-    const graphData = await this.prepareGraphData(funcCFG, state);
+    // Use pre-prepared visualization data if available (prepared during analysis)
+    // Otherwise, prepare on-demand (fallback for backward compatibility)
+    let graphData: any;
+    let callGraphData: any;
+    let ipaData: any;
+    let taintData: any;
+    let interconnectedData: any;
+    let interProceduralTaintData: any;
     
-    // Prepare IPA data if available
-    const callGraphData = state.callGraph ? this.prepareCallGraphData(state.callGraph) : null;
-    const ipaData = this.prepareIPAData(state, funcCFG.name);
-    const taintData = this.prepareTaintData(state, funcCFG.name);
-    const interconnectedData = this.prepareInterconnectedCFGData(state);
+    if (state.visualizationData) {
+      // Use pre-prepared data from backend
+      console.log('[CFGVisualizer] Using pre-prepared visualization data');
+      graphData = state.visualizationData.cfgGraphData?.get(funcCFG.name);
+      callGraphData = state.visualizationData.callGraphData;
+      taintData = state.visualizationData.taintData?.get(funcCFG.name);
+      interProceduralTaintData = state.visualizationData.interProceduralTaintData?.get(funcCFG.name);
+      interconnectedData = state.visualizationData.interconnectedCFGData;
+      
+      // Still need to prepare IPA data (it's function-specific and not stored)
+      ipaData = this.prepareIPAData(state, funcCFG.name);
+      
+      // If data is missing, fall back to on-demand preparation
+      if (!graphData) {
+        console.log('[CFGVisualizer] Pre-prepared graphData missing, preparing on-demand');
+        graphData = await this.prepareGraphData(funcCFG, state);
+      }
+      if (!taintData) {
+        console.log('[CFGVisualizer] Pre-prepared taintData missing, preparing on-demand');
+        taintData = this.prepareTaintData(state, funcCFG.name);
+      }
+      if (!interProceduralTaintData) {
+        console.log('[CFGVisualizer] Pre-prepared interProceduralTaintData missing, preparing on-demand');
+        interProceduralTaintData = this.prepareInterProceduralTaintData(state, funcCFG.name);
+      }
+      if (!interconnectedData) {
+        console.log('[CFGVisualizer] Pre-prepared interconnectedData missing, preparing on-demand');
+        interconnectedData = this.prepareInterconnectedCFGData(state);
+      }
+      if (!callGraphData && state.callGraph) {
+        console.log('[CFGVisualizer] Pre-prepared callGraphData missing, preparing on-demand');
+        callGraphData = this.prepareCallGraphData(state.callGraph);
+      }
+    } else {
+      // Fallback: prepare on-demand (backward compatibility)
+      console.log('[CFGVisualizer] No pre-prepared data, preparing on-demand');
+      graphData = await this.prepareGraphData(funcCFG, state);
+      callGraphData = state.callGraph ? this.prepareCallGraphData(state.callGraph) : null;
+      ipaData = this.prepareIPAData(state, funcCFG.name);
+      taintData = this.prepareTaintData(state, funcCFG.name);
+      interconnectedData = this.prepareInterconnectedCFGData(state);
+      interProceduralTaintData = this.prepareInterProceduralTaintData(state, funcCFG.name);
+    }
     
-    console.log('[CFGVisualizer] Taint data for', funcCFG.name, ':', {
-      totalTaintedVariables: taintData.totalTaintedVariables,
-      totalVulnerabilities: taintData.totalVulnerabilities,
-      taintedVariablesCount: taintData.taintedVariables?.length || 0,
-      vulnerabilitiesCount: taintData.vulnerabilities?.length || 0,
-      taintInfoFromState: state.taintAnalysis.get(funcCFG.name)?.length || 0,
-      vulnerabilitiesFromState: state.vulnerabilities.get(funcCFG.name)?.length || 0
-    });
-    
-    console.log('[CFGVisualizer] Interconnected CFG data:', {
-      nodesCount: interconnectedData.nodes.length,
-      edgesCount: interconnectedData.edges.length,
-      functionsCount: interconnectedData.functions.length
-    });
-    
+    // Only log visualization-specific information (not analysis data)
     console.log('[CFGVisualizer] Setting webview HTML with graph data');
     console.log('[CFGVisualizer] Graph data summary:', {
       functionName: funcCFG.name,
@@ -330,7 +361,9 @@ export class CFGVisualizer {
       edgesCount: graphData.edges.length,
       hasCallGraph: !!callGraphData,
       hasIPAData: !!ipaData,
-      hasTaintData: taintData.totalTaintedVariables > 0 || taintData.totalVulnerabilities > 0
+      hasTaintData: taintData.totalTaintedVariables > 0 || taintData.totalVulnerabilities > 0,
+      hasInterProceduralTaintData: interProceduralTaintData.totalInterProceduralTaint > 0,
+      interProceduralTaintCount: interProceduralTaintData.totalInterProceduralTaint
     });
 
     const htmlContent = this.getWebviewContent(
@@ -341,7 +374,8 @@ export class CFGVisualizer {
       callGraphData,
       ipaData,
       taintData,
-      interconnectedData
+      interconnectedData,
+      interProceduralTaintData
     );
 
     console.log('[CFGVisualizer] Generated HTML length:', htmlContent.length);
@@ -456,15 +490,26 @@ export class CFGVisualizer {
     const taintInfo = state.taintAnalysis.get(funcCFG.name) || [];
     const taintedVars = new Set<string>();
     const taintedBlocks = new Set<string>();
+    const taintByBlock = new Map<string, Set<string>>(); // blockId -> Set of tainted variables
     
     taintInfo.forEach((taint: TaintInfo) => {
       if (taint.tainted) {
         taintedVars.add(taint.variable);
         // Mark blocks in propagation path as tainted
-        taint.propagationPath.forEach((path: string) => {
-          const blockId = path.split(':')[0];
-          taintedBlocks.add(blockId);
-        });
+        if (taint.propagationPath && taint.propagationPath.length > 0) {
+          taint.propagationPath.forEach((path: string) => {
+            const blockId = path.split(':')[0];
+            taintedBlocks.add(blockId);
+          });
+        }
+        // Also mark the source location block as tainted
+        if (taint.sourceLocation?.blockId) {
+          taintedBlocks.add(taint.sourceLocation.blockId);
+          if (!taintByBlock.has(taint.sourceLocation.blockId)) {
+            taintByBlock.set(taint.sourceLocation.blockId, new Set());
+          }
+          taintByBlock.get(taint.sourceLocation.blockId)!.add(taint.variable);
+        }
       }
     });
 
@@ -515,6 +560,22 @@ export class CFGVisualizer {
           }
         });
       });
+      
+      // If block has tainted variables, mark it as tainted
+      if (blockTaintedVars.length > 0) {
+        taintedBlocks.add(blockId);
+      }
+      
+      // Also check if this block is a source location for any taint
+      if (taintByBlock.has(blockId)) {
+        taintedBlocks.add(blockId);
+        const blockTaintVars = taintByBlock.get(blockId)!;
+        blockTaintVars.forEach(v => {
+          if (!blockTaintedVars.includes(v)) {
+            blockTaintedVars.push(v);
+          }
+        });
+      }
 
       // Check if this block is part of any attack path
       const blockVulnerabilities: Vulnerability[] = [];
@@ -675,33 +736,46 @@ export class CFGVisualizer {
         // Format: "functionName: BlockLabel" (e.g., "fibonacci: Entry", "power: B1")
         const nodeLabel = `${funcName}: ${blockLabel}`;
         
+        // Check if this block has tainted variables
+        const funcTaint = state.taintAnalysis.get(funcName) || [];
+        const blockTaintedVars = funcTaint.filter((t: TaintInfo) => 
+          t.sourceLocation?.blockId === blockId
+        );
+        const isTainted = blockTaintedVars.length > 0;
+        
         // Create detailed title with statement info
         let title = `Function: ${funcName}\nBlock: ${blockLabel} (ID: ${blockId})\nStatements: ${block.statements.length}`;
+        if (isTainted) {
+          title += `\nTainted Variables: ${blockTaintedVars.map((t: TaintInfo) => t.variable).join(', ')}`;
+        }
         if (block.statements.length > 0) {
           const firstStmt = block.statements[0].text.substring(0, 50);
           title += `\nFirst statement: ${firstStmt}${block.statements[0].text.length > 50 ? '...' : ''}`;
         }
         
+        // Use consistent colors: red for tainted blocks (matching CFG), blue for normal blocks
         nodes.push({
           id: nodeId,
           label: nodeLabel,
           group: functionGroups.get(funcName),
           title: title,
           color: {
-            background: '#ff6b6b',  // Red background for all function nodes
-            border: '#c92a2a',
+            background: isTainted ? '#ffe0e0' : '#e8f4f8',  // Red for tainted, light blue for normal
+            border: isTainted ? '#dc3545' : '#2e7d32',      // Red border for tainted, green for normal
             highlight: {
-              background: '#ff8787',
-              border: '#e03131'
+              background: isTainted ? '#ff6b6b' : '#74b9ff',
+              border: isTainted ? '#dc3545' : '#0984e3'
             }
           },
-          font: { color: '#ffffff' },
+          font: { color: isTainted ? '#dc3545' : '#333' },  // Red text for tainted, dark for normal
           shape: 'box',
           metadata: {
             function: funcName,
             blockId: blockId,
             isEntry: block.isEntry || false,
-            isExit: block.isExit || false
+            isExit: block.isExit || false,
+            isTainted: isTainted,
+            taintedVariables: blockTaintedVars.map((t: TaintInfo) => t.variable)
           }
         });
       });
@@ -777,19 +851,19 @@ export class CFGVisualizer {
               // Use callSite.blockId if available, otherwise find block with call
               let fromBlockId = callSiteBlockId;
               if (!fromBlockId) {
-                callerCFG.blocks.forEach((block, blockId) => {
-                  const hasCall = block.statements.some(stmt => 
-                    stmt.text.includes(callee + '(')
-                  );
+              callerCFG.blocks.forEach((block, blockId) => {
+                const hasCall = block.statements.some(stmt => 
+                  stmt.text.includes(callee + '(')
+                );
                   if (hasCall) {
                     fromBlockId = blockId;
                   }
                 });
               }
-              
+                
               if (fromBlockId && calleeEntryId) {
                 const fromNodeId = `${caller}_${fromBlockId}`;
-                const toNodeId = `${callee}_${calleeEntryId}`;
+                  const toNodeId = `${callee}_${calleeEntryId}`;
                 const edgeKey = `${fromNodeId}->${toNodeId}`;
                 
                 // Check if nodes exist and edge not already added
@@ -839,7 +913,15 @@ export class CFGVisualizer {
       // Reorganize reaching definitions by function name
       const rdByFunction = new Map<string, Map<string, ReachingDefinitionsInfo>>();
       state.reachingDefinitions.forEach((rdInfo, key) => {
-        const [funcName, blockId] = key.split('_');
+        // CRITICAL FIX: Split on LAST underscore only (function names can contain underscores)
+        const lastUnderscoreIndex = key.lastIndexOf('_');
+        if (lastUnderscoreIndex === -1) {
+          console.warn(`[CFGVisualizer] Invalid RD key format: ${key}`);
+          return;
+        }
+        const funcName = key.substring(0, lastUnderscoreIndex);
+        const blockId = key.substring(lastUnderscoreIndex + 1);
+        
         if (!rdByFunction.has(funcName)) {
           rdByFunction.set(funcName, new Map());
         }
@@ -882,23 +964,23 @@ export class CFGVisualizer {
                     
                     if (!isDuplicate) {
                       funcOrangeEdges++;
-                      edges.push({
-                        from: fromNodeId,
-                        to: toNodeId,
+                    edges.push({
+                      from: fromNodeId,
+                      to: toNodeId,
                         color: { color: '#ff8800', highlight: '#ff6600' },  // Bright orange for data flow
                         width: 3,  // Increased to make more visible
-                        arrows: 'to',
+                      arrows: 'to',
                         dashes: [8, 4],  // Dashed line pattern: 8px dash, 4px gap
                         smooth: { type: 'continuous', roundness: 0.7 },  // Higher curve to avoid overlaps with other edges
                         title: `Data Flow: ${varName} (${def.definitionId})`,
-                        metadata: {
-                          type: 'data_flow',
-                          variable: varName,
-                          fromFunction: funcName,
+                      metadata: {
+                        type: 'data_flow',
+                        variable: varName,
+                        fromFunction: funcName,
                           toFunction: funcName,
                           definitionId: def.definitionId
-                        }
-                      });
+                      }
+                    });
                     }
                   } else {
                     if (!fromExists) {
@@ -1020,11 +1102,24 @@ export class CFGVisualizer {
 
     // Add call edges
     callGraph.calls.forEach((call: any) => {
+      // Build label with actual arguments
+      const argsLabel = call.arguments.actual && call.arguments.actual.length > 0
+        ? call.arguments.actual.slice(0, 3).join(', ') + (call.arguments.actual.length > 3 ? '...' : '')
+        : 'no args';
+      
+      // Build return value label
+      const returnLabel = call.returnValueUsed ? 'returns used' : 'returns unused';
+      
+      // Combine into full label
+      const fullLabel = `${argsLabel}\n${returnLabel}`;
+      
       edges.push({
         from: call.callerId,
         to: call.calleeId,
-        label: `${call.arguments.actual.length} args`,
-        returnValueUsed: call.returnValueUsed
+        label: fullLabel,
+        returnValueUsed: call.returnValueUsed,
+        arguments: call.arguments.actual || [],
+        argumentCount: call.arguments.actual?.length || 0
       });
     });
 
@@ -1073,8 +1168,8 @@ export class CFGVisualizer {
             sourceBlock: d.sourceBlock,
             propagationPath: d.propagationPath || []
           }))
-          }))
-        }));
+        }))
+      }));
       }
     }
 
@@ -1088,7 +1183,7 @@ export class CFGVisualizer {
     const taintInfo = state.taintAnalysis.get(functionName) || [];
     const vulnerabilities = state.vulnerabilities.get(functionName) || [];
     
-    console.log(`[CFGVisualizer] prepareTaintData for ${functionName}:`, {
+    LoggingConfig.log('CFGViz', `[CFGVisualizer] prepareTaintData for ${functionName}:`, {
       taintInfoCount: taintInfo.length,
       vulnerabilitiesCount: vulnerabilities.length,
       taintInfoSample: taintInfo.length > 0 ? taintInfo[0] : null,
@@ -1101,7 +1196,7 @@ export class CFGVisualizer {
                   'buffer_overflow', 'code_injection', 'integer_overflow'].includes(v.type)
     );
     
-    console.log(`[CFGVisualizer] Filtered taint vulnerabilities: ${taintVulnerabilities.length} out of ${vulnerabilities.length}`);
+    LoggingConfig.log('CFGViz', `[CFGVisualizer] Filtered taint vulnerabilities: ${taintVulnerabilities.length} out of ${vulnerabilities.length}`);
     
     // Group taint info by variable
     const taintByVariable = new Map<string, TaintInfo[]>();
@@ -1113,7 +1208,7 @@ export class CFGVisualizer {
       }
     });
     
-    console.log(`[CFGVisualizer] Tainted variables found: ${taintByVariable.size}`);
+    LoggingConfig.log('CFGViz', `[CFGVisualizer] Tainted variables found: ${taintByVariable.size}`);
     
     // Prepare taint sources summary
     const sourcesByCategory = new Map<string, number>();
@@ -1157,13 +1252,283 @@ export class CFGVisualizer {
       totalVulnerabilities: taintVulnerabilities.length
     };
     
-    console.log(`[CFGVisualizer] prepareTaintData result:`, {
+    LoggingConfig.log('CFGViz', `[CFGVisualizer] prepareTaintData result:`, {
       totalTaintedVariables: result.totalTaintedVariables,
       totalVulnerabilities: result.totalVulnerabilities,
       taintedVariablesArrayLength: result.taintedVariables.length
     });
     
     return result;
+  }
+
+  /**
+   * Prepare inter-procedural taint analysis data for display
+   */
+  private prepareInterProceduralTaintData(state: AnalysisState, functionName: string): any {
+    // Get all taint info for this function
+    const taintInfo = state.taintAnalysis.get(functionName) || [];
+    
+    LoggingConfig.log('CFGViz', `[CFGVisualizer] prepareInterProceduralTaintData for ${functionName}:`, {
+      totalTaintInfo: taintInfo.length,
+      taintInfoSample: taintInfo.length > 0 ? {
+        variable: taintInfo[0].variable,
+        source: taintInfo[0].source,
+        sourceFunction: taintInfo[0].sourceFunction,
+        propagationPath: taintInfo[0].propagationPath,
+        sourceCategory: taintInfo[0].sourceCategory
+      } : null,
+      allTaintSources: taintInfo.map((t: TaintInfo) => t.source).slice(0, 5),
+      allSourceFunctions: [...new Set(taintInfo.map((t: TaintInfo) => t.sourceFunction).filter(Boolean))].slice(0, 5)
+    });
+    
+    // Filter for inter-procedural taint (has sourceFunction different from current function or parameter/return sources)
+    const interProceduralTaint = taintInfo.filter((taint: TaintInfo) => {
+      // Check if taint came from another function
+      const isFromOtherFunction = taint.sourceFunction && taint.sourceFunction !== functionName;
+      // Check if it's from a parameter or return value
+      const isParameterTaint = taint.source?.startsWith('parameter:');
+      const isReturnTaint = taint.source?.startsWith('return_value:');
+      const isLibraryTaint = taint.source?.startsWith('library_function:') || taint.source?.startsWith('file_io:') || taint.source?.startsWith('user_input:');
+      // Check if propagation path includes multiple functions
+      const hasCrossFunctionPath = taint.propagationPath && taint.propagationPath.length > 1;
+      
+      const isInterProcedural = isFromOtherFunction || isParameterTaint || isReturnTaint || isLibraryTaint || hasCrossFunctionPath;
+      
+      if (isInterProcedural) {
+        LoggingConfig.log('CFGViz', `[CFGVisualizer] Found inter-procedural taint: ${taint.variable} from ${taint.source} (sourceFunction: ${taint.sourceFunction}, path: ${taint.propagationPath?.join(' → ')})`);
+      }
+      
+      return isInterProcedural;
+    });
+    
+    // CRITICAL FIX: Also include "outgoing" taint flows - taint that flows FROM this function TO other functions
+    // This shows parameter taint entries for functions that this function calls
+    const outgoingTaintFlows: TaintInfo[] = [];
+    if (state.callGraph) {
+      const callsFrom = state.callGraph.callsFrom instanceof Map
+        ? state.callGraph.callsFrom.get(functionName) || []
+        : (state.callGraph.callsFrom as any)[functionName] || [];
+      
+      LoggingConfig.log('CFGViz', `[CFGVisualizer] Checking outgoing taint flows from ${functionName} to ${callsFrom.length} callees`);
+      
+      // Track seen parameter taint flows to avoid duplicates (same caller->callee->param)
+      const seenFlows = new Set<string>();
+      
+      callsFrom.forEach((call: any) => {
+        const calleeName = call.calleeId;
+        const calleeTaint = state.taintAnalysis.get(calleeName) || [];
+        
+        // Find parameter taint in callee that originated from this caller
+        calleeTaint.forEach((calleeTaintInfo: TaintInfo) => {
+          if (calleeTaintInfo.source?.startsWith('parameter:') && 
+              calleeTaintInfo.sourceFunction === functionName) {
+            // Extract parameter name from source (e.g., "parameter:input" -> "input")
+            const paramName = calleeTaintInfo.source.replace('parameter:', '');
+            
+            // Create unique key for this flow to avoid duplicates
+            const flowKey = `${functionName}->${calleeName}:${paramName}`;
+            if (seenFlows.has(flowKey)) {
+              LoggingConfig.log('CFGViz', `[CFGVisualizer] Skipping duplicate outgoing taint flow: ${flowKey}`);
+              return;
+            }
+            seenFlows.add(flowKey);
+            
+            // Find the tainted variable in caller that maps to this parameter
+            const callerTaintedVars = taintInfo.filter((t: TaintInfo) => t.tainted);
+            const matchingVar = callerTaintedVars.find((t: TaintInfo) => {
+              // Check if this variable is passed as argument to the callee
+              if (call.arguments?.actual) {
+                return call.arguments.actual.some((arg: string) => 
+                  arg.includes(t.variable) || t.variable === arg
+                );
+              }
+              return false;
+            });
+            
+            if (matchingVar) {
+              // Create synthetic taint entry showing outgoing flow
+              const outgoingTaint: TaintInfo = {
+                variable: paramName,
+                source: `parameter:${paramName}`,
+                tainted: true,
+                sourceCategory: matchingVar.sourceCategory,
+                taintType: matchingVar.taintType,
+                sourceFunction: functionName,
+                propagationPath: [functionName, calleeName],
+                sourceLocation: {
+                  blockId: call.callSite?.blockId || 'unknown'
+                },
+                labels: [TaintLabel.DERIVED]
+              };
+              
+              outgoingTaintFlows.push(outgoingTaint);
+              LoggingConfig.log('CFGViz', `[CFGVisualizer] Found outgoing taint flow: ${functionName}.${matchingVar.variable} -> ${calleeName}.${paramName}`);
+            }
+          }
+        });
+      });
+    }
+    
+    // Combine incoming and outgoing taint flows
+    const allInterProceduralTaint = [...interProceduralTaint, ...outgoingTaintFlows];
+    
+    // CRITICAL FIX: Filter out synthetic return_* entries when there's a corresponding assigned variable
+    // e.g., filter out "return_get_user_input" if "user_data" (from return_value:get_user_input->user_data) exists
+    const syntheticReturnEntries = new Set<string>(); // Track return_* entries to filter
+    const assignedVarEntries = new Map<string, TaintInfo>(); // Track assigned variable entries
+    
+    allInterProceduralTaint.forEach((taint: TaintInfo) => {
+      // Check if this is a synthetic return entry (variable starts with "return_")
+      if (taint.variable.startsWith('return_') && taint.source?.startsWith('return_value:')) {
+        syntheticReturnEntries.add(taint.variable);
+      }
+      // Check if this is an assigned variable entry (source contains "->")
+      if (taint.source?.includes('->') && taint.source.startsWith('return_value:')) {
+        // Extract the function name from source (e.g., "return_value:get_user_input->user_data" -> "get_user_input")
+        const match = taint.source.match(/return_value:([^->]+)->/);
+        if (match) {
+          const funcName = match[1];
+          const syntheticKey = `return_${funcName}`;
+          assignedVarEntries.set(syntheticKey, taint);
+        }
+      }
+    });
+    
+    // Filter: exclude synthetic return_* entries if there's a corresponding assigned variable entry
+    const filteredTaint = allInterProceduralTaint.filter((taint: TaintInfo) => {
+      if (taint.variable.startsWith('return_') && taint.source?.startsWith('return_value:')) {
+        // Extract function name (e.g., "return_get_user_input" -> "get_user_input")
+        const funcName = taint.variable.replace('return_', '');
+        const syntheticKey = `return_${funcName}`;
+        // Exclude if there's a corresponding assigned variable entry
+        if (assignedVarEntries.has(syntheticKey)) {
+          LoggingConfig.log('CFGViz', `[CFGVisualizer] Filtering out synthetic return entry: ${taint.variable} (has assigned variable entry)`);
+          return false;
+        }
+      }
+      return true;
+    });
+    
+    // CRITICAL FIX: Deduplicate entries by variable name, preferring more specific sources
+    // This prevents duplicate entries like "user_input" from "return_value:get_user_number" appearing multiple times
+    // Prefer sources with "->" (assigned variable) over sources without
+    // Prefer more specific sources (e.g., return_value:process_number->processed over return_value:get_user_number->user_input)
+    const deduplicatedTaint = new Map<string, TaintInfo>();
+    filteredTaint.forEach((taint: TaintInfo) => {
+      // Use variable name as key (not variable + source)
+      const key = taint.variable;
+      if (!deduplicatedTaint.has(key)) {
+        deduplicatedTaint.set(key, taint);
+      } else {
+        // If duplicate found, prefer the more specific source
+        const existing = deduplicatedTaint.get(key)!;
+        const existingHasArrow = existing.source?.includes('->') || false;
+        const taintHasArrow = taint.source?.includes('->') || false;
+        
+        // Prefer source with "->" over source without
+        if (taintHasArrow && !existingHasArrow) {
+          deduplicatedTaint.set(key, taint);
+        } else if (!taintHasArrow && existingHasArrow) {
+          // Keep existing (has arrow)
+        } else if (taintHasArrow && existingHasArrow) {
+          // Both have arrow - prefer the one that matches the variable name in the source
+          // e.g., return_value:process_number->processed is more specific than return_value:get_user_number->user_input for variable "processed"
+          const taintSourceVar = taint.source?.split('->')[1] || '';
+          const existingSourceVar = existing.source?.split('->')[1] || '';
+          const varName = taint.variable;
+          
+          // If one source matches the variable name exactly, prefer it
+          if (taintSourceVar === varName && existingSourceVar !== varName) {
+            deduplicatedTaint.set(key, taint);
+          } else if (existingSourceVar === varName && taintSourceVar !== varName) {
+            // Keep existing (matches variable name)
+          } else {
+            // Neither matches exactly - prefer longer propagation path
+            if ((taint.propagationPath?.length || 0) > (existing.propagationPath?.length || 0)) {
+              deduplicatedTaint.set(key, taint);
+            }
+          }
+        } else {
+          // Both don't have arrow - prefer longer propagation path
+          if ((taint.propagationPath?.length || 0) > (existing.propagationPath?.length || 0)) {
+            deduplicatedTaint.set(key, taint);
+          }
+        }
+      }
+    });
+    
+    let finalInterProceduralTaint = Array.from(deduplicatedTaint.values());
+    
+    // CRITICAL FIX: Filter out outgoing flows (sourceFunction === functionName) from the final list
+    // Outgoing flows are shown in the callee's tab, not the caller's tab
+    finalInterProceduralTaint = finalInterProceduralTaint.filter((t: TaintInfo) => {
+      // Keep if sourceFunction is not the current function (incoming taint)
+      // Or if it's a return value taint (not an outgoing parameter flow)
+      const isOutgoingFlow = t.sourceFunction === functionName && t.source?.startsWith('parameter:');
+      if (isOutgoingFlow) {
+        LoggingConfig.log('CFGViz', `[CFGVisualizer] Filtering out outgoing flow: ${t.variable} (${t.source}) from ${functionName}`);
+      }
+      return !isOutgoingFlow;
+    });
+    
+    LoggingConfig.log('CFGViz', `[CFGVisualizer] prepareInterProceduralTaintData result for ${functionName}:`, {
+      totalTaintInfo: taintInfo.length,
+      interProceduralTaintCount: interProceduralTaint.length,
+      outgoingTaintFlowsCount: outgoingTaintFlows.length,
+      allInterProceduralTaintCount: allInterProceduralTaint.length,
+      deduplicatedCount: finalInterProceduralTaint.length,
+      parameterTaintCount: finalInterProceduralTaint.filter((t: TaintInfo) => t.source?.startsWith('parameter:')).length,
+      returnTaintCount: finalInterProceduralTaint.filter((t: TaintInfo) => t.source?.startsWith('return_value:') || t.source?.startsWith('library_function:')).length,
+      crossFunctionPathCount: finalInterProceduralTaint.filter((t: TaintInfo) => t.propagationPath && t.propagationPath.length > 1).length
+    });
+    
+    // Group by source function
+    const taintBySourceFunction = new Map<string, TaintInfo[]>();
+    finalInterProceduralTaint.forEach((taint: TaintInfo) => {
+      const sourceFunc = taint.sourceFunction || 'unknown';
+      const existing = taintBySourceFunction.get(sourceFunc) || [];
+      existing.push(taint);
+      taintBySourceFunction.set(sourceFunc, existing);
+    });
+    
+    // Group by taint type (parameter, return, library)
+    // CRITICAL FIX: Don't count outgoing flows as parameter taint for the caller
+    // Outgoing flows (sourceFunction === functionName) are flows TO other functions, not incoming parameter taint
+    const parameterTaint = finalInterProceduralTaint.filter((t: TaintInfo) => 
+      t.source?.startsWith('parameter:') && t.sourceFunction !== functionName
+    );
+    const returnTaint = finalInterProceduralTaint.filter((t: TaintInfo) => 
+      t.source?.startsWith('return_value:')
+    );
+    const libraryTaint = finalInterProceduralTaint.filter((t: TaintInfo) =>
+      t.source?.startsWith('library_function:') || t.source?.startsWith('file_io:') || t.source?.startsWith('user_input:')
+    );
+    
+    return {
+      interProceduralTaint: finalInterProceduralTaint.map((t: TaintInfo) => ({
+        variable: t.variable,
+        source: t.source,
+        sourceCategory: t.sourceCategory || 'unknown',
+        taintType: t.taintType || 'unknown',
+        sourceFunction: t.sourceFunction,
+        propagationPath: t.propagationPath || [],
+        sourceLocation: t.sourceLocation,
+        labels: t.labels || []
+      })),
+      taintBySourceFunction: Array.from(taintBySourceFunction.entries()).map(([funcName, taints]) => ({
+        functionName: funcName,
+        taintCount: taints.length,
+        taints: taints.map((t: TaintInfo) => ({
+          variable: t.variable,
+          source: t.source,
+          propagationPath: t.propagationPath || []
+        }))
+      })),
+      parameterTaint: parameterTaint.length,
+      returnTaint: returnTaint.length,
+      libraryTaint: libraryTaint.length,
+      totalInterProceduralTaint: finalInterProceduralTaint.length
+    };
   }
 
   /**
@@ -1177,7 +1542,8 @@ export class CFGVisualizer {
     callGraphData?: any,
     ipaData?: any,
     taintData?: any,
-    interconnectedData?: any
+    interconnectedData?: any,
+    interProceduralTaintData?: any
   ): string {
     // Helper function to format vulnerability type names
     const formatVulnType = (type: string): string => {
@@ -1410,6 +1776,7 @@ export class CFGVisualizer {
         ${ipaData && (ipaData.parameterAnalysis || ipaData.returnValueAnalysis) ? '<div class="tab" data-tab="params">Parameters & Returns</div>' : ''}
         ${ipaData && ipaData.interProceduralRD ? '<div class="tab" data-tab="ipa">Inter-Procedural</div>' : ''}
         ${taintData ? '<div class="tab" data-tab="taint">Taint Analysis</div>' : ''}
+        ${interProceduralTaintData ? '<div class="tab" data-tab="ip-taint">Inter-Procedural Taint</div>' : ''}
         ${interconnectedData ? '<div class="tab" data-tab="interconnected">Interconnected CFG</div>' : ''}
     </div>
     
@@ -1651,6 +2018,146 @@ export class CFGVisualizer {
     </div>
     ` : ''}
     
+    <!-- Inter-Procedural Taint Analysis Tab Content -->
+    ${interProceduralTaintData ? `
+    <div class="tab-content" id="ip-taint-tab">
+        <!-- Summary Statistics -->
+        <div style="margin-bottom: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 5px;">
+            <h3 style="color: #856404; margin-top: 0;">Inter-Procedural Taint Analysis Summary</h3>
+            <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                <div>
+                    <strong style="color: #856404;">Cross-Function Taint Entries:</strong> 
+                    <span style="color: #333333; font-size: 1.2em; font-weight: bold;">${interProceduralTaintData.totalInterProceduralTaint}</span>
+                </div>
+                <div>
+                    <strong style="color: #856404;">Parameter Taint:</strong> 
+                    <span style="color: #333333; font-size: 1.2em; font-weight: bold;">${interProceduralTaintData.parameterTaint}</span>
+                </div>
+                <div>
+                    <strong style="color: #856404;">Return Value Taint:</strong> 
+                    <span style="color: #333333; font-size: 1.2em; font-weight: bold;">${interProceduralTaintData.returnTaint}</span>
+                </div>
+                <div>
+                    <strong style="color: #856404;">Library Function Taint:</strong> 
+                    <span style="color: #333333; font-size: 1.2em; font-weight: bold;">${interProceduralTaintData.libraryTaint}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Taint by Source Function -->
+        ${interProceduralTaintData.taintBySourceFunction && interProceduralTaintData.taintBySourceFunction.length > 0 ? `
+        <div style="margin-bottom: 30px;">
+            <h3 style="color: #333333;">Taint Flow by Source Function</h3>
+            ${interProceduralTaintData.taintBySourceFunction.map((funcInfo: any) => `
+                <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <strong style="color: #333333; font-size: 1.1em;">From Function: ${funcInfo.functionName}</strong>
+                        <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.85em;">
+                            ${funcInfo.taintCount} taint entries
+                        </span>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        ${funcInfo.taints.map((taint: any) => `
+                            <div style="margin-left: 15px; margin-top: 8px; padding: 8px; background: #fff; border-radius: 3px;">
+                                <div style="color: #333333;">
+                                    <strong>Variable:</strong> ${taint.variable}
+                                </div>
+                                <div style="margin-top: 5px; font-size: 0.9em; color: #666666;">
+                                    <strong>Source:</strong> ${taint.source}
+                                </div>
+                                ${taint.propagationPath && taint.propagationPath.length > 0 ? `
+                                <div style="margin-top: 5px; font-size: 0.85em; color: #666666;">
+                                    <strong>Path:</strong> ${taint.propagationPath.join(' → ')}
+                                </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+        
+        ${interProceduralTaintData.totalInterProceduralTaint === 0 ? `
+        <!-- No Inter-Procedural Taint Message -->
+        <div style="padding: 30px; text-align: center; margin-top: 20px;">
+            <h3 style="color: #333333; margin-bottom: 15px;">Inter-Procedural Taint Analysis</h3>
+            <div style="padding: 20px; background: #e8f4f8; border-radius: 5px; color: #333333;">
+                <p style="margin-bottom: 10px;">No inter-procedural taint detected for this function.</p>
+                <p style="font-size: 0.9em; color: #666666;">
+                    This could mean:
+                </p>
+                <ul style="text-align: left; display: inline-block; margin-top: 10px; color: #666666;">
+                    <li>No taint flows across function boundaries</li>
+                    <li>No taint sources detected in calling functions</li>
+                    <li>No parameter or return value taint propagation</li>
+                    <li>Inter-procedural taint analysis may not have run yet</li>
+                </ul>
+                <p style="margin-top: 15px; font-size: 0.9em; color: #666666;">
+                    To test inter-procedural taint analysis, try calling functions with tainted arguments or returning tainted values.
+                </p>
+            </div>
+        </div>
+        ` : ''}
+        
+        <!-- Detailed Inter-Procedural Taint Entries -->
+        ${interProceduralTaintData.interProceduralTaint && interProceduralTaintData.interProceduralTaint.length > 0 ? `
+        <div style="margin-bottom: 30px;">
+            <h3 style="color: #333333;">Detailed Inter-Procedural Taint Entries</h3>
+            ${interProceduralTaintData.interProceduralTaint.map((taint: any, index: number) => `
+                <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <strong style="color: #333333; font-size: 1.1em;">Entry ${index + 1}: ${taint.variable}</strong>
+                        <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.85em;">
+                            TAINTED
+                        </span>
+                        ${taint.source?.startsWith('parameter:') ? '<span style="margin-left: 5px; padding: 2px 6px; background: #ffc107; color: #333; border-radius: 3px; font-size: 0.75em;">PARAMETER</span>' : ''}
+                        ${taint.source?.startsWith('return_value:') ? '<span style="margin-left: 5px; padding: 2px 6px; background: #28a745; color: white; border-radius: 3px; font-size: 0.75em;">RETURN</span>' : ''}
+                        ${taint.source?.startsWith('library_function:') || taint.source?.startsWith('file_io:') || taint.source?.startsWith('user_input:') ? '<span style="margin-left: 5px; padding: 2px 6px; background: #17a2b8; color: white; border-radius: 3px; font-size: 0.75em;">LIBRARY</span>' : ''}
+                    </div>
+                    <div style="margin-top: 10px; font-size: 0.9em; color: #333333;">
+                        <div style="margin: 5px 0;">
+                            <strong>Source:</strong> ${taint.source}
+                            ${taint.sourceFunction ? `<span style="color: #666666; margin-left: 10px;">(${taint.sourceFunction})</span>` : ''}
+                        </div>
+                        ${taint.sourceFunction && taint.sourceFunction !== functionName ? `
+                        <div style="margin: 5px 0; padding: 5px; background: #f0f0f0; border-radius: 3px;">
+                            <strong style="color: #0066cc;">Context-Sensitive:</strong> 
+                            <span style="color: #333333;">Taint propagated from ${taint.sourceFunction} → ${functionName}</span>
+                        </div>
+                        ` : ''}
+                        <div style="margin: 5px 0;">
+                            <strong>Category:</strong> ${taint.sourceCategory || 'unknown'}
+                        </div>
+                        <div style="margin: 5px 0;">
+                            <strong>Type:</strong> ${taint.taintType || 'unknown'}
+                        </div>
+                        ${taint.propagationPath && taint.propagationPath.length > 0 ? `
+                        <div style="margin-top: 8px; padding: 8px; background: #fff; border-radius: 3px;">
+                            <strong>Propagation Path:</strong>
+                            <div style="margin-top: 5px; color: #666666; font-size: 0.85em;">
+                                ${taint.propagationPath.join(' → ')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${taint.labels && taint.labels.length > 0 ? `
+                        <div style="margin-top: 8px;">
+                            <strong>Labels:</strong>
+                            ${taint.labels.map((label: string) => `
+                                <span style="margin-left: 5px; padding: 2px 6px; background: #e8f4f8; border-radius: 3px; font-size: 0.85em;">
+                                    ${label}
+                                </span>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+        ` : ''}
+    </div>
+    ` : ''}
+    
     <!-- Interconnected CFG Tab Content -->
     ${interconnectedData ? `
     <div class="tab-content" id="interconnected-tab">
@@ -1677,8 +2184,10 @@ export class CFGVisualizer {
                 <strong style="color: #1864ab;">Legend:</strong>
                 <div style="display: flex; gap: 20px; margin-top: 8px; flex-wrap: wrap;">
                     <div style="display: flex; align-items: center; gap: 5px;">
-                        <div style="width: 20px; height: 20px; background: #ff6b6b; border: 2px solid #c92a2a;"></div>
-                        <span style="color: #333333;">Function Nodes (Red)</span>
+                        <div style="width: 20px; height: 20px; background: #ffe0e0; border: 2px solid #dc3545;"></div>
+                        <span style="color: #333333;">Tainted Blocks (Red)</span>
+                        <div style="width: 20px; height: 20px; background: #e8f4f8; border: 2px solid #2e7d32; margin-left: 15px;"></div>
+                        <span style="color: #333333;">Normal Blocks (Blue)</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 5px;">
                         <div style="width: 30px; height: 3px; background: #51cf66;"></div>
@@ -1785,8 +2294,8 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             logDebug('vis-network loaded, initializing...');
 
             try {
-                const vscode = acquireVsCodeApi();
-                const graphDataElement = document.getElementById('graph-data-json');
+            const vscode = acquireVsCodeApi();
+            const graphDataElement = document.getElementById('graph-data-json');
                 
                 if (!graphDataElement) {
                     logDebug('ERROR: graph-data-json element not found');
@@ -1804,7 +2313,7 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                     return;
                 }
 
-                logDebug('Parsed graph data: ' + graphData.nodes.length + ' nodes, ' + graphData.edges.length + ' edges');
+            logDebug('Parsed graph data: ' + graphData.nodes.length + ' nodes, ' + graphData.edges.length + ' edges');
 
                 // Create the network
                 const nodes = new vis.DataSet(graphData.nodes.map(function(node) {
@@ -1825,12 +2334,12 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                         label: label,
                 shape: 'box',
                 color: {
-                            background: node.taintInfo && node.taintInfo.isTainted ? '#ffeaa7' : '#e8f4f8',
-                            border: node.taintInfo && node.taintInfo.isTainted ? '#d63031' : '#2e7d32',
-                            highlight: { background: '#74b9ff', border: '#0984e3' }
+                            background: node.taintInfo && node.taintInfo.isTainted ? '#ffe0e0' : '#e8f4f8',
+                            border: node.taintInfo && node.taintInfo.isTainted ? '#dc3545' : '#2e7d32',
+                            highlight: { background: node.taintInfo && node.taintInfo.isTainted ? '#ff6b6b' : '#74b9ff', border: node.taintInfo && node.taintInfo.isTainted ? '#dc3545' : '#0984e3' }
                 },
                 font: {
-                            color: node.taintInfo && node.taintInfo.isTainted ? '#d63031' : '#333',
+                            color: node.taintInfo && node.taintInfo.isTainted ? '#dc3545' : '#333',
                             size: 11,
                             face: 'Monaco, Menlo, "Ubuntu Mono", monospace'
                         },
@@ -1848,43 +2357,43 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                 return;
             }
             
-            const data = { nodes, edges };
-            const options = {
-                nodes: {
-                    shape: 'box',
-                    font: { size: 11, face: 'Monaco, Menlo, "Ubuntu Mono", monospace' },
-                    margin: 10,
-                    widthConstraint: { minimum: 120, maximum: 200 },
-                    heightConstraint: { minimum: 40 }
-                },
-                edges: {
-                    arrows: { to: { enabled: true, scaleFactor: 0.8 } },
-                    smooth: { type: 'cubicBezier', forceDirection: 'vertical' },
-                    color: { color: '#666', highlight: '#0984e3' },
-                    width: 2,
-                    font: { size: 10, align: 'top' }
-                },
-                layout: {
-                    hierarchical: {
-                        direction: 'UD',
-                        sortMethod: 'directed',
-                        nodeSpacing: 120,
-                        levelSeparation: 150,
-                        edgeMinimization: false
-                    }
-                },
-                physics: { enabled: false },
-                interaction: {
-                    hover: true,
-                    tooltipDelay: 200,
-                    multiselect: false
+        const data = { nodes, edges };
+        const options = {
+            nodes: {
+                shape: 'box',
+                        font: { size: 11, face: 'Monaco, Menlo, "Ubuntu Mono", monospace' },
+                margin: 10,
+                        widthConstraint: { minimum: 120, maximum: 200 },
+                        heightConstraint: { minimum: 40 }
+            },
+            edges: {
+                        arrows: { to: { enabled: true, scaleFactor: 0.8 } },
+                        smooth: { type: 'cubicBezier', forceDirection: 'vertical' },
+                        color: { color: '#666', highlight: '#0984e3' },
+                        width: 2,
+                        font: { size: 10, align: 'top' }
+            },
+            layout: {
+                hierarchical: {
+                    direction: 'UD',
+                    sortMethod: 'directed',
+                            nodeSpacing: 120,
+                            levelSeparation: 150,
+                            edgeMinimization: false
                 }
-            };
-            
+            },
+                    physics: { enabled: false },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 200,
+                        multiselect: false
+            }
+        };
+        
             // Create network with error handling
             try {
-                const network = new vis.Network(container, data, options);
-                logDebug('vis.Network created successfully');
+        const network = new vis.Network(container, data, options);
+            logDebug('vis.Network created successfully');
                 
                 // Store network globally for vulnerability path highlighting
                 window.network = network;
@@ -1903,16 +2412,16 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
 
                     // Send message to extension to update visualization
                     try {
-                        vscode.postMessage({
-                            type: 'changeFunction',
-                            functionName: selectedFunction
-                        });
+                    vscode.postMessage({
+                        type: 'changeFunction',
+                        functionName: selectedFunction
+                    });
                     } catch (messageError) {
                         logDebug('ERROR: Failed to send message to extension: ' + messageError);
                     }
                 });
                 logDebug('Function selector event listener attached');
-            } else {
+                } else {
                 logDebug('WARNING: functionSelect element not found (this is OK if no functions available)');
             }
             
@@ -1960,17 +2469,17 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                             infoDiv.innerHTML = html;
                         }
                     }
-                    } else {
-                        // Clicked on empty space - clear info
-                        const infoDiv = document.getElementById('blockInfo');
-                        if (infoDiv) {
-                            infoDiv.innerHTML = '<h3 style="color: #333333;">Block Information</h3><p style="color: #333333;">Click on a node in the graph above to see its details here.</p>';
-                        }
+            } else {
+                    // Clicked on empty space - clear info
+                    const infoDiv = document.getElementById('blockInfo');
+                    if (infoDiv) {
+                        infoDiv.innerHTML = '<h3 style="color: #333333;">Block Information</h3><p style="color: #333333;">Click on a node in the graph above to see its details here.</p>';
                     }
+                }
                     } catch (clickError) {
                         logDebug('ERROR: Failed to handle node click: ' + clickError);
                     }
-                });
+            });
             }
             } catch (initError) {
                 logDebug('ERROR: Failed to initialize network: ' + initError);
@@ -2003,7 +2512,10 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                     }
                     
                     // Initialize interconnected CFG if switching to interconnected tab
-                    if (targetTab === 'interconnected' && typeof vis !== 'undefined') {
+                    if (targetTab === 'ip-taint') {
+                        // Inter-Procedural Taint tab - no special initialization needed
+                        logDebug('Switched to Inter-Procedural Taint tab');
+                    } else if (targetTab === 'interconnected' && typeof vis !== 'undefined') {
                         initInterconnectedNetwork();
                     }
                 } else {
@@ -2068,7 +2580,7 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
         // Initialize call graph visualization with error handling
         function initCallGraph() {
             try {
-                const callGraphDataElement = document.getElementById('callgraph-data-json');
+            const callGraphDataElement = document.getElementById('callgraph-data-json');
                 if (!callGraphDataElement) {
                     logDebug('WARNING: callgraph-data-json element not found');
                     return;
@@ -2082,12 +2594,12 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                     return;
                 }
                 
-                if (!callGraphData || !callGraphData.nodes || callGraphData.nodes.length === 0) {
-                    logDebug('No call graph data available');
-                    return;
-                }
-                
-                logDebug('Initializing call graph visualization...');
+            if (!callGraphData || !callGraphData.nodes || callGraphData.nodes.length === 0) {
+                logDebug('No call graph data available');
+                return;
+            }
+            
+            logDebug('Initializing call graph visualization...');
             
             const cgNodes = new vis.DataSet(callGraphData.nodes.map(function(node) {
                 return {
@@ -2110,13 +2622,24 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             }));
             
             const cgEdges = new vis.DataSet(callGraphData.edges.map(function(edge) {
+                // Build detailed title with arguments
+                const argsList = edge.arguments && edge.arguments.length > 0
+                    ? edge.arguments.join(', ')
+                    : 'no arguments';
+                const returnStatus = edge.returnValueUsed ? 'used' : 'unused';
+                const title = 'Arguments: ' + argsList + '\\nReturn value: ' + returnStatus;
+                
                 return {
                     from: edge.from,
                     to: edge.to,
-                    label: edge.label,
+                    label: edge.label || (edge.argumentCount || 0) + ' args',
                     arrows: { to: { enabled: true } },
                     color: { color: '#666', highlight: '#0984e3' },
-                    title: edge.returnValueUsed ? 'Return value used' : 'Return value unused'
+                    font: { align: 'horizontal', size: 9, face: 'Arial' },
+                    smooth: { type: 'cubicBezier', forceDirection: 'none', roundness: 0.5 },
+                    length: 250,
+                    width: 1.5,
+                    title: title
                 };
             }));
             
@@ -2135,16 +2658,23 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                         margin: 10
                     },
                     edges: {
-                        arrows: { to: { enabled: true } },
-                        smooth: { type: 'cubicBezier' },
-                        color: { color: '#666' }
+                        arrows: { to: { enabled: true, scaleFactor: 0.8 } },
+                        smooth: { type: 'cubicBezier', forceDirection: 'none', roundness: 0.5 },
+                        color: { color: '#666' },
+                        font: { align: 'horizontal', size: 9, face: 'Arial' },
+                        labelHighlightBold: false,
+                        length: 250,
+                        width: 1.5,
+                        selectionWidth: 2
                     },
                     layout: {
                         hierarchical: {
                             direction: 'LR',
                             sortMethod: 'directed',
-                            nodeSpacing: 150,
-                            levelSeparation: 200
+                            nodeSpacing: 200,
+                            levelSeparation: 300,
+                            edgeMinimization: true,
+                            blockShifting: true
                         }
                     },
                     physics: { enabled: false },
@@ -2194,12 +2724,12 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
         // Initialize interconnected CFG network with error handling
         function initInterconnectedNetwork() {
             try {
-                const interconnectedDataElement = document.getElementById('interconnected-data-json');
-                if (!interconnectedDataElement) {
+            const interconnectedDataElement = document.getElementById('interconnected-data-json');
+            if (!interconnectedDataElement) {
                     logDebug('WARNING: interconnected-data-json element not found');
-                    return;
-                }
-                
+                return;
+            }
+            
                 let interconnectedData;
                 try {
                     interconnectedData = JSON.parse(interconnectedDataElement.textContent);
@@ -2208,12 +2738,12 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                     return;
                 }
                 
-                if (!interconnectedData || !interconnectedData.nodes || interconnectedData.nodes.length === 0) {
-                    logDebug('No interconnected CFG data available');
-                    return;
-                }
-                
-                logDebug('Initializing interconnected CFG visualization with ' + interconnectedData.nodes.length + ' nodes...');
+            if (!interconnectedData || !interconnectedData.nodes || interconnectedData.nodes.length === 0) {
+                logDebug('No interconnected CFG data available');
+                return;
+            }
+            
+            logDebug('Initializing interconnected CFG visualization with ' + interconnectedData.nodes.length + ' nodes...');
             
             const icContainer = document.getElementById('interconnected-network');
             if (!icContainer) {
@@ -2337,11 +2867,11 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             }
             
             try {
-                const icNetwork = new vis.Network(icContainer, icData, icOptions);
-                logDebug('Interconnected CFG network created successfully');
-                
+            const icNetwork = new vis.Network(icContainer, icData, icOptions);
+            logDebug('Interconnected CFG network created successfully');
+            
                 // Handle node click with error handling
-                icNetwork.on('click', function(params) {
+            icNetwork.on('click', function(params) {
                     try {
                 if (params.nodes.length > 0) {
                     const nodeId = params.nodes[0];
@@ -2395,7 +2925,7 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             // Small delay to ensure vis is fully initialized
             setTimeout(function() {
                 if (typeof vis !== 'undefined') {
-                    initNetwork();
+            initNetwork();
                 } else {
                     logDebug('ERROR: vis-network loaded but vis object not available');
                     showErrorFallback('vis-network library loaded but initialization failed.');
@@ -2542,6 +3072,228 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
     // CRITICAL FIX (LOGIC.md #9): Clear Map to release all references
     this.panels.clear();
     console.log('[CFGVisualizer] Visualizer disposed successfully');
+  }
+
+  /**
+   * Log all tab visual data for automated validation
+   */
+  private logAllTabData(
+    functionName: string,
+    graphData: any,
+    callGraphData: any,
+    taintData: any,
+    interProceduralTaintData: any,
+    interconnectedData: any
+  ): void {
+    console.log('\n========== TAB VISUAL DATA LOG ==========');
+    console.log(`[TAB_LOG] Function: ${functionName}`);
+    console.log(`[TAB_LOG] Timestamp: ${new Date().toISOString()}`);
+    
+    // Tab 1: CFG
+    const redNodes = graphData.nodes.filter((n: any) => n.taintInfo?.isTainted).length;
+    const taintedVarsInCFG = new Set<string>();
+    graphData.nodes.forEach((n: any) => {
+      if (n.taintInfo?.taintedVariables) {
+        n.taintInfo.taintedVariables.forEach((v: string) => taintedVarsInCFG.add(v));
+      }
+    });
+    console.log(`[TAB_LOG] CFG Tab:`);
+    console.log(`  - Total Nodes: ${graphData.nodes.length}`);
+    console.log(`  - Red/Tainted Nodes: ${redNodes}`);
+    console.log(`  - Tainted Variables: [${Array.from(taintedVarsInCFG).join(', ') || 'none'}]`);
+    console.log(`  - Total Edges: ${graphData.edges.length}`);
+    
+    // Tab 2: Call Graph
+    if (callGraphData) {
+      const edgesWithLabels = callGraphData.edges.filter((e: any) => e.label && !e.label.includes('unused')).length;
+      console.log(`[TAB_LOG] Call Graph Tab:`);
+      console.log(`  - Total Nodes: ${callGraphData.nodes.length}`);
+      console.log(`  - Total Edges: ${callGraphData.edges.length}`);
+      console.log(`  - Edges with Labels: ${edgesWithLabels}`);
+      console.log(`  - Edge Labels: [${callGraphData.edges.map((e: any) => e.label || 'no label').join(', ')}]`);
+    } else {
+      console.log(`[TAB_LOG] Call Graph Tab: Not available`);
+    }
+    
+    // Tab 3: Taint Analysis
+    console.log(`[TAB_LOG] Taint Analysis Tab:`);
+    console.log(`  - Total Tainted Variables: ${taintData.totalTaintedVariables}`);
+    console.log(`  - Total Vulnerabilities: ${taintData.totalVulnerabilities}`);
+    console.log(`  - Tainted Variable Names: [${taintData.taintedVariables?.map((v: any) => v.variable).join(', ') || 'none'}]`);
+    console.log(`  - Vulnerability Types: [${taintData.vulnerabilities?.map((v: any) => v.type).join(', ') || 'none'}]`);
+    
+    // Tab 4: Inter-Procedural Taint
+    console.log(`[TAB_LOG] Inter-Procedural Taint Tab:`);
+    console.log(`  - Total Entries: ${interProceduralTaintData.totalInterProceduralTaint}`);
+    console.log(`  - Parameter Taint: ${interProceduralTaintData.parameterTaint}`);
+    console.log(`  - Return Value Taint: ${interProceduralTaintData.returnTaint}`);
+    console.log(`  - Library Function Taint: ${interProceduralTaintData.libraryTaint}`);
+    if (interProceduralTaintData.interProceduralTaint && interProceduralTaintData.interProceduralTaint.length > 0) {
+      console.log(`  - Entry Details:`);
+      interProceduralTaintData.interProceduralTaint.forEach((entry: any, idx: number) => {
+        const badges = [];
+        if (entry.source?.startsWith('parameter:')) badges.push('PARAMETER');
+        if (entry.source?.startsWith('return_value:')) badges.push('RETURN');
+        if (entry.source?.startsWith('library_function:') || entry.source?.startsWith('file_io:') || entry.source?.startsWith('user_input:')) badges.push('LIBRARY');
+        console.log(`    Entry ${idx + 1}: ${entry.variable} - Source: ${entry.source} [${badges.join(', ') || 'none'}]`);
+      });
+    }
+    
+    // Tab 5: Interconnected CFG
+    const redBlocks = interconnectedData.nodes.filter((n: any) => {
+      const bg = n.color?.background;
+      return bg === '#ffe0e0' || bg === '#ffcccc' || (n.metadata && n.metadata.isTainted);
+    }).length;
+    const greenEdges = interconnectedData.edges.filter((e: any) => {
+      const edgeColor = e.color?.color;
+      return edgeColor === '#51cf66' || (e.metadata && e.metadata.type === 'control_flow');
+    }).length;
+    const blueEdges = interconnectedData.edges.filter((e: any) => {
+      const edgeColor = e.color?.color;
+      return edgeColor === '#4dabf7' || (e.metadata && e.metadata.type === 'function_call');
+    }).length;
+    const orangeEdges = interconnectedData.edges.filter((e: any) => {
+      const edgeColor = e.color?.color;
+      return edgeColor === '#ffa94d' || edgeColor === '#ff9500' || edgeColor === '#ff8800' || (e.metadata && e.metadata.type === 'data_flow');
+    }).length;
+    console.log(`[TAB_LOG] Interconnected CFG Tab:`);
+    console.log(`  - Total Functions: ${interconnectedData.functions.length}`);
+    console.log(`  - Function Names: [${interconnectedData.functions.join(', ')}]`);
+    console.log(`  - Total Nodes: ${interconnectedData.nodes.length}`);
+    console.log(`  - Red/Tainted Blocks: ${redBlocks}`);
+    console.log(`  - Normal Blocks: ${interconnectedData.nodes.length - redBlocks}`);
+    console.log(`  - Total Edges: ${interconnectedData.edges.length}`);
+    console.log(`  - Green (Control Flow): ${greenEdges}`);
+    console.log(`  - Blue (Function Calls): ${blueEdges}`);
+    console.log(`  - Orange (Data Flow): ${orangeEdges}`);
+    
+    console.log('========== END TAB VISUAL DATA LOG ==========\n');
+  }
+
+  /**
+   * Log tab visual data for ALL functions (for complete validation)
+   */
+  private logAllFunctionsTabData(state: AnalysisState, interconnectedData: any): void {
+    console.log('\n========== ALL FUNCTIONS TAB LOG ==========');
+    console.log(`[ALL_FUNCTIONS_LOG] Timestamp: ${new Date().toISOString()}`);
+    
+    // Log for each function
+    state.cfg.functions.forEach((funcCFG: FunctionCFG, funcName: string) => {
+      const taintData = this.prepareTaintData(state, funcName);
+      const interProceduralTaintData = this.prepareInterProceduralTaintData(state, funcName);
+      
+      console.log(`\n[ALL_FUNCTIONS_LOG] Function: ${funcName}`);
+      console.log(`  - Taint Analysis: ${taintData.totalTaintedVariables} tainted variables, ${taintData.totalVulnerabilities} vulnerabilities`);
+      console.log(`  - Inter-Procedural Taint: ${interProceduralTaintData.totalInterProceduralTaint} entries`);
+      console.log(`    - Parameter Taint: ${interProceduralTaintData.parameterTaint}`);
+      console.log(`    - Return Value Taint: ${interProceduralTaintData.returnTaint}`);
+      console.log(`    - Library Function Taint: ${interProceduralTaintData.libraryTaint}`);
+      if (interProceduralTaintData.interProceduralTaint && interProceduralTaintData.interProceduralTaint.length > 0) {
+        interProceduralTaintData.interProceduralTaint.forEach((entry: any, idx: number) => {
+          const badges = [];
+          if (entry.source?.startsWith('parameter:')) badges.push('PARAMETER');
+          if (entry.source?.startsWith('return_value:')) badges.push('RETURN');
+          if (entry.source?.startsWith('library_function:') || entry.source?.startsWith('file_io:') || entry.source?.startsWith('user_input:')) badges.push('LIBRARY');
+          console.log(`      Entry ${idx + 1}: ${entry.variable} - ${entry.source} [${badges.join(', ') || 'none'}]`);
+        });
+      }
+    });
+    
+    // Log interconnected CFG summary (same for all functions)
+    const redBlocks = interconnectedData.nodes.filter((n: any) => {
+      const bg = n.color?.background || n.color?.background;
+      return bg === '#ffe0e0' || bg === '#ffcccc' || (n.metadata && n.metadata.isTainted);
+    }).length;
+    const greenEdges = interconnectedData.edges.filter((e: any) => {
+      const edgeColor = e.color?.color || e.color;
+      return edgeColor === '#51cf66' || (e.metadata && e.metadata.type === 'control_flow');
+    }).length;
+    const blueEdges = interconnectedData.edges.filter((e: any) => {
+      const edgeColor = e.color?.color || e.color;
+      return edgeColor === '#4dabf7' || (e.metadata && e.metadata.type === 'function_call');
+    }).length;
+    const orangeEdges = interconnectedData.edges.filter((e: any) => {
+      const edgeColor = e.color?.color || e.color;
+      return edgeColor === '#ffa94d' || edgeColor === '#ff9500' || edgeColor === '#ff8800' || (e.metadata && e.metadata.type === 'data_flow');
+    }).length;
+    
+    console.log(`\n[ALL_FUNCTIONS_LOG] Interconnected CFG Summary:`);
+    console.log(`  - Total Functions: ${interconnectedData.functions.length}`);
+    console.log(`  - Function Names: [${interconnectedData.functions.join(', ')}]`);
+    console.log(`  - Total Nodes: ${interconnectedData.nodes.length}`);
+    console.log(`  - Red/Tainted Blocks: ${redBlocks}`);
+    console.log(`  - Normal Blocks: ${interconnectedData.nodes.length - redBlocks}`);
+    console.log(`  - Total Edges: ${interconnectedData.edges.length}`);
+    console.log(`  - Green (Control Flow): ${greenEdges}`);
+    console.log(`  - Blue (Function Calls): ${blueEdges}`);
+    console.log(`  - Orange (Data Flow): ${orangeEdges}`);
+    
+    console.log('========== END ALL FUNCTIONS TAB LOG ==========\n');
+  }
+
+  /**
+   * Prepare all visualization data for all functions during analysis (backend preparation)
+   * This is called from DataflowAnalyzer after analysis completes to pre-prepare all data
+   * 
+   * @param state - Complete analysis state
+   * @returns Visualization data object with all prepared data
+   */
+  static async prepareAllVisualizationData(state: AnalysisState): Promise<any> {
+    console.log('[CFGVisualizer] Preparing all visualization data for backend...');
+    const visualizer = new CFGVisualizer();
+    
+    const cfgGraphData = new Map<string, any>();
+    const taintData = new Map<string, any>();
+    const interProceduralTaintData = new Map<string, any>();
+    
+    // Prepare data for each function
+    for (const [funcName, funcCFG] of state.cfg.functions) {
+      console.log(`[CFGVisualizer] Preparing data for function: ${funcName}`);
+      
+      // Prepare CFG graph data
+      const graphData = await visualizer.prepareGraphData(funcCFG, state);
+      cfgGraphData.set(funcName, graphData);
+      
+      // Prepare taint data
+      const taintDataForFunc = visualizer.prepareTaintData(state, funcName);
+      taintData.set(funcName, taintDataForFunc);
+      
+      // Prepare inter-procedural taint data
+      const interProceduralTaintDataForFunc = visualizer.prepareInterProceduralTaintData(state, funcName);
+      interProceduralTaintData.set(funcName, interProceduralTaintDataForFunc);
+    }
+    
+    // Prepare call graph data (same for all functions)
+    const callGraphData = state.callGraph ? visualizer.prepareCallGraphData(state.callGraph) : null;
+    
+    // Prepare interconnected CFG data (same for all functions)
+    const interconnectedCFGData = visualizer.prepareInterconnectedCFGData(state);
+    
+    // Log all tab data for automated validation
+    console.log('\n========== BACKEND VISUALIZATION DATA PREPARATION ==========');
+    console.log(`[BACKEND_PREP] Timestamp: ${new Date().toISOString()}`);
+    console.log(`[BACKEND_PREP] Total Functions: ${state.cfg.functions.size}`);
+    
+    for (const [funcName, funcCFG] of state.cfg.functions) {
+      const graphData = cfgGraphData.get(funcName)!;
+      const taintDataForFunc = taintData.get(funcName)!;
+      const interProceduralTaintDataForFunc = interProceduralTaintData.get(funcName)!;
+      
+      visualizer.logAllTabData(funcName, graphData, callGraphData, taintDataForFunc, interProceduralTaintDataForFunc, interconnectedCFGData);
+    }
+    
+    // Log interconnected CFG summary
+    visualizer.logAllFunctionsTabData(state, interconnectedCFGData);
+    
+    console.log('========== END BACKEND VISUALIZATION DATA PREPARATION ==========\n');
+    
+    return {
+      cfgGraphData,
+      callGraphData,
+      taintData,
+      interProceduralTaintData,
+      interconnectedCFGData
+    };
   }
 }
 

@@ -180,5 +180,18 @@ export interface AnalysisState {
   interProceduralRD?: Map<string, Map<string, ReachingDefinitionsInfo>>;
   parameterAnalysis?: Map<string, any>;
   returnValueAnalysis?: Map<string, any>;
+  // Pre-prepared visualization data (prepared during analysis, not on-demand)
+  visualizationData?: {
+    // CFG graph data for each function: funcName -> graphData
+    cfgGraphData?: Map<string, any>;
+    // Call graph visualization data
+    callGraphData?: any;
+    // Taint analysis data for each function: funcName -> taintData
+    taintData?: Map<string, any>;
+    // Inter-procedural taint data for each function: funcName -> interProceduralTaintData
+    interProceduralTaintData?: Map<string, any>;
+    // Interconnected CFG data (same for all functions)
+    interconnectedCFGData?: any;
+  };
 }
 

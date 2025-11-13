@@ -196,14 +196,17 @@ export class EnhancedCPPParser {
 
       const lines = sourceCode.split('\n');
       
-      // Pattern to match function signature:
-      // - Optional return type (int, void, etc.)
+      // Pattern to match function signature (definition, not call):
+      // - Must have return type (int, void, char, char*, int*, etc.) before function name
       // - Function name
       // - Parameter list in parentheses
-      // Handles: "int fibonacci(int n)", "void helperA(int x)", etc.
+      // Handles: "int fibonacci(int n)", "void helperA(int x)", "char* get_user_input()", etc.
       // Also handles forward declarations: "int fibonacci(int n);"
+      // Does NOT match function calls: "helper_function(1)" (no return type)
+      // Pattern matches: return_type (with optional * after type) + whitespace + function_name
+      // Examples: "char* get_user_input()", "int* func()", "char *func()", "int func()"
       const funcPattern = new RegExp(
-        `(?:\\w+\\s+)?${funcName}\\s*\\(([^)]*)\\)`,
+        `(?:\\w+\\s*\\*\\s+|\\w+\\s+)+${funcName}\\s*\\(([^)]*)\\)`,
         'g'
       );
       

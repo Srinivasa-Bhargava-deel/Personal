@@ -221,20 +221,20 @@ export class CallGraphAnalyzer {
   /**
    * Extract function parameters from CFG.
    * 
-   * In the CFG, parameters typically appear in the entry block.
-   * We extract them from parameter declaration statements.
+   * Parameters are already extracted by the parser and stored in cfg.parameters.
+   * We just need to convert them to FunctionMetadata['parameters'] format.
    * 
    * @param cfg - Function CFG
    * @returns Array of parameter metadata
    */
   private extractParameters(cfg: FunctionCFG): FunctionMetadata['parameters'] {
-    const parameters: FunctionMetadata['parameters'] = [];
-
-    // Look through all blocks for parameter-like patterns
-    // (In real implementation, might need to parse function signature)
-    // For now, return empty as this is handled by parser
-
-    return parameters;
+    // Parameters are already extracted by EnhancedCPPParser and stored in cfg.parameters
+    // Convert from string[] to ParameterMetadata[]
+    return cfg.parameters.map(paramName => ({
+      name: paramName,
+      type: 'auto', // Type inference can be enhanced later
+      position: cfg.parameters.indexOf(paramName)
+    }));
   }
 
   /**
@@ -341,8 +341,9 @@ export class CallGraphAnalyzer {
       // Extract arguments for this call
       const args = extractedCall.arguments;
       
-      // Check if return value is used
-      const returnUsed = this.isReturnValueUsed(extractedCall.callExpression, calleeId);
+      // Check if return value is used - use full statement text, not just call expression
+      const stmtText = stmt.text || stmt.content || '';
+      const returnUsed = this.isReturnValueUsed(stmtText, calleeId);
       
       // Create FunctionCall record
       const call: FunctionCall = {
@@ -438,28 +439,55 @@ export class CallGraphAnalyzer {
    * @returns true if return value is used
    */
   private isReturnValueUsed(stmt: string, funcName: string): boolean {
-    // Pattern 1: Assignment
-    if (new RegExp(`\\w+\\s*=\\s*${funcName}\\(`).test(stmt)) {
+    // Pattern 1: Assignment (including compound assignments)
+    // Matches: x = func(...), x += func(...), x = func(...) + y, etc.
+    if (new RegExp(`\\w+\\s*[=+\\-*/]?=\\s*.*${funcName}\\s*\\(`).test(stmt)) {
       return true;
     }
 
-    // Pattern 2: Used in conditional
-    if (new RegExp(`if\\s*\\(.*${funcName}\\(`).test(stmt)) {
+    // Pattern 2: Used in conditional (if, while, for, switch)
+    if (new RegExp(`(if|while|for|switch)\\s*\\(.*${funcName}\\s*\\(`).test(stmt)) {
       return true;
     }
 
     // Pattern 3: Returned from function
-    if (new RegExp(`return\\s+${funcName}\\(`).test(stmt)) {
+    if (new RegExp(`return\\s+.*${funcName}\\s*\\(`).test(stmt)) {
       return true;
     }
 
-    // Pattern 4: Used in arithmetic expression
-    if (new RegExp(`\\+\\s*${funcName}\\(|\\*\\s*${funcName}\\(`).test(stmt)) {
+    // Pattern 4: Used in arithmetic/logical expression (+, -, *, /, &&, ||, ==, !=, etc.)
+    if (new RegExp(`[+\\-*/&|!=<>]\\s*${funcName}\\s*\\(|${funcName}\\s*\\(\\s*[+\\-*/&|!=<>]`).test(stmt)) {
       return true;
     }
 
-    // Not used
-    return false;
+    // Pattern 5: Used as function argument
+    // Matches: otherFunc(func(...), ...)
+    if (new RegExp(`\\w+\\s*\\([^)]*${funcName}\\s*\\(`).test(stmt)) {
+      return true;
+    }
+
+    // Pattern 6: Used in array/index access
+    // Matches: arr[func(...)], *func(...), func(...)[index]
+    if (new RegExp(`\\[\\s*${funcName}\\s*\\(|\\*\\s*${funcName}\\s*\\(|${funcName}\\s*\\([^)]*\\)\\s*\\[`).test(stmt)) {
+      return true;
+    }
+
+    // Pattern 7: Used with member access
+    // Matches: obj.field = func(...), func(...).field
+    if (new RegExp(`\\.\\s*\\w+\\s*=\\s*${funcName}\\s*\\(|${funcName}\\s*\\([^)]*\\)\\s*\\.`).test(stmt)) {
+      return true;
+    }
+
+    // Pattern 8: Standalone call (return value discarded) - this is the default case
+    // If statement is just "func(...);" with no assignment or usage, return value is unused
+    const standalonePattern = new RegExp(`^\\s*${funcName}\\s*\\([^)]*\\)\\s*;\\s*$`);
+    if (standalonePattern.test(stmt.trim())) {
+      return false;
+    }
+
+    // If we can't determine, assume it might be used (conservative approach)
+    // This handles complex expressions we might have missed
+    return true;
   }
 
   /**

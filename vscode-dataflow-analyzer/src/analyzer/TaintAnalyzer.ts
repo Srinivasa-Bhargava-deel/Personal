@@ -15,6 +15,7 @@ export class TaintAnalyzer {
   private sourceRegistry: TaintSourceRegistry;
   private sinkRegistry: TaintSinkRegistry;
   private sanitizationRegistry: SanitizationRegistry;
+  private currentFunctionCFG?: FunctionCFG; // Store current CFG for helper methods
   
   /**
    * Initialize taint analyzer with source, sink, and sanitization registries
@@ -50,6 +51,9 @@ export class TaintAnalyzer {
     taintMap: Map<string, TaintInfo[]>;
     vulnerabilities: TaintVulnerability[];
   } {
+    // Store functionCFG for use in helper methods
+    this.currentFunctionCFG = functionCFG;
+    
     const taintMap = new Map<string, TaintInfo[]>();
     const vulnerabilities: TaintVulnerability[] = [];
     
@@ -200,19 +204,23 @@ export class TaintAnalyzer {
                   const sourceTaint = sourceTaintInfos.find(t => t.source === source) || sourceTaintInfos[0];
                   
                   // Use enhanced propagation with labels (Phase 4)
+                  // Format path entry with block label
+                  const blockLabel = this.getBlockLabel(functionCFG, bid);
+                  const pathEntry = blockLabel ? `${functionCFG.name}:${blockLabel}` : `${functionCFG.name}:B${bid}`;
+                  
                   const taintInfo = sourceTaint 
                     ? this.propagateTaintWithLabels(sourceTaint, targetVar, bid, stmt.id || '')
                     : {
                         variable: targetVar,
                         source,
                         tainted: true,
-                        propagationPath: [...path, `${bid}:${stmt.id}`],
+                        propagationPath: [...path, pathEntry],
                         sourceCategory: category as any,
                         taintType: taintType as any,
                         sourceFunction,
                         sourceLocation: {
-                          blockId: path[0]?.split(':')[0] || blockId,
-                          statementId: path[0]?.split(':')[1]
+                          blockId: bid,
+                          statementId: stmt.id || 'unknown'
                         },
                         labels: [this.mapCategoryToLabel(category)]
                       };
@@ -571,11 +579,21 @@ export class TaintAnalyzer {
     if (!variable) return null;
 
     // Create taint info with enhanced metadata and labels
+    // Format propagation path with function name and block label
+    // Note: functionCFG is not available here, use currentFunctionCFG
+    const cfg = this.currentFunctionCFG;
+    const blockLabel = cfg ? this.getBlockLabel(cfg, blockId) : null;
+    const pathEntry = blockLabel && cfg 
+      ? `${cfg.name}:${blockLabel}` 
+      : cfg 
+        ? `${cfg.name}:B${blockId}` 
+        : `B${blockId}`;
+    
     const taintInfo: TaintInfo = {
       variable,
       source: `${sourceDef.category}: ${funcName}`,
       tainted: true,
-      propagationPath: [`${blockId}:${statementId || 'unknown'}`],
+      propagationPath: [pathEntry],
       sourceCategory: sourceDef.category,
       taintType: sourceDef.taintType,
       sourceFunction: funcName,
@@ -588,6 +606,25 @@ export class TaintAnalyzer {
     };
 
     return { variable, taintInfo };
+  }
+  
+  /**
+   * Get block label for display in propagation path.
+   * 
+   * @param functionCFG - Function CFG
+   * @param blockId - Block ID
+   * @returns Block label or null
+   */
+  private getBlockLabel(functionCFG: FunctionCFG, blockId: string): string | null {
+    const block = functionCFG.blocks.get(blockId);
+    if (!block) return null;
+    
+    if (block.label && block.label.trim().length > 0) {
+      return block.label.trim();
+    }
+    if (block.isEntry) return 'Entry';
+    if (block.isExit) return 'Exit';
+    return null;
   }
 
   /**
@@ -677,11 +714,20 @@ export class TaintAnalyzer {
     blockId: string,
     statementId: string
   ): TaintInfo {
+    // Format path entry with block label
+    const functionCFG = this.currentFunctionCFG;
+    const blockLabel = functionCFG ? this.getBlockLabel(functionCFG, blockId) : null;
+    const pathEntry = blockLabel && functionCFG 
+      ? `${functionCFG.name}:${blockLabel}` 
+      : functionCFG 
+        ? `${functionCFG.name}:B${blockId}` 
+        : `B${blockId}`;
+    
     return {
       variable: targetVar,
       source: sourceTaint.source,
       tainted: true,
-      propagationPath: [...sourceTaint.propagationPath, `${blockId}:${statementId}`],
+      propagationPath: [...sourceTaint.propagationPath, pathEntry],
       sourceCategory: sourceTaint.sourceCategory,
       taintType: sourceTaint.taintType,
       sourceFunction: sourceTaint.sourceFunction,

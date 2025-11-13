@@ -23,17 +23,22 @@ import { TaintAnalyzer } from './TaintAnalyzer';
 import { SecurityAnalyzer } from './SecurityAnalyzer';
 import { CallGraphAnalyzer } from './CallGraphAnalyzer';
 import { InterProceduralReachingDefinitions } from './InterProceduralReachingDefinitions';
+import { InterProceduralTaintAnalyzer } from './InterProceduralTaintAnalyzer';
 import { ParameterAnalyzer } from './ParameterAnalyzer';
 import { ReturnValueAnalyzer } from './ReturnValueAnalyzer';
 import { FunctionCallExtractor } from './FunctionCallExtractor';
 import { StateManager } from '../state/StateManager';
+import { LoggingConfig } from '../utils/LoggingConfig';
+import { CFGVisualizer } from '../visualizer/CFGVisualizer';
 import {
   CFG,
   FunctionCFG,
   AnalysisState,
   FileAnalysisState,
   AnalysisConfig,
-  ReachingDefinitionsInfo
+  ReachingDefinitionsInfo,
+  TaintLabel,
+  StatementType
 } from '../types';
 
 /**
@@ -334,8 +339,430 @@ export class DataflowAnalyzer {
           }
         });
 
-        console.log(`[IPA] Parameter analysis: ${parameterAnalysis.size} functions`);
-        console.log(`[IPA] Return value analysis: ${returnValueAnalysis.size} functions`);
+        LoggingConfig.log('ParameterAnalysis', `[IPA] Parameter analysis: ${parameterAnalysis.size} functions`);
+        LoggingConfig.log('ReturnValueAnalysis', `[IPA] Return value analysis: ${returnValueAnalysis.size} functions`);
+        
+        // Phase 5: Inter-Procedural Taint Propagation (Task 13)
+        // Run even if taintAnalysis.size is 0, as inter-procedural analysis might create taint
+        LoggingConfig.log('InterProceduralTaint', '[IPA] Checking conditions for inter-procedural taint analysis...');
+        LoggingConfig.log('InterProceduralTaint', `[IPA] enableTaintAnalysis: ${this.config.enableTaintAnalysis}`);
+        LoggingConfig.log('InterProceduralTaint', `[IPA] callGraph exists: ${!!callGraph}`);
+        LoggingConfig.log('InterProceduralTaint', `[IPA] taintAnalysis.size: ${taintAnalysis.size}`);
+        
+        if (this.config.enableTaintAnalysis && callGraph) {
+          try {
+            LoggingConfig.log('InterProceduralTaint', '[IPA] Starting inter-procedural taint analysis...');
+            LoggingConfig.log('InterProceduralTaint', `[IPA] Taint analysis size: ${taintAnalysis.size}`);
+            
+            // Organize intra-procedural taint by function and block
+            const intraProceduralTaint = new Map<string, Map<string, any[]>>();
+            
+            // Initialize with empty maps for all functions (even if no taint yet)
+            cfg.functions.forEach((funcCFG, funcName) => {
+              intraProceduralTaint.set(funcName, new Map());
+            });
+            
+            // Add existing taint data
+            taintAnalysis.forEach((taintInfos, funcName) => {
+              const funcTaint = intraProceduralTaint.get(funcName) || new Map<string, any[]>();
+              
+              // Group taint info by block ID
+              taintInfos.forEach((taintInfo: any) => {
+                const blockId = taintInfo.sourceLocation?.blockId || 'unknown';
+                if (!funcTaint.has(blockId)) {
+                  funcTaint.set(blockId, []);
+                }
+                funcTaint.get(blockId)!.push(taintInfo);
+              });
+              
+              intraProceduralTaint.set(funcName, funcTaint);
+            });
+            
+            LoggingConfig.log('InterProceduralTaint', `[IPA] Organized intra-procedural taint for ${intraProceduralTaint.size} functions`);
+            
+            // Run inter-procedural taint analysis
+            const ipTaintAnalyzer = new InterProceduralTaintAnalyzer(
+              callGraph,
+              cfg.functions,
+              intraProceduralTaint
+            );
+            
+            const interProceduralTaintResult = ipTaintAnalyzer.analyze();
+            
+            // Merge inter-procedural taint results back into taintAnalysis
+            const functionsWithNewTaint = new Set<string>();
+            interProceduralTaintResult.forEach((blockTaint, funcName) => {
+              const allTaint = Array.from(blockTaint.values()).flat();
+              if (allTaint.length > 0) {
+                // Merge with existing taint (avoid duplicates)
+                const existingTaint = taintAnalysis.get(funcName) || [];
+                const existingSources = new Set(existingTaint.map((t: any) => `${t.variable}:${t.source}`));
+                
+                const newTaint = allTaint.filter((t: any) => 
+                  !existingSources.has(`${t.variable}:${t.source}`)
+                );
+                
+                if (newTaint.length > 0) {
+                  taintAnalysis.set(funcName, [...existingTaint, ...newTaint]);
+                  functionsWithNewTaint.add(funcName);
+                  LoggingConfig.log('InterProceduralTaint', `[IPA] Added ${newTaint.length} inter-procedural taint entries for ${funcName}`);
+                }
+              }
+            });
+            
+            // CRITICAL FIX: Re-run taint propagation for functions that received new parameter taint
+            // This ensures taint propagates from parameters (e.g., n) to derived variables (e.g., result1 = n - 1)
+            if (functionsWithNewTaint.size > 0) {
+              LoggingConfig.log('InterProceduralTaint', `[IPA] Re-running taint propagation for ${functionsWithNewTaint.size} functions with new parameter taint`);
+              
+              functionsWithNewTaint.forEach((funcName) => {
+                const funcCFG = cfg.functions.get(funcName);
+                if (!funcCFG) return;
+                
+                const currentTaint = taintAnalysis.get(funcName) || [];
+                const parameterTaint = currentTaint.filter((t: any) => t.source?.startsWith('parameter:'));
+                const returnValueTaint = currentTaint.filter((t: any) => 
+                  t.source?.startsWith('return_value:') || t.variable?.startsWith('return_')
+                );
+                
+                if (parameterTaint.length > 0) {
+                  LoggingConfig.log('InterProceduralTaint', `[IPA] Re-propagating taint from ${parameterTaint.length} parameter(s) in ${funcName}`);
+                  
+                  // For each parameter taint, propagate to variables that use it
+                  parameterTaint.forEach((paramTaint: any) => {
+                    const paramVar = paramTaint.variable;
+                    
+                    // Find all statements that use this parameter
+                    funcCFG.blocks.forEach((block, blockId) => {
+                      block.statements.forEach(stmt => {
+                        if (stmt.variables?.used.includes(paramVar)) {
+                          // If used in assignment, propagate taint to defined variables
+                          if (stmt.variables.defined.length > 0) {
+                            stmt.variables.defined.forEach(targetVar => {
+                              const existingTaint = currentTaint.find(
+                                (t: any) => t.source === paramTaint.source && t.variable === targetVar
+                              );
+                              
+                              if (!existingTaint) {
+                                const derivedTaint = {
+                                  ...paramTaint,
+                                  variable: targetVar,
+                                  propagationPath: [...(paramTaint.propagationPath || []), `${funcName}:B${blockId}`],
+                                  sourceLocation: {
+                                    blockId,
+                                    statementId: stmt.id || 'unknown'
+                                  },
+                                  labels: [TaintLabel.DERIVED]
+                                };
+                                
+                                currentTaint.push(derivedTaint);
+                                LoggingConfig.log('InterProceduralTaint', `[IPA] Propagated taint from ${paramVar} to ${targetVar} in ${funcName}`);
+                              }
+                            });
+                          }
+                        }
+                      });
+                    });
+                  });
+                  
+                  // Also propagate taint from return values to variables that receive them
+                  // This handles cases like: result4 = helper_function(n - 1) or int result4 = helper_function(n - 1)
+                  // Note: returnValueTaint is already defined above
+                  if (returnValueTaint.length > 0) {
+                    LoggingConfig.log('InterProceduralTaint', `[IPA] Re-propagating taint from ${returnValueTaint.length} return value(s) in ${funcName}`);
+                    
+                    returnValueTaint.forEach((returnTaint: any) => {
+                      const returnVar = returnTaint.variable; // e.g., "return_helper_function"
+                      const calleeName = returnVar.replace('return_', ''); // e.g., "helper_function"
+                      
+                      // Find statements that use this return value (function calls that assign to variables)
+                      funcCFG.blocks.forEach((block, blockId) => {
+                        block.statements.forEach(stmt => {
+                          const stmtText = stmt.text || stmt.content || '';
+                          // Check if this statement calls the function whose return value is tainted
+                          if (stmtText.includes(`${calleeName}(`)) {
+                            // Check if statement defines variables (could be DECLARATION or ASSIGNMENT)
+                            if (stmt.variables && stmt.variables.defined && stmt.variables.defined.length > 0) {
+                              // Propagate taint to all defined variables in this statement
+                              stmt.variables.defined.forEach(targetVar => {
+                                const existingTaint = currentTaint.find(
+                                  (t: any) => t.source === returnTaint.source && t.variable === targetVar
+                                );
+                                
+                                if (!existingTaint) {
+                                  const derivedTaint = {
+                                    ...returnTaint,
+                                    variable: targetVar,
+                                    propagationPath: [...(returnTaint.propagationPath || []), `${funcName}:B${blockId}`],
+                                    sourceLocation: {
+                                      blockId,
+                                      statementId: stmt.id || 'unknown'
+                                    },
+                                    labels: [TaintLabel.DERIVED]
+                                  };
+                                  
+                                  currentTaint.push(derivedTaint);
+                                  LoggingConfig.log('InterProceduralTaint', `[IPA] Propagated taint from ${returnVar} to ${targetVar} in ${funcName}`);
+                                }
+                              });
+                            }
+                          }
+                        });
+                      });
+                    });
+                  }
+                  
+                  // CRITICAL FIX: Also propagate taint from variables assigned from return values to other variables
+                  // This handles cases like: result = user_input + 5 - 2 (where user_input was assigned from return value)
+                  // Find all variables that were assigned from return values (e.g., user_input from return_get_user_number)
+                  const assignedFromReturnVars = currentTaint.filter((t: any) => 
+                    t.source?.includes('->') && t.source?.startsWith('return_value:')
+                  ).map((t: any) => t.variable); // e.g., ["user_input", "processed", "fib"]
+                  
+                  if (assignedFromReturnVars.length > 0) {
+                    LoggingConfig.log('InterProceduralTaint', `[IPA] Re-propagating taint from ${assignedFromReturnVars.length} variable(s) assigned from return values in ${funcName}`);
+                    
+                    assignedFromReturnVars.forEach((sourceVar: string) => {
+                      const sourceTaint = currentTaint.find((t: any) => 
+                        t.variable === sourceVar && t.source?.startsWith('return_value:')
+                      );
+                      
+                      if (sourceTaint) {
+                        // Find all statements that use this variable
+                        funcCFG.blocks.forEach((block, blockId) => {
+                          block.statements.forEach(stmt => {
+                            if (stmt.variables && stmt.variables.used && stmt.variables.used.includes(sourceVar)) {
+                              // If used in assignment, propagate taint to defined variables
+                              if (stmt.variables.defined && stmt.variables.defined.length > 0) {
+                                stmt.variables.defined.forEach(targetVar => {
+                                  // CRITICAL FIX: Check if targetVar already has a source (don't overwrite)
+                                  // e.g., processed already has return_value:process_number->processed, don't overwrite with return_value:get_user_number->user_input
+                                  const existingTaint = currentTaint.find(
+                                    (t: any) => t.variable === targetVar
+                                  );
+                                  
+                                  if (!existingTaint) {
+                                    // Only create new taint if targetVar doesn't already have one
+                                    const derivedTaint = {
+                                      ...sourceTaint,
+                                      variable: targetVar,
+                                      propagationPath: [...(sourceTaint.propagationPath || []), `${funcName}:B${blockId}`],
+                                      sourceLocation: {
+                                        blockId,
+                                        statementId: stmt.id || 'unknown'
+                                      },
+                                      labels: [TaintLabel.DERIVED]
+                                    };
+                                    
+                                    currentTaint.push(derivedTaint);
+                                    LoggingConfig.log('InterProceduralTaint', `[IPA] Propagated taint from ${sourceVar} to ${targetVar} in ${funcName}`);
+                                  } else {
+                                    LoggingConfig.log('InterProceduralTaint', `[IPA] Skipping propagation to ${targetVar} - already has source: ${existingTaint.source}`);
+                                  }
+                                });
+                              }
+                            }
+                          });
+                        });
+                      }
+                    });
+                  }
+                  
+                  // Update taintAnalysis with propagated taint (from parameters)
+                  taintAnalysis.set(funcName, currentTaint);
+                  LoggingConfig.log('InterProceduralTaint', `[IPA] Updated ${funcName} with ${currentTaint.length} total taint entries (from parameters)`);
+                }
+                
+                // CRITICAL FIX: Also run re-propagation for functions that ONLY received return value taint (no parameters)
+                // This ensures functions like `main` that receive return values can propagate to derived variables
+                if (parameterTaint.length === 0 && returnValueTaint.length > 0) {
+                  const currentTaint = taintAnalysis.get(funcName) || [];
+                  LoggingConfig.log('InterProceduralTaint', `[IPA] Re-propagating taint from ${returnValueTaint.length} return value(s) in ${funcName} (no parameters)`);
+                  
+                  returnValueTaint.forEach((returnTaint: any) => {
+                    const returnVar = returnTaint.variable; // e.g., "return_helper_function" or "user_input"
+                    const calleeName = returnVar.replace('return_', ''); // e.g., "helper_function" or "user_input" (if not return_)
+                    
+                    // Find statements that use this return value (function calls that assign to variables)
+                    funcCFG.blocks.forEach((block, blockId) => {
+                      block.statements.forEach(stmt => {
+                        const stmtText = stmt.text || stmt.content || '';
+                        // Check if this statement calls the function whose return value is tainted
+                        if (stmtText.includes(`${calleeName}(`)) {
+                          // Check if statement defines variables (could be DECLARATION or ASSIGNMENT)
+                          if (stmt.variables && stmt.variables.defined && stmt.variables.defined.length > 0) {
+                            // Propagate taint to all defined variables in this statement
+                            stmt.variables.defined.forEach(targetVar => {
+                              const existingTaint = currentTaint.find(
+                                (t: any) => t.source === returnTaint.source && t.variable === targetVar
+                              );
+                              
+                              if (!existingTaint) {
+                                const derivedTaint = {
+                                  ...returnTaint,
+                                  variable: targetVar,
+                                  propagationPath: [...(returnTaint.propagationPath || []), `${funcName}:B${blockId}`],
+                                  sourceLocation: {
+                                    blockId,
+                                    statementId: stmt.id || 'unknown'
+                                  },
+                                  labels: [TaintLabel.DERIVED]
+                                };
+                                
+                                currentTaint.push(derivedTaint);
+                                LoggingConfig.log('InterProceduralTaint', `[IPA] Propagated taint from ${returnVar} to ${targetVar} in ${funcName}`);
+                              }
+                            });
+                          }
+                        }
+                      });
+                    });
+                  });
+                  
+                  // Also propagate from variables assigned from return values
+                  const assignedFromReturnVars = currentTaint.filter((t: any) => 
+                    t.source?.includes('->') && t.source?.startsWith('return_value:')
+                  ).map((t: any) => t.variable); // e.g., ["user_input", "processed", "fib"]
+                  
+                  if (assignedFromReturnVars.length > 0) {
+                    LoggingConfig.log('InterProceduralTaint', `[IPA] Re-propagating taint from ${assignedFromReturnVars.length} variable(s) assigned from return values in ${funcName}`);
+                    
+                    assignedFromReturnVars.forEach((sourceVar: string) => {
+                      const sourceTaint = currentTaint.find((t: any) => 
+                        t.variable === sourceVar && t.source?.startsWith('return_value:')
+                      );
+                      
+                      if (sourceTaint) {
+                        // Find all statements that use this variable
+                        funcCFG.blocks.forEach((block, blockId) => {
+                          block.statements.forEach(stmt => {
+                            if (stmt.variables && stmt.variables.used && stmt.variables.used.includes(sourceVar)) {
+                              // If used in assignment, propagate taint to defined variables
+                              if (stmt.variables.defined && stmt.variables.defined.length > 0) {
+                                stmt.variables.defined.forEach(targetVar => {
+                                  // CRITICAL FIX: Check if targetVar already has a source (don't overwrite)
+                                  // e.g., processed already has return_value:process_number->processed, don't overwrite with return_value:get_user_number->user_input
+                                  const existingTaint = currentTaint.find(
+                                    (t: any) => t.variable === targetVar
+                                  );
+                                  
+                                  if (!existingTaint) {
+                                    // Only create new taint if targetVar doesn't already have one
+                                    const derivedTaint = {
+                                      ...sourceTaint,
+                                      variable: targetVar,
+                                      propagationPath: [...(sourceTaint.propagationPath || []), `${funcName}:B${blockId}`],
+                                      sourceLocation: {
+                                        blockId,
+                                        statementId: stmt.id || 'unknown'
+                                      },
+                                      labels: [TaintLabel.DERIVED]
+                                    };
+                                    
+                                    currentTaint.push(derivedTaint);
+                                    LoggingConfig.log('InterProceduralTaint', `[IPA] Propagated taint from ${sourceVar} to ${targetVar} in ${funcName}`);
+                                  } else {
+                                    LoggingConfig.log('InterProceduralTaint', `[IPA] Skipping propagation to ${targetVar} - already has source: ${existingTaint.source}`);
+                                  }
+                                });
+                              }
+                            }
+                          });
+                        });
+                      }
+                    });
+                  }
+                  
+                  // Update taintAnalysis with propagated taint (from return values only)
+                  taintAnalysis.set(funcName, currentTaint);
+                  LoggingConfig.log('InterProceduralTaint', `[IPA] Updated ${funcName} with ${currentTaint.length} total taint entries (from return values)`);
+                }
+              });
+            }
+            
+            LoggingConfig.log('InterProceduralTaint', '[IPA] Inter-procedural taint analysis complete');
+            LoggingConfig.log('InterProceduralTaint', `[IPA] Final taint analysis size after inter-procedural: ${taintAnalysis.size}`);
+            
+            // Phase 6: Context-Sensitive Taint Analysis (Task 14)
+            if (this.config.enableTaintAnalysis && callGraph) {
+              try {
+                LoggingConfig.log('ContextSensitiveTaint', '[IPA] Starting context-sensitive taint analysis...');
+                
+                // Organize intra-procedural taint by function and block for context-sensitive analysis
+                const intraProceduralTaintForContext = new Map<string, Map<string, any[]>>();
+                
+                // Initialize with empty maps for all functions
+                cfg.functions.forEach((funcCFG, funcName) => {
+                  intraProceduralTaintForContext.set(funcName, new Map());
+                });
+                
+                // Add existing taint data
+                taintAnalysis.forEach((taintInfos, funcName) => {
+                  const funcTaint = intraProceduralTaintForContext.get(funcName) || new Map<string, any[]>();
+                  
+                  taintInfos.forEach((taintInfo: any) => {
+                    const blockId = taintInfo.sourceLocation?.blockId || 'unknown';
+                    if (!funcTaint.has(blockId)) {
+                      funcTaint.set(blockId, []);
+                    }
+                    funcTaint.get(blockId)!.push(taintInfo);
+                  });
+                  
+                  intraProceduralTaintForContext.set(funcName, funcTaint);
+                });
+                
+                // Run context-sensitive taint analysis
+                const { ContextSensitiveTaintAnalyzer } = await import('./ContextSensitiveTaintAnalyzer');
+                const contextSensitiveAnalyzer = new ContextSensitiveTaintAnalyzer(
+                  callGraph,
+                  cfg.functions,
+                  intraProceduralTaintForContext,
+                  2 // k=2 context size
+                );
+                
+                const contextSensitiveTaintResult = contextSensitiveAnalyzer.analyze();
+                
+                // Merge context-sensitive taint results back into taintAnalysis
+                contextSensitiveTaintResult.forEach((blockTaint, funcName) => {
+                  const allTaint = Array.from(blockTaint.values()).flat();
+                  if (allTaint.length > 0) {
+                    const existingTaint = taintAnalysis.get(funcName) || [];
+                    const existingSources = new Set(existingTaint.map((t: any) => 
+                      `${t.variable}:${t.source}:${t.sourceFunction || ''}`
+                    ));
+                    
+                    const newTaint = allTaint.filter((t: any) => 
+                      !existingSources.has(`${t.variable}:${t.source}:${t.sourceFunction || ''}`)
+                    );
+                    
+                    if (newTaint.length > 0) {
+                      taintAnalysis.set(funcName, [...existingTaint, ...newTaint]);
+                      LoggingConfig.log('ContextSensitiveTaint', `[IPA] Added ${newTaint.length} context-sensitive taint entries for ${funcName}`);
+                    }
+                  }
+                });
+                
+                LoggingConfig.log('ContextSensitiveTaint', '[IPA] Context-sensitive taint analysis complete');
+                LoggingConfig.log('ContextSensitiveTaint', `[IPA] Final taint analysis size after context-sensitive: ${taintAnalysis.size}`);
+              } catch (error) {
+                LoggingConfig.error('ContextSensitiveTaint', 'Error during context-sensitive taint analysis:', error);
+                LoggingConfig.error('ContextSensitiveTaint', 'Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+                // Continue without context-sensitive taint if it fails
+              }
+            }
+          } catch (error) {
+            LoggingConfig.error('InterProceduralTaint', 'Error during inter-procedural taint analysis:', error);
+            LoggingConfig.error('InterProceduralTaint', 'Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+            // Continue without inter-procedural taint if it fails
+          }
+        } else {
+          LoggingConfig.log('InterProceduralTaint', '[IPA] Inter-procedural taint analysis skipped:', {
+            enableTaintAnalysis: this.config.enableTaintAnalysis,
+            hasCallGraph: !!callGraph,
+            taintAnalysisSize: taintAnalysis.size,
+            reason: !this.config.enableTaintAnalysis ? 'enableTaintAnalysis is false' : !callGraph ? 'callGraph is missing' : 'unknown'
+          });
+        }
       } catch (error) {
         console.error('[IPA] Error during inter-procedural analysis:', error);
         // Continue without IPA if it fails
@@ -358,6 +785,17 @@ export class DataflowAnalyzer {
       parameterAnalysis: parameterAnalysis.size > 0 ? parameterAnalysis : undefined,
       returnValueAnalysis: returnValueAnalysis.size > 0 ? returnValueAnalysis : undefined
     };
+
+    // Prepare all visualization data in backend (before saving state)
+    console.log('[DataflowAnalyzer] Preparing all visualization data in backend...');
+    try {
+      const visualizationData = await CFGVisualizer.prepareAllVisualizationData(this.currentState);
+      this.currentState.visualizationData = visualizationData;
+      console.log('[DataflowAnalyzer] Visualization data prepared successfully');
+    } catch (error) {
+      console.error('[DataflowAnalyzer] Error preparing visualization data:', error);
+      // Continue without visualization data if preparation fails
+    }
 
     // Save state
     this.stateManager.saveState(this.currentState);
@@ -438,7 +876,7 @@ export class DataflowAnalyzer {
           }
         });
         
-        console.log(`[DataflowAnalyzer] Taint analysis for ${funcName}: collected RD info for ${funcRD.size} blocks`);
+        LoggingConfig.log('TaintAnalysis', `[DataflowAnalyzer] Taint analysis for ${funcName}: collected RD info for ${funcRD.size} blocks`);
         const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
         taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
         
@@ -554,10 +992,432 @@ export class DataflowAnalyzer {
           }
         });
 
-        console.log(`[IPA] Parameter analysis: ${parameterAnalysis.size} functions`);
-        console.log(`[IPA] Return value analysis: ${returnValueAnalysis.size} functions`);
+        LoggingConfig.log('ParameterAnalysis', `[IPA] Parameter analysis: ${parameterAnalysis.size} functions`);
+        LoggingConfig.log('ReturnValueAnalysis', `[IPA] Return value analysis: ${returnValueAnalysis.size} functions`);
+        
+        // Phase 5: Inter-Procedural Taint Propagation (Task 13)
+        // Run even if taintAnalysis.size is 0, as inter-procedural analysis might create taint
+        LoggingConfig.log('InterProceduralTaint', '[IPA] Checking conditions for inter-procedural taint analysis...');
+        LoggingConfig.log('InterProceduralTaint', `[IPA] enableTaintAnalysis: ${this.config.enableTaintAnalysis}`);
+        LoggingConfig.log('InterProceduralTaint', `[IPA] callGraph exists: ${!!callGraph}`);
+        LoggingConfig.log('InterProceduralTaint', `[IPA] taintAnalysis.size: ${taintAnalysis.size}`);
+        
+        if (this.config.enableTaintAnalysis && callGraph) {
+          try {
+            LoggingConfig.log('InterProceduralTaint', '[IPA] Starting inter-procedural taint analysis...');
+            LoggingConfig.log('InterProceduralTaint', `[IPA] Taint analysis size: ${taintAnalysis.size}`);
+            
+            // Organize intra-procedural taint by function and block
+            const intraProceduralTaint = new Map<string, Map<string, any[]>>();
+            
+            // Initialize with empty maps for all functions (even if no taint yet)
+            cfg.functions.forEach((funcCFG, funcName) => {
+              intraProceduralTaint.set(funcName, new Map());
+            });
+            
+            // Add existing taint data
+            taintAnalysis.forEach((taintInfos, funcName) => {
+              const funcTaint = intraProceduralTaint.get(funcName) || new Map<string, any[]>();
+              
+              // Group taint info by block ID
+              taintInfos.forEach((taintInfo: any) => {
+                const blockId = taintInfo.sourceLocation?.blockId || 'unknown';
+                if (!funcTaint.has(blockId)) {
+                  funcTaint.set(blockId, []);
+                }
+                funcTaint.get(blockId)!.push(taintInfo);
+              });
+              
+              intraProceduralTaint.set(funcName, funcTaint);
+            });
+            
+            LoggingConfig.log('InterProceduralTaint', `[IPA] Organized intra-procedural taint for ${intraProceduralTaint.size} functions`);
+            
+            // Run inter-procedural taint analysis
+            const ipTaintAnalyzer = new InterProceduralTaintAnalyzer(
+              callGraph,
+              cfg.functions,
+              intraProceduralTaint
+            );
+            
+            const interProceduralTaintResult = ipTaintAnalyzer.analyze();
+            
+            // Merge inter-procedural taint results back into taintAnalysis
+            const functionsWithNewTaint = new Set<string>();
+            interProceduralTaintResult.forEach((blockTaint, funcName) => {
+              const allTaint = Array.from(blockTaint.values()).flat();
+              if (allTaint.length > 0) {
+                // Merge with existing taint (avoid duplicates)
+                const existingTaint = taintAnalysis.get(funcName) || [];
+                const existingSources = new Set(existingTaint.map((t: any) => `${t.variable}:${t.source}`));
+                
+                const newTaint = allTaint.filter((t: any) => 
+                  !existingSources.has(`${t.variable}:${t.source}`)
+                );
+                
+                if (newTaint.length > 0) {
+                  taintAnalysis.set(funcName, [...existingTaint, ...newTaint]);
+                  functionsWithNewTaint.add(funcName);
+                  LoggingConfig.log('InterProceduralTaint', `[IPA] Added ${newTaint.length} inter-procedural taint entries for ${funcName}`);
+                }
+              }
+            });
+            
+            // CRITICAL FIX: Re-run taint propagation for functions that received new parameter taint
+            // This ensures taint propagates from parameters (e.g., n) to derived variables (e.g., result1 = n - 1)
+            if (functionsWithNewTaint.size > 0) {
+              LoggingConfig.log('InterProceduralTaint', `[IPA] Re-running taint propagation for ${functionsWithNewTaint.size} functions with new parameter taint`);
+              
+              functionsWithNewTaint.forEach((funcName) => {
+                const funcCFG = cfg.functions.get(funcName);
+                if (!funcCFG) return;
+                
+                const currentTaint = taintAnalysis.get(funcName) || [];
+                const parameterTaint = currentTaint.filter((t: any) => t.source?.startsWith('parameter:'));
+                const returnValueTaint = currentTaint.filter((t: any) => 
+                  t.source?.startsWith('return_value:') || t.variable?.startsWith('return_')
+                );
+                
+                if (parameterTaint.length > 0) {
+                  LoggingConfig.log('InterProceduralTaint', `[IPA] Re-propagating taint from ${parameterTaint.length} parameter(s) in ${funcName}`);
+                  
+                  // For each parameter taint, propagate to variables that use it
+                  parameterTaint.forEach((paramTaint: any) => {
+                    const paramVar = paramTaint.variable;
+                    
+                    // Find all statements that use this parameter
+                    funcCFG.blocks.forEach((block, blockId) => {
+                      block.statements.forEach(stmt => {
+                        if (stmt.variables?.used.includes(paramVar)) {
+                          // If used in assignment, propagate taint to defined variables
+                          if (stmt.variables.defined.length > 0) {
+                            stmt.variables.defined.forEach(targetVar => {
+                              const existingTaint = currentTaint.find(
+                                (t: any) => t.source === paramTaint.source && t.variable === targetVar
+                              );
+                              
+                              if (!existingTaint) {
+                                const derivedTaint = {
+                                  ...paramTaint,
+                                  variable: targetVar,
+                                  propagationPath: [...(paramTaint.propagationPath || []), `${funcName}:B${blockId}`],
+                                  sourceLocation: {
+                                    blockId,
+                                    statementId: stmt.id || 'unknown'
+                                  },
+                                  labels: [TaintLabel.DERIVED]
+                                };
+                                
+                                currentTaint.push(derivedTaint);
+                                LoggingConfig.log('InterProceduralTaint', `[IPA] Propagated taint from ${paramVar} to ${targetVar} in ${funcName}`);
+                              }
+                            });
+                          }
+                        }
+                      });
+                    });
+                  });
+                  
+                  // Also propagate taint from return values to variables that receive them
+                  // This handles cases like: result4 = helper_function(n - 1) or int result4 = helper_function(n - 1)
+                  // Note: returnValueTaint is already defined above
+                  if (returnValueTaint.length > 0) {
+                    LoggingConfig.log('InterProceduralTaint', `[IPA] Re-propagating taint from ${returnValueTaint.length} return value(s) in ${funcName}`);
+                    
+                    returnValueTaint.forEach((returnTaint: any) => {
+                      const returnVar = returnTaint.variable; // e.g., "return_helper_function"
+                      const calleeName = returnVar.replace('return_', ''); // e.g., "helper_function"
+                      
+                      // Find statements that use this return value (function calls that assign to variables)
+                      funcCFG.blocks.forEach((block, blockId) => {
+                        block.statements.forEach(stmt => {
+                          const stmtText = stmt.text || stmt.content || '';
+                          // Check if this statement calls the function whose return value is tainted
+                          if (stmtText.includes(`${calleeName}(`)) {
+                            // Check if statement defines variables (could be DECLARATION or ASSIGNMENT)
+                            if (stmt.variables && stmt.variables.defined && stmt.variables.defined.length > 0) {
+                              // Propagate taint to all defined variables in this statement
+                              stmt.variables.defined.forEach(targetVar => {
+                                const existingTaint = currentTaint.find(
+                                  (t: any) => t.source === returnTaint.source && t.variable === targetVar
+                                );
+                                
+                                if (!existingTaint) {
+                                  const derivedTaint = {
+                                    ...returnTaint,
+                                    variable: targetVar,
+                                    propagationPath: [...(returnTaint.propagationPath || []), `${funcName}:B${blockId}`],
+                                    sourceLocation: {
+                                      blockId,
+                                      statementId: stmt.id || 'unknown'
+                                    },
+                                    labels: [TaintLabel.DERIVED]
+                                  };
+                                  
+                                  currentTaint.push(derivedTaint);
+                                  LoggingConfig.log('InterProceduralTaint', `[IPA] Propagated taint from ${returnVar} to ${targetVar} in ${funcName}`);
+                                }
+                              });
+                            }
+                          }
+                        });
+                      });
+                    });
+                  }
+                  
+                  // CRITICAL FIX: Also propagate taint from variables assigned from return values to other variables
+                  // This handles cases like: result = user_input + 5 - 2 (where user_input was assigned from return value)
+                  // Find all variables that were assigned from return values (e.g., user_input from return_get_user_number)
+                  const assignedFromReturnVars = currentTaint.filter((t: any) => 
+                    t.source?.includes('->') && t.source?.startsWith('return_value:')
+                  ).map((t: any) => t.variable); // e.g., ["user_input", "processed", "fib"]
+                  
+                  if (assignedFromReturnVars.length > 0) {
+                    LoggingConfig.log('InterProceduralTaint', `[IPA] Re-propagating taint from ${assignedFromReturnVars.length} variable(s) assigned from return values in ${funcName}`);
+                    
+                    assignedFromReturnVars.forEach((sourceVar: string) => {
+                      const sourceTaint = currentTaint.find((t: any) => 
+                        t.variable === sourceVar && t.source?.startsWith('return_value:')
+                      );
+                      
+                      if (sourceTaint) {
+                        // Find all statements that use this variable
+                        funcCFG.blocks.forEach((block, blockId) => {
+                          block.statements.forEach(stmt => {
+                            if (stmt.variables && stmt.variables.used && stmt.variables.used.includes(sourceVar)) {
+                              // If used in assignment, propagate taint to defined variables
+                              if (stmt.variables.defined && stmt.variables.defined.length > 0) {
+                                stmt.variables.defined.forEach(targetVar => {
+                                  // CRITICAL FIX: Check if targetVar already has a source (don't overwrite)
+                                  // e.g., processed already has return_value:process_number->processed, don't overwrite with return_value:get_user_number->user_input
+                                  const existingTaint = currentTaint.find(
+                                    (t: any) => t.variable === targetVar
+                                  );
+                                  
+                                  if (!existingTaint) {
+                                    // Only create new taint if targetVar doesn't already have one
+                                    const derivedTaint = {
+                                      ...sourceTaint,
+                                      variable: targetVar,
+                                      propagationPath: [...(sourceTaint.propagationPath || []), `${funcName}:B${blockId}`],
+                                      sourceLocation: {
+                                        blockId,
+                                        statementId: stmt.id || 'unknown'
+                                      },
+                                      labels: [TaintLabel.DERIVED]
+                                    };
+                                    
+                                    currentTaint.push(derivedTaint);
+                                    LoggingConfig.log('InterProceduralTaint', `[IPA] Propagated taint from ${sourceVar} to ${targetVar} in ${funcName}`);
+                                  } else {
+                                    LoggingConfig.log('InterProceduralTaint', `[IPA] Skipping propagation to ${targetVar} - already has source: ${existingTaint.source}`);
+                                  }
+                                });
+                              }
+                            }
+                          });
+                        });
+                      }
+                    });
+                  }
+                  
+                  // Update taintAnalysis with propagated taint (from parameters)
+                  taintAnalysis.set(funcName, currentTaint);
+                  LoggingConfig.log('InterProceduralTaint', `[IPA] Updated ${funcName} with ${currentTaint.length} total taint entries (from parameters)`);
+                }
+                
+                // CRITICAL FIX: Also run re-propagation for functions that ONLY received return value taint (no parameters)
+                // This ensures functions like `main` that receive return values can propagate to derived variables
+                if (parameterTaint.length === 0 && returnValueTaint.length > 0) {
+                  const currentTaint = taintAnalysis.get(funcName) || [];
+                  LoggingConfig.log('InterProceduralTaint', `[IPA] Re-propagating taint from ${returnValueTaint.length} return value(s) in ${funcName} (no parameters)`);
+                  
+                  returnValueTaint.forEach((returnTaint: any) => {
+                    const returnVar = returnTaint.variable; // e.g., "return_helper_function" or "user_input"
+                    const calleeName = returnVar.replace('return_', ''); // e.g., "helper_function" or "user_input" (if not return_)
+                    
+                    // Find statements that use this return value (function calls that assign to variables)
+                    funcCFG.blocks.forEach((block, blockId) => {
+                      block.statements.forEach(stmt => {
+                        const stmtText = stmt.text || stmt.content || '';
+                        // Check if this statement calls the function whose return value is tainted
+                        if (stmtText.includes(`${calleeName}(`)) {
+                          // Check if statement defines variables (could be DECLARATION or ASSIGNMENT)
+                          if (stmt.variables && stmt.variables.defined && stmt.variables.defined.length > 0) {
+                            // Propagate taint to all defined variables in this statement
+                            stmt.variables.defined.forEach(targetVar => {
+                              const existingTaint = currentTaint.find(
+                                (t: any) => t.source === returnTaint.source && t.variable === targetVar
+                              );
+                              
+                              if (!existingTaint) {
+                                const derivedTaint = {
+                                  ...returnTaint,
+                                  variable: targetVar,
+                                  propagationPath: [...(returnTaint.propagationPath || []), `${funcName}:B${blockId}`],
+                                  sourceLocation: {
+                                    blockId,
+                                    statementId: stmt.id || 'unknown'
+                                  },
+                                  labels: [TaintLabel.DERIVED]
+                                };
+                                
+                                currentTaint.push(derivedTaint);
+                                LoggingConfig.log('InterProceduralTaint', `[IPA] Propagated taint from ${returnVar} to ${targetVar} in ${funcName}`);
+                              }
+                            });
+                          }
+                        }
+                      });
+                    });
+                  });
+                  
+                  // Also propagate from variables assigned from return values
+                  const assignedFromReturnVars = currentTaint.filter((t: any) => 
+                    t.source?.includes('->') && t.source?.startsWith('return_value:')
+                  ).map((t: any) => t.variable); // e.g., ["user_input", "processed", "fib"]
+                  
+                  if (assignedFromReturnVars.length > 0) {
+                    LoggingConfig.log('InterProceduralTaint', `[IPA] Re-propagating taint from ${assignedFromReturnVars.length} variable(s) assigned from return values in ${funcName}`);
+                    
+                    assignedFromReturnVars.forEach((sourceVar: string) => {
+                      const sourceTaint = currentTaint.find((t: any) => 
+                        t.variable === sourceVar && t.source?.startsWith('return_value:')
+                      );
+                      
+                      if (sourceTaint) {
+                        // Find all statements that use this variable
+                        funcCFG.blocks.forEach((block, blockId) => {
+                          block.statements.forEach(stmt => {
+                            if (stmt.variables && stmt.variables.used && stmt.variables.used.includes(sourceVar)) {
+                              // If used in assignment, propagate taint to defined variables
+                              if (stmt.variables.defined && stmt.variables.defined.length > 0) {
+                                stmt.variables.defined.forEach(targetVar => {
+                                  // CRITICAL FIX: Check if targetVar already has a source (don't overwrite)
+                                  // e.g., processed already has return_value:process_number->processed, don't overwrite with return_value:get_user_number->user_input
+                                  const existingTaint = currentTaint.find(
+                                    (t: any) => t.variable === targetVar
+                                  );
+                                  
+                                  if (!existingTaint) {
+                                    // Only create new taint if targetVar doesn't already have one
+                                    const derivedTaint = {
+                                      ...sourceTaint,
+                                      variable: targetVar,
+                                      propagationPath: [...(sourceTaint.propagationPath || []), `${funcName}:B${blockId}`],
+                                      sourceLocation: {
+                                        blockId,
+                                        statementId: stmt.id || 'unknown'
+                                      },
+                                      labels: [TaintLabel.DERIVED]
+                                    };
+                                    
+                                    currentTaint.push(derivedTaint);
+                                    LoggingConfig.log('InterProceduralTaint', `[IPA] Propagated taint from ${sourceVar} to ${targetVar} in ${funcName}`);
+                                  } else {
+                                    LoggingConfig.log('InterProceduralTaint', `[IPA] Skipping propagation to ${targetVar} - already has source: ${existingTaint.source}`);
+                                  }
+                                });
+                              }
+                            }
+                          });
+                        });
+                      }
+                    });
+                  }
+                  
+                  // Update taintAnalysis with propagated taint (from return values only)
+                  taintAnalysis.set(funcName, currentTaint);
+                  LoggingConfig.log('InterProceduralTaint', `[IPA] Updated ${funcName} with ${currentTaint.length} total taint entries (from return values)`);
+                }
+              });
+            }
+            
+            LoggingConfig.log('InterProceduralTaint', '[IPA] Inter-procedural taint analysis complete');
+            LoggingConfig.log('InterProceduralTaint', `[IPA] Final taint analysis size after inter-procedural: ${taintAnalysis.size}`);
+            
+            // Phase 6: Context-Sensitive Taint Analysis (Task 14)
+            if (this.config.enableTaintAnalysis && callGraph) {
+              try {
+                LoggingConfig.log('ContextSensitiveTaint', '[IPA] Starting context-sensitive taint analysis...');
+                
+                // Organize intra-procedural taint by function and block for context-sensitive analysis
+                const intraProceduralTaintForContext = new Map<string, Map<string, any[]>>();
+                
+                // Initialize with empty maps for all functions
+                cfg.functions.forEach((funcCFG, funcName) => {
+                  intraProceduralTaintForContext.set(funcName, new Map());
+                });
+                
+                // Add existing taint data
+                taintAnalysis.forEach((taintInfos, funcName) => {
+                  const funcTaint = intraProceduralTaintForContext.get(funcName) || new Map<string, any[]>();
+                  
+                  taintInfos.forEach((taintInfo: any) => {
+                    const blockId = taintInfo.sourceLocation?.blockId || 'unknown';
+                    if (!funcTaint.has(blockId)) {
+                      funcTaint.set(blockId, []);
+                    }
+                    funcTaint.get(blockId)!.push(taintInfo);
+                  });
+                  
+                  intraProceduralTaintForContext.set(funcName, funcTaint);
+                });
+                
+                // Run context-sensitive taint analysis
+                const { ContextSensitiveTaintAnalyzer } = await import('./ContextSensitiveTaintAnalyzer');
+                const contextSensitiveAnalyzer = new ContextSensitiveTaintAnalyzer(
+                  callGraph,
+                  cfg.functions,
+                  intraProceduralTaintForContext,
+                  2 // k=2 context size
+                );
+                
+                const contextSensitiveTaintResult = contextSensitiveAnalyzer.analyze();
+                
+                // Merge context-sensitive taint results back into taintAnalysis
+                contextSensitiveTaintResult.forEach((blockTaint, funcName) => {
+                  const allTaint = Array.from(blockTaint.values()).flat();
+                  if (allTaint.length > 0) {
+                    const existingTaint = taintAnalysis.get(funcName) || [];
+                    const existingSources = new Set(existingTaint.map((t: any) => 
+                      `${t.variable}:${t.source}:${t.sourceFunction || ''}`
+                    ));
+                    
+                    const newTaint = allTaint.filter((t: any) => 
+                      !existingSources.has(`${t.variable}:${t.source}:${t.sourceFunction || ''}`)
+                    );
+                    
+                    if (newTaint.length > 0) {
+                      taintAnalysis.set(funcName, [...existingTaint, ...newTaint]);
+                      LoggingConfig.log('ContextSensitiveTaint', `[IPA] Added ${newTaint.length} context-sensitive taint entries for ${funcName}`);
+                    }
+                  }
+                });
+                
+                LoggingConfig.log('ContextSensitiveTaint', '[IPA] Context-sensitive taint analysis complete');
+                LoggingConfig.log('ContextSensitiveTaint', `[IPA] Final taint analysis size after context-sensitive: ${taintAnalysis.size}`);
       } catch (error) {
-        console.error('[IPA] Error during inter-procedural analysis:', error);
+                LoggingConfig.error('ContextSensitiveTaint', 'Error during context-sensitive taint analysis:', error);
+                LoggingConfig.error('ContextSensitiveTaint', 'Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+                // Continue without context-sensitive taint if it fails
+              }
+            }
+          } catch (error) {
+            LoggingConfig.error('InterProceduralTaint', 'Error during inter-procedural taint analysis:', error);
+            LoggingConfig.error('InterProceduralTaint', 'Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+            // Continue without inter-procedural taint if it fails
+          }
+        } else {
+          LoggingConfig.log('InterProceduralTaint', '[IPA] Inter-procedural taint analysis skipped:', {
+            enableTaintAnalysis: this.config.enableTaintAnalysis,
+            hasCallGraph: !!callGraph,
+            taintAnalysisSize: taintAnalysis.size,
+            reason: !this.config.enableTaintAnalysis ? 'enableTaintAnalysis is false' : !callGraph ? 'callGraph is missing' : 'unknown'
+          });
+        }
+      } catch (error) {
+        LoggingConfig.error('DataflowAnalyzer', 'Error during inter-procedural analysis:', error);
         // Continue without IPA if it fails
       }
     }
@@ -577,6 +1437,17 @@ export class DataflowAnalyzer {
       parameterAnalysis: parameterAnalysis.size > 0 ? parameterAnalysis : undefined,
       returnValueAnalysis: returnValueAnalysis.size > 0 ? returnValueAnalysis : undefined
     };
+
+    // Prepare all visualization data in backend (before saving state)
+    console.log('[DataflowAnalyzer] Preparing all visualization data in backend (analyzeSpecificFiles)...');
+    try {
+      const visualizationData = await CFGVisualizer.prepareAllVisualizationData(this.currentState);
+      this.currentState.visualizationData = visualizationData;
+      console.log('[DataflowAnalyzer] Visualization data prepared successfully');
+    } catch (error) {
+      console.error('[DataflowAnalyzer] Error preparing visualization data:', error);
+      // Continue without visualization data if preparation fails
+    }
 
     this.stateManager.saveState(this.currentState);
     return this.currentState;
@@ -812,7 +1683,7 @@ export class DataflowAnalyzer {
           }
         });
         
-        console.log(`[DataflowAnalyzer] Taint analysis for ${funcName}: collected RD info for ${funcRD.size} blocks`);
+        LoggingConfig.log('TaintAnalysis', `[DataflowAnalyzer] Taint analysis for ${funcName}: collected RD info for ${funcRD.size} blocks`);
         const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
         taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
         
@@ -1000,16 +1871,36 @@ export class DataflowAnalyzer {
     
     // STEP 3.5: Handle recovery-expr patterns using FunctionCallExtractor
     // This handles: <recovery-expr>(func, arg1, arg2) -> func(arg1, arg2)
+    // CRITICAL FIX: Preserve declaration part (e.g., "int result4 = ") before recovery-expr
     if (cleanContent.includes('<recovery-expr>')) {
-      const tempStmt = { text: cleanContent };
-      const calls = FunctionCallExtractor.extractFunctionCalls(tempStmt);
-      if (calls.length > 0) {
-        // Reconstruct clean call expression from extracted call
-        const call = calls[0];
-        cleanContent = `${call.name}(${call.arguments.join(', ')})`;
+      // Check if there's a declaration before the recovery-expr (e.g., "int result4 = <recovery-expr>(...)")
+      const declBeforeRecovery = cleanContent.match(/^(.+?)\s*=\s*<recovery-expr>/);
+      if (declBeforeRecovery) {
+        // Extract the declaration part (e.g., "int result4")
+        const declPart = declBeforeRecovery[1].trim();
+        // Extract the recovery-expr part
+        const tempStmt = { text: cleanContent };
+        const calls = FunctionCallExtractor.extractFunctionCalls(tempStmt);
+        if (calls.length > 0) {
+          // Reconstruct: declaration + function call
+          const call = calls[0];
+          cleanContent = `${declPart} = ${call.name}(${call.arguments.join(', ')})`;
+        } else {
+          // Fallback: simple recovery-expr removal but preserve declaration
+          cleanContent = cleanContent.replace(/<recovery-expr>\s*\(([^,]+),\s*(.+)\)/g, (match, func, args) => {
+            return `${declPart} = ${func}(${args})`;
+          });
+        }
       } else {
-        // Fallback: simple recovery-expr removal
-        cleanContent = cleanContent.replace(/<recovery-expr>\s*\(([^,]+),\s*(.+)\)/g, '$1($2)');
+        // No declaration, just replace recovery-expr
+        const tempStmt = { text: cleanContent };
+        const calls = FunctionCallExtractor.extractFunctionCalls(tempStmt);
+        if (calls.length > 0) {
+          const call = calls[0];
+          cleanContent = `${call.name}(${call.arguments.join(', ')})`;
+        } else {
+          cleanContent = cleanContent.replace(/<recovery-expr>\s*\(([^,]+),\s*(.+)\)/g, '$1($2)');
+        }
       }
     }
 

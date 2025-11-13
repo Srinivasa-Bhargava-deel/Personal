@@ -888,9 +888,8 @@ export class ClangASTParser {
           console.log(`  ✓ Function from source: ${node.name || 'unnamed'} at line ${node.loc?.line}`);
         } else {
           otherFileFunctions++;
-          if (otherFileFunctions <= 5) { // Only log first 5 to avoid spam
-            console.log(`  ✗ Function from other file: ${node.name || 'unnamed'} at ${node.loc?.file || 'no location'}:${node.loc?.line || 0}`);
-          }
+          // Log all functions from other files (no limit)
+          console.log(`  ✗ Function from other file: ${node.name || 'unnamed'} at ${node.loc?.file || 'no location'}:${node.loc?.line || 0}`);
         }
       });
       

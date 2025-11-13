@@ -106,7 +106,9 @@ export class ReturnValueAnalyzer {
             returns.push(returnInfo);
             console.log(
               `[RA] Return: ${returnInfo.value} ` +
-              `(${returnInfo.type}) from block ${blockId}`
+              `(${returnInfo.type}) from block ${blockId}, ` +
+              `usedVars: [${returnInfo.usedVariables.join(', ')}], ` +
+              `stmtText: "${stmtText}"`
             );
           }
         }
@@ -129,25 +131,52 @@ export class ReturnValueAnalyzer {
     stmt: Statement,
     blockId: string
   ): ReturnValueInfo | null {
-    const stmtText = stmt.content || stmt.text;
+    const stmtText = (stmt.content || stmt.text || '').trim();
     
-    // Pattern: return expression;
-    const returnMatch = stmtText.match(/return\s+(.+?);?$/);
+    // Pattern: return expression; OR just the expression (if return keyword is in previous statement)
+    // Try multiple patterns to handle different formats
+    let returnMatch = stmtText.match(/return\s+(.+?)\s*;?\s*$/);
+    if (!returnMatch) {
+      // Try without semicolon
+      returnMatch = stmtText.match(/return\s+(.+?)\s*$/);
+    }
+    
+    let returnValue = '';
     
     if (!returnMatch) {
-      // Void return: just "return;"
-      return {
-        value: '',
-        blockId,
-        statementId: stmt.id,
-        type: ReturnValueType.VOID,
-        usedVariables: [],
-        inferredType: 'void',
-        line: stmt.range?.start.line
-      };
+      // Check if this is just the return value expression (without "return" keyword)
+      // This happens when CFG splits "return x;" into two statements
+      // Look for simple variable/expression patterns that might be return values
+      const simpleVarMatch = stmtText.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*$/);
+      if (simpleVarMatch && !stmtText.includes('=') && !stmtText.includes('(') && !stmtText.includes('return')) {
+        // Likely a return value expression - extract it directly
+        returnValue = simpleVarMatch[1];
+        const usedVars: string[] = [returnValue];
+        return {
+          value: returnValue,
+          blockId,
+          statementId: stmt.id,
+          type: ReturnValueType.VARIABLE,
+          usedVariables: usedVars,
+          inferredType: this.inferReturnType(returnValue),
+          line: stmt.range?.start.line
+        };
+      } else {
+        // Void return: just "return;" or empty
+        return {
+          value: '',
+          blockId,
+          statementId: stmt.id,
+          type: ReturnValueType.VOID,
+          usedVariables: [],
+          inferredType: 'void',
+          line: stmt.range?.start.line
+        };
+      }
+    } else {
+      returnValue = returnMatch[1].trim();
     }
 
-    const returnValue = returnMatch[1].trim();
     const usedVars: string[] = [];
     
     // STEP 1: Check for function call

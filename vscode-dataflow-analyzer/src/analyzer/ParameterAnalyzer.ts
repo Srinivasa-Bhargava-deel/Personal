@@ -109,6 +109,11 @@ export class ParameterAnalyzer {
   ): ParameterMapping[] {
     const mappings: ParameterMapping[] = [];
 
+    // Debug logging
+    console.log(`[PA] mapParametersWithDerivation: callee=${call.calleeId}, params=${calleeMetadata.parameters.length}, args=${call.arguments.actual.length}`);
+    console.log(`[PA] Formal params:`, calleeMetadata.parameters.map(p => p.name).join(', '));
+    console.log(`[PA] Actual args:`, call.arguments.actual.join(', '));
+
     // Match parameters by position
     for (let i = 0; i < calleeMetadata.parameters.length && i < call.arguments.actual.length; i++) {
       const formalParam = calleeMetadata.parameters[i];
