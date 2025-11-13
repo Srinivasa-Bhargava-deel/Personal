@@ -3140,9 +3140,6 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
   }
 
   /**
-   * Dispose the visualizer
-   */
-  /**
    * Dispose of all resources
    * 
    * CRITICAL FIX (LOGIC.md #9): Explicitly clear panels Map to prevent memory leaks
