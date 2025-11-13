@@ -179,6 +179,19 @@ export class InterProceduralTaintAnalyzer {
   }
   
   /**
+   * Get inter-procedural taint for a specific function.
+   * 
+   * Public method for accessing taint information by function name.
+   * Used by context-sensitive analysis.
+   * 
+   * @param functionName - Function name
+   * @returns Map from block ID to taint info array, or undefined if function not found
+   */
+  getTaintForFunction(functionName: string): Map<string, TaintInfo[]> | undefined {
+    return this.interProceduralTaint.get(functionName);
+  }
+  
+  /**
    * Perform inter-procedural taint analysis.
    * 
    * Uses a worklist algorithm to propagate taint across function boundaries:

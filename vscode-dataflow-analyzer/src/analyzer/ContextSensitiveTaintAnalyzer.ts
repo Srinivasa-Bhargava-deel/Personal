@@ -29,6 +29,8 @@
 import { FunctionCFG, TaintInfo } from '../types';
 import { CallGraph, FunctionCall } from './CallGraphAnalyzer';
 import { InterProceduralTaintAnalyzer } from './InterProceduralTaintAnalyzer';
+import { ParameterAnalyzer, ArgumentDerivationType } from './ParameterAnalyzer';
+import { ReturnValueAnalyzer, ReturnValueInfo } from './ReturnValueAnalyzer';
 import { LoggingConfig } from '../utils/LoggingConfig';
 
 /**
@@ -124,7 +126,7 @@ export class ContextSensitiveTaintAnalyzer {
    * 
    * @returns Updated taint map with context-sensitive information
    */
-  analyze(): Map<string, Map<string, TaintInfo[]>> {
+  async analyze(): Promise<Map<string, Map<string, TaintInfo[]>>> {
     LoggingConfig.log('ContextSensitiveTaint', '[ContextSensitiveTaint] Starting context-sensitive taint analysis...');
     LoggingConfig.log('ContextSensitiveTaint', `[ContextSensitiveTaint] Context size (k): ${this.contextSize}`);
     
@@ -132,7 +134,7 @@ export class ContextSensitiveTaintAnalyzer {
     const baseTaint = this.interProceduralAnalyzer.analyze();
     
     // Then, enhance with context sensitivity
-    const contextSensitiveTaint = this.enhanceWithContext(baseTaint);
+    const contextSensitiveTaint = await this.enhanceWithContext(baseTaint);
     
     LoggingConfig.log('ContextSensitiveTaint', '[ContextSensitiveTaint] Context-sensitive taint analysis complete');
     
@@ -151,9 +153,9 @@ export class ContextSensitiveTaintAnalyzer {
    * @param baseTaint - Base inter-procedural taint map
    * @returns Context-sensitive taint map
    */
-  private enhanceWithContext(
+  private async enhanceWithContext(
     baseTaint: Map<string, Map<string, TaintInfo[]>>
-  ): Map<string, Map<string, TaintInfo[]>> {
+  ): Promise<Map<string, Map<string, TaintInfo[]>>> {
     const contextSensitiveTaint = new Map<string, Map<string, TaintInfo[]>>();
     
     // Initialize with base taint
@@ -210,14 +212,23 @@ export class ContextSensitiveTaintAnalyzer {
         const callerName: string = foundCaller;
         const calleeName: string = call.calleeId;
         
-        // Build context for this call site
-        const context = this.buildContext([callerName]);
+        // Build context for this call site - track full call stack
+        // CRITICAL FIX: Track call stack through recursive calls for proper k-limited context
+        const existingCallSiteState = this.callSiteStates.get(callSiteId);
+        let callStack = existingCallSiteState?.callStack || [callerName];
+        
+        // Extend call stack with callee (for recursive calls, this creates deeper context)
+        // The k-limit in buildContext() will truncate if needed
+        callStack = [...callStack, calleeName];
+        
+        const context = this.buildContext(callStack);
         const contextId = this.contextId(context);
         
         // Get taint state at this call site
         const callSiteState = this.getCallSiteTaintState(call, callerName, context);
         
-        // Store call site state
+        // Update call site state with new call stack
+        callSiteState.callStack = callStack;
         this.callSiteStates.set(callSiteId, callSiteState);
         
         // Propagate taint to callee with context
@@ -297,6 +308,77 @@ export class ContextSensitiveTaintAnalyzer {
                 }
               });
             });
+            
+            // CRITICAL FIX: Propagate return value taint back to caller
+            // Get callee's return value taint from context-sensitive analysis
+            const calleeTaint = contextSensitiveTaint.get(calleeName);
+            if (calleeTaint) {
+              // Find return statements in callee
+              const calleeCFG = this.cfgFunctions.get(calleeName);
+              if (calleeCFG) {
+                const returnValueAnalyzer = new ReturnValueAnalyzer();
+                const returnInfos = returnValueAnalyzer.analyzeReturns(calleeCFG);
+                
+                // For each return statement, check if return value is tainted
+                returnInfos.forEach((returnInfo: ReturnValueInfo) => {
+                  const returnBlockTaint = calleeTaint.get(returnInfo.blockId) || [];
+                  const entryBlockTaint = calleeCFG.entry !== returnInfo.blockId
+                    ? (calleeTaint.get(calleeCFG.entry) || [])
+                    : [];
+                  const combinedReturnTaint = [...entryBlockTaint, ...returnBlockTaint];
+                  
+                  // Check if variables used in return are tainted
+                  const taintedVarsInReturn = returnInfo.usedVariables.filter((varName: string) =>
+                    combinedReturnTaint.some(taint => taint.variable === varName)
+                  );
+                  
+                  if (taintedVarsInReturn.length > 0) {
+                    // Propagate return value taint back to caller
+                    if (!contextSensitiveTaint.has(callerName)) {
+                      contextSensitiveTaint.set(callerName, new Map());
+                    }
+                    const callerTaint = contextSensitiveTaint.get(callerName)!;
+                    const callerBlockId = call.callSite.blockId;
+                    
+                    if (!callerTaint.has(callerBlockId)) {
+                      callerTaint.set(callerBlockId, []);
+                    }
+                    
+                    const callerBlockTaint = callerTaint.get(callerBlockId)!;
+                    const returnSourceCategory = combinedReturnTaint.find(t =>
+                      taintedVarsInReturn.includes(t.variable)
+                    )?.sourceCategory || 'user_input';
+                    
+                    const returnValueTaint: TaintInfo = {
+                      variable: `return_${calleeName}`,
+                      source: `return_value:${calleeName}`,
+                      tainted: true,
+                      sourceCategory: returnSourceCategory,
+                      taintType: combinedReturnTaint.find(t =>
+                        taintedVarsInReturn.includes(t.variable)
+                      )?.taintType || 'string',
+                      sourceFunction: calleeName,
+                      propagationPath: [...context, calleeName],
+                      sourceLocation: {
+                        blockId: callerBlockId,
+                        statementId: call.callSite.statementId
+                      },
+                      labels: []
+                    };
+                    
+                    const exists = callerBlockTaint.some(t =>
+                      t.variable === returnValueTaint.variable &&
+                      t.source === returnValueTaint.source
+                    );
+                    
+                    if (!exists) {
+                      callerBlockTaint.push(returnValueTaint);
+                      worklist.add(callSiteId); // Re-process if new taint added
+                    }
+                  }
+                });
+              }
+            }
           }
         }
         
@@ -343,16 +425,28 @@ export class ContextSensitiveTaintAnalyzer {
       };
     }
     
-    // Get taint at call site block
-    const callerTaint = this.interProceduralAnalyzer['interProceduralTaint'].get(callerName);
+    // Get taint at call site block using public method
+    const callerTaint = this.interProceduralAnalyzer.getTaintForFunction(callerName);
     const callSiteBlockTaint = callerTaint?.get(call.callSite.blockId) || [];
     
-    // Map argument taint by index
+    // CRITICAL FIX: Also check entry block for parameter taint (like in InterProceduralTaintAnalyzer)
+    const entryBlockTaint = callerCFG.entry !== call.callSite.blockId
+      ? (callerTaint?.get(callerCFG.entry) || [])
+      : [];
+    const combinedCallSiteTaint = [...entryBlockTaint, ...callSiteBlockTaint];
+    
+    // Map argument taint by index using ParameterAnalyzer for proper derivation analysis
     const argumentTaint = new Map<number, TaintInfo[]>();
+    const paramAnalyzer = new ParameterAnalyzer();
+    
     call.arguments.actual.forEach((arg: string, index: number) => {
-      // Check if this argument is tainted
-      const argTaint = callSiteBlockTaint.filter((t: TaintInfo) => 
-        t.variable === arg || arg.includes(t.variable)
+      // Extract variables from argument expression (e.g., "input", "n - 1" -> ["n"])
+      const derivation = paramAnalyzer.analyzeArgumentDerivation(arg);
+      const varsToCheck = new Set<string>([derivation.base, ...derivation.usedVariables]);
+      
+      // Check if any variable in the argument is tainted
+      const argTaint = combinedCallSiteTaint.filter((t: TaintInfo) => 
+        varsToCheck.has(t.variable) || arg.includes(t.variable)
       );
       if (argTaint.length > 0) {
         argumentTaint.set(index, argTaint);

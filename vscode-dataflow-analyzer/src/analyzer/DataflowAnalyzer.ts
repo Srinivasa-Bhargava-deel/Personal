@@ -720,7 +720,7 @@ export class DataflowAnalyzer {
                   2 // k=2 context size
                 );
                 
-                const contextSensitiveTaintResult = contextSensitiveAnalyzer.analyze();
+                const contextSensitiveTaintResult = await contextSensitiveAnalyzer.analyze();
                 
                 // Merge context-sensitive taint results back into taintAnalysis
                 contextSensitiveTaintResult.forEach((blockTaint, funcName) => {
@@ -1373,7 +1373,7 @@ export class DataflowAnalyzer {
                   2 // k=2 context size
                 );
                 
-                const contextSensitiveTaintResult = contextSensitiveAnalyzer.analyze();
+                const contextSensitiveTaintResult = await contextSensitiveAnalyzer.analyze();
                 
                 // Merge context-sensitive taint results back into taintAnalysis
                 contextSensitiveTaintResult.forEach((blockTaint, funcName) => {
