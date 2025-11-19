@@ -65,6 +65,11 @@
  * ALGORITHM:
  * The analyzer follows the academic dataflow analysis theory from
  * "Engineering a Compiler" (Cooper & Torczon) and the "Dragon Book" (Aho, Sethi, Ullman).
+ * 
+ * NEW FEATURES (v1.9.1):
+ * - Enhanced sensitivity tracking in analysis state
+ * - Improved visualization data preparation with sensitivity metadata
+ * - Comprehensive logging for sensitivity verification
  */
 
 import * as vscode from 'vscode';
@@ -92,6 +97,7 @@ import {
   AnalysisConfig,
   ReachingDefinitionsInfo,
   TaintLabel,
+  TaintSensitivity,
   StatementType
 } from '../types';
 
@@ -145,16 +151,45 @@ export class DataflowAnalyzer {
     this.parser = new EnhancedCPPParser();
     this.livenessAnalyzer = new LivenessAnalyzer();
     this.reachingDefinitionsAnalyzer = new ReachingDefinitionsAnalyzer();
-    this.taintAnalyzer = new TaintAnalyzer();
+    this.taintAnalyzer = new TaintAnalyzer(
+      undefined,  // sourceRegistry
+      undefined,  // sinkRegistry
+      undefined,  // sanitizationRegistry
+      config.taintSensitivity || TaintSensitivity.PRECISE  // NEW: pass sensitivity
+    );
     this.securityAnalyzer = new SecurityAnalyzer();
     this.stateManager = new StateManager(workspacePath);
     this.config = config;
     
     // Load existing state from disk, or create empty state if none exists
-    this.currentState = this.stateManager.loadState();
+    const loadResult = this.stateManager.loadState();
+    this.currentState = loadResult.state;
     if (!this.currentState) {
       this.currentState = this.createEmptyState(workspacePath);
+    } else {
+      console.log(`[DataflowAnalyzer] Loaded saved state in ${loadResult.loadTimeMs}ms`);
+      // Store load time for notification
+      (this.currentState as any).loadTimeMs = loadResult.loadTimeMs;
+      
+      // CRITICAL FIX: Update state's taintSensitivity to match current config
+      // This ensures the state reflects the sensitivity that will be used for analysis
+      const configSensitivity = this.config.taintSensitivity || TaintSensitivity.PRECISE;
+      const stateSensitivity = this.currentState.taintSensitivity;
+      if (stateSensitivity !== configSensitivity) {
+        console.log(`[DataflowAnalyzer] [DEBUG] Updating loaded state's taintSensitivity: ${stateSensitivity} -> ${configSensitivity}`);
+        this.currentState.taintSensitivity = configSensitivity;
+      } else {
+        console.log(`[DataflowAnalyzer] [DEBUG] State sensitivity matches config: ${stateSensitivity}`);
+      }
     }
+    
+    // CRITICAL FIX: Always ensure state's taintSensitivity matches config before analysis
+    const finalSensitivity = this.config.taintSensitivity || TaintSensitivity.PRECISE;
+    if (this.currentState.taintSensitivity !== finalSensitivity) {
+      console.log(`[DataflowAnalyzer] [DEBUG] Final sync: Updating state sensitivity ${this.currentState.taintSensitivity} -> ${finalSensitivity}`);
+      this.currentState.taintSensitivity = finalSensitivity;
+    }
+    console.log(`[DataflowAnalyzer] [DEBUG] Starting analysis with sensitivity: ${this.currentState.taintSensitivity}`);
   }
 
   /**
@@ -170,6 +205,7 @@ export class DataflowAnalyzer {
    * @returns Promise<AnalysisState> - Complete analysis results for the workspace
    */
   async analyzeWorkspace(): Promise<AnalysisState> {
+    const analysisStartTime = Date.now();
     const workspacePath = this.currentState!.workspacePath;
     
     // Optimization: If there's an active C/C++ editor, analyze only that file
@@ -824,6 +860,10 @@ export class DataflowAnalyzer {
     }
 
     // Update state
+    // CRITICAL FIX: Ensure taintSensitivity is set from config
+    const currentSensitivity = this.config.taintSensitivity || TaintSensitivity.PRECISE;
+    console.log(`[DataflowAnalyzer] [DEBUG] Creating new state (analyzeWorkspace) with sensitivity: ${currentSensitivity}`);
+    
     this.currentState = {
       workspacePath,
       timestamp: Date.now(),
@@ -837,7 +877,9 @@ export class DataflowAnalyzer {
       callGraph,
       interProceduralRD,
       parameterAnalysis: parameterAnalysis.size > 0 ? parameterAnalysis : undefined,
-      returnValueAnalysis: returnValueAnalysis.size > 0 ? returnValueAnalysis : undefined
+      returnValueAnalysis: returnValueAnalysis.size > 0 ? returnValueAnalysis : undefined,
+      // CRITICAL FIX: Set taintSensitivity from config
+      taintSensitivity: currentSensitivity
     };
 
     // Prepare all visualization data in backend (before saving state)
@@ -853,6 +895,10 @@ export class DataflowAnalyzer {
 
     // Save state
     this.stateManager.saveState(this.currentState);
+    
+    const analysisTimeMs = Date.now() - analysisStartTime;
+    console.log(`[DataflowAnalyzer] Analysis completed in ${analysisTimeMs}ms`);
+    (this.currentState as any).analysisTimeMs = analysisTimeMs;
 
     return this.currentState;
   }
@@ -1489,11 +1535,14 @@ export class DataflowAnalyzer {
       callGraph,
       interProceduralRD,
       parameterAnalysis: parameterAnalysis.size > 0 ? parameterAnalysis : undefined,
-      returnValueAnalysis: returnValueAnalysis.size > 0 ? returnValueAnalysis : undefined
+      returnValueAnalysis: returnValueAnalysis.size > 0 ? returnValueAnalysis : undefined,
+      // CRITICAL FIX: Set taintSensitivity from config (was missing!)
+      taintSensitivity: this.config.taintSensitivity || TaintSensitivity.PRECISE
     };
 
     // Prepare all visualization data in backend (before saving state)
     console.log('[DataflowAnalyzer] Preparing all visualization data in backend (analyzeSpecificFiles)...');
+    console.log(`[DataflowAnalyzer] [DEBUG] Creating new state (analyzeSpecificFiles) with sensitivity: ${this.currentState.taintSensitivity}`);
     try {
       const visualizationData = await CFGVisualizer.prepareAllVisualizationData(this.currentState);
       this.currentState.visualizationData = visualizationData;
@@ -1684,9 +1733,20 @@ export class DataflowAnalyzer {
     const newHash = this.stateManager.computeFileHash(filePath);
     const existingState = this.currentState.fileStates.get(filePath);
 
-    // Check if file actually changed
+    // INCREMENTAL ANALYSIS: Check if file actually changed using hash comparison
+    // Academic standard: Use content-based hashing (SHA-256) for change detection
+    // This follows the principle of "incremental compilation" from compiler theory
+    // Reference: "Engineering a Compiler" (Cooper & Torczon) - Incremental Analysis
     if (existingState && existingState.hash === newHash) {
+      console.log(`[DataflowAnalyzer] [INFO] [Incremental] File ${filePath} unchanged (hash: ${newHash.substring(0, 8)}...), skipping re-analysis`);
       return;
+    }
+    
+    // File changed - log incremental analysis decision
+    if (existingState) {
+      console.log(`[DataflowAnalyzer] [INFO] [Incremental] File ${filePath} changed (old hash: ${existingState.hash.substring(0, 8)}..., new hash: ${newHash.substring(0, 8)}...), re-analyzing`);
+    } else {
+      console.log(`[DataflowAnalyzer] [INFO] [Incremental] New file ${filePath} detected (hash: ${newHash.substring(0, 8)}...), analyzing`);
     }
 
     // Remove old function CFGs from this file
@@ -1831,7 +1891,9 @@ export class DataflowAnalyzer {
       callGraph: undefined,
       interProceduralRD: undefined,
       parameterAnalysis: undefined,
-      returnValueAnalysis: undefined
+      returnValueAnalysis: undefined,
+      // Taint analysis sensitivity level (v1.9+)
+      taintSensitivity: this.config.taintSensitivity || TaintSensitivity.PRECISE
     };
   }
 
@@ -2068,8 +2130,68 @@ export class DataflowAnalyzer {
   /**
    * Update configuration
    */
+  /**
+   * Update configuration
+   * 
+   * Updates analyzer configuration and recreates TaintAnalyzer if sensitivity changed.
+   * This ensures the analyzer uses the new sensitivity level for subsequent analyses.
+   */
   updateConfig(config: AnalysisConfig): void {
+    const oldSensitivity = this.config.taintSensitivity;
+    console.log(`[DataflowAnalyzer] [INFO] ========== CONFIG UPDATE ==========`);
+    console.log(`[DataflowAnalyzer] [INFO] updateConfig() called`);
+    console.log(`[DataflowAnalyzer] [DEBUG] Old sensitivity: ${oldSensitivity}`);
+    console.log(`[DataflowAnalyzer] [DEBUG] New sensitivity: ${config.taintSensitivity}`);
+    console.log(`[DataflowAnalyzer] [DEBUG] Sensitivity change: ${oldSensitivity} -> ${config.taintSensitivity}`);
+    
     this.config = config;
+    console.log(`[DataflowAnalyzer] [INFO] Configuration object updated`);
+    
+    // CRITICAL FIX: Update current state's taintSensitivity to match config
+    if (this.currentState) {
+      const oldStateSensitivity = this.currentState.taintSensitivity;
+      this.currentState.taintSensitivity = config.taintSensitivity || TaintSensitivity.PRECISE;
+      console.log(`[DataflowAnalyzer] [DEBUG] Updated currentState.taintSensitivity: ${oldStateSensitivity} -> ${this.currentState.taintSensitivity}`);
+    } else {
+      console.log(`[DataflowAnalyzer] [DEBUG] No currentState exists yet, will be set on next analysis`);
+    }
+    
+    // Check current TaintAnalyzer sensitivity
+    const currentTaintSensitivity = this.taintAnalyzer['sensitivity'];
+    console.log(`[DataflowAnalyzer] [DEBUG] Current TaintAnalyzer sensitivity: ${currentTaintSensitivity}`);
+    console.log(`[DataflowAnalyzer] [DEBUG] Sensitivity match check: ${config.taintSensitivity} === ${currentTaintSensitivity} = ${config.taintSensitivity === currentTaintSensitivity}`);
+    
+    // Recreate TaintAnalyzer with new sensitivity if it changed
+    if (config.taintSensitivity !== currentTaintSensitivity) {
+      console.log(`[DataflowAnalyzer] [INFO] Sensitivity changed - recreating TaintAnalyzer`);
+      console.log(`[DataflowAnalyzer] [DEBUG] Old TaintAnalyzer sensitivity: ${currentTaintSensitivity}`);
+      console.log(`[DataflowAnalyzer] [DEBUG] New TaintAnalyzer sensitivity: ${config.taintSensitivity}`);
+      
+      this.taintAnalyzer = new TaintAnalyzer(
+        undefined,  // sourceRegistry
+        undefined,  // sinkRegistry
+        undefined,  // sanitizationRegistry
+        config.taintSensitivity || TaintSensitivity.PRECISE
+      );
+      
+      // Verify the new TaintAnalyzer has the correct sensitivity
+      const newTaintSensitivity = this.taintAnalyzer['sensitivity'];
+      console.log(`[DataflowAnalyzer] [DEBUG] New TaintAnalyzer created`);
+      console.log(`[DataflowAnalyzer] [DEBUG] New TaintAnalyzer sensitivity: ${newTaintSensitivity}`);
+      console.log(`[DataflowAnalyzer] [DEBUG] TaintAnalyzer recreation successful: ${newTaintSensitivity === config.taintSensitivity}`);
+      
+      if (newTaintSensitivity !== config.taintSensitivity) {
+        console.error(`[DataflowAnalyzer] [ERROR] TaintAnalyzer sensitivity mismatch! Expected ${config.taintSensitivity}, got ${newTaintSensitivity}`);
+      }
+    } else {
+      console.log(`[DataflowAnalyzer] [DEBUG] Sensitivity unchanged - TaintAnalyzer not recreated`);
+    }
+    
+    console.log(`[DataflowAnalyzer] [INFO] ========== CONFIG UPDATE COMPLETE ==========`);
+  }
+
+  getConfig(): AnalysisConfig {
+    return this.config;
   }
 }
 

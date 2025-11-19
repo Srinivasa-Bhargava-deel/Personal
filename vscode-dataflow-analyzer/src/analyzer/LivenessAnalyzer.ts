@@ -80,6 +80,10 @@ export class LivenessAnalyzer {
    * @returns Map from block ID to liveness information (IN/OUT sets)
    */
   analyze(functionCFG: FunctionCFG): Map<string, LivenessInfo> {
+    const analysisStartTime = Date.now();
+    console.log(`[LivenessAnalyzer] [INFO] Starting liveness analysis for function: ${functionCFG.name}`);
+    console.log(`[LivenessAnalyzer] [DEBUG] Function has ${functionCFG.blocks.size} blocks`);
+    
     const livenessMap = new Map<string, LivenessInfo>();
     
     // STEP 1: Initialize all blocks with empty IN/OUT sets
@@ -90,6 +94,7 @@ export class LivenessAnalyzer {
         out: new Set<string>()      // Variables live at block exit
       });
     });
+    console.log(`[LivenessAnalyzer] [DEBUG] Initialized ${livenessMap.size} blocks with empty IN/OUT sets`);
 
     // STEP 2: Iterative dataflow analysis until reaching fixed point
     // Fixed point: when IN and OUT sets don't change from one iteration to the next
@@ -168,11 +173,13 @@ export class LivenessAnalyzer {
     }
     
     // CRITICAL FIX (LOGIC.md #1): Warn if convergence not reached
+    const analysisTimeMs = Date.now() - analysisStartTime;
     if (iteration >= MAX_ITERATIONS) {
-      console.warn(`[Liveness Analysis] WARNING: Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence for function ${functionCFG.name}!`);
-      console.warn(`[Liveness Analysis] This may indicate a bug in the CFG structure or analysis algorithm.`);
+      console.warn(`[LivenessAnalyzer] [WARN] Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence for function ${functionCFG.name}!`);
+      console.warn(`[LivenessAnalyzer] [WARN] This may indicate a bug in the CFG structure or analysis algorithm.`);
     } else {
-      console.log(`[Liveness Analysis] Converged after ${iteration} iterations for function ${functionCFG.name}`);
+      console.log(`[LivenessAnalyzer] [INFO] Converged after ${iteration} iterations for function ${functionCFG.name} in ${analysisTimeMs}ms`);
+      console.log(`[LivenessAnalyzer] [DEBUG] Analysis completed: ${livenessMap.size} blocks analyzed`);
     }
     
     return livenessMap;

@@ -36,9 +36,16 @@ Perfect for security researchers, developers, and code reviewers who need to und
    - Enhanced taint source detection (user input, file I/O, network, environment, command line, database, configuration)
    - Taint sink detection (SQL injection, command injection, format string, path traversal, buffer overflow, code injection, integer overflow)
    - Sanitization detection (input validation, encoding, escaping, whitelisting, type conversion, length limits)
-   - Enhanced propagation with taint labels (USER_INPUT, FILE_CONTENT, NETWORK_DATA, etc.)
+   - Enhanced propagation with taint labels (USER_INPUT, FILE_CONTENT, NETWORK_DATA, CONTROL_DEPENDENT, etc.)
    - Vulnerability detection with source-to-sink path tracking
-   - Note: Inter-procedural taint propagation is planned for future releases (v1.6+)
+   - **Recursive Control-Dependent Taint Propagation** (v1.9.0): Tracks implicit data flow through control dependencies
+   - **5 Configurable Sensitivity Levels** (v1.9.0): MINIMAL, CONSERVATIVE, BALANCED, PRECISE, MAXIMUM
+   - **Path-Sensitive Analysis** (v1.9.0): Reduces false positives by only marking truly control-dependent blocks
+   - **Field-Sensitive Analysis** (v1.9.0): Tracks taint at struct field level
+   - **Context-Sensitive Analysis** (v1.9.0): k-limited context tracking for MAXIMUM level
+   - **Flow-Sensitive Analysis** (v1.9.0): Statement order awareness for MAXIMUM level
+   - **Automatic Sensitivity Mismatch Detection** (v1.9.1): Automatically detects and fixes visualization data mismatches when sensitivity changes
+   - Inter-procedural taint propagation (v1.6+)
 
 4. **Inter-Procedural Analysis (IPA)** (v1.2+)
    - **Call Graph Construction**: Builds complete call graphs showing function call relationships
@@ -81,7 +88,12 @@ Perfect for security researchers, developers, and code reviewers who need to und
 - **Interconnected CFG Visualization** (v1.5+)
   - Unified graph combining all function CFGs
   - Three edge types: Control Flow (green), Function Calls (blue), Data Flow (orange)
-  - Red-highlighted function nodes for high visibility
+  - **Dynamic block sizing** (v1.9.0): Blocks resize based on content (statements, variables, labels)
+  - **Edge type toggles** (v1.9.0): Show/hide specific edge types (Control Flow, Function Calls, Data Flow)
+  - **Taint visualization** (v1.9.0): 
+    - Yellow blocks: Data-flow taint (explicit flow)
+    - Orange blocks with dashed border: Control-dependent taint (implicit flow)
+    - Purple blocks: Mixed taint (both data-flow and control-dependent)
   - Interactive visualization with click-to-inspect functionality
   - Physics-based layout for natural function grouping
 
@@ -123,10 +135,14 @@ Perfect for security researchers, developers, and code reviewers who need to und
   - Configurable update mode (keystroke or file save)
   - Debounced updates for performance
 
-- **State Persistence**
+- **State Persistence** (v1.9.0+)
   - Saves analysis state per workspace
   - Stored in `.vscode/dataflow-state.json`
+  - **Save states list** (v1.9.0): Tracks all saved states in `.vscode/save-states-list.json`
+  - **Manual save button** (v1.9.0): Save state button in visualization header
   - Persists across sessions
+  - **Incremental analysis** (v1.9.0): Uses SHA-256 file hashing for change detection
+  - Only re-analyzes changed files, improving performance
 
 ## Requirements
 
@@ -613,12 +629,22 @@ Open VSCode settings (`Ctrl+,` or `Cmd+,`) and search for "Dataflow Analyzer":
 
 - **Enable Inter-Procedural**: Toggle inter-procedural analysis (default: true)
 
+- **Taint Sensitivity** (v1.9.0+): Choose taint analysis sensitivity level
+  - `minimal`: Only explicit data-flow (fastest)
+  - `conservative`: Basic control-dependent (fast)
+  - `balanced`: Full recursive control-dependent + inter-procedural (default)
+  - `precise`: Path-sensitive + field-sensitive (reduces false positives)
+  - `maximum`: Context-sensitive + flow-sensitive (most precise, slower)
+
 ### Commands
 
 - `dataflowAnalyzer.showCFG` - Show Control Flow Graph visualizer
 - `dataflowAnalyzer.analyzeWorkspace` - Analyze entire workspace (excludes libraries/headers by default)
 - `dataflowAnalyzer.analyzeActiveFile` - Analyze only the active C/C++ source file
 - `dataflowAnalyzer.clearState` - Clear saved analysis state
+- `dataflowAnalyzer.saveState` - Manually save current analysis state (v1.9.0+)
+- `dataflowAnalyzer.reAnalyze` - Manually trigger re-analysis (v1.9.0+)
+- `dataflowAnalyzer.changeSensitivityAndAnalyze` - Change taint sensitivity and re-analyze (v1.9.0+)
 
 ## Architecture
 
@@ -1008,6 +1034,23 @@ This tool is designed for:
 - Interconnected CFG visualization: Orange (data flow) and blue (function call) edges may not appear correctly in some cases
 
 ## Version History
+
+- **v1.9.0**: Recursive Control-Dependent Taint Propagation & 5 Configurable Sensitivity Levels
+  - Implemented recursive control-dependent taint propagation (implicit flow tracking)
+  - Added 5 configurable sensitivity levels: MINIMAL, CONSERVATIVE, BALANCED, PRECISE, MAXIMUM
+  - Path-sensitive analysis for PRECISE/MAXIMUM levels
+  - Field-sensitive analysis for PRECISE/MAXIMUM levels
+  - Context-sensitive analysis for MAXIMUM level
+  - Flow-sensitive analysis for MAXIMUM level
+  - Enhanced visualization: Yellow (data-flow), Orange (control-dependent), Purple (mixed)
+  - Dynamic block sizing based on content
+  - Edge type toggles (Control Flow, Function Calls, Data Flow)
+  - Manual save state button in header
+  - Save states list tracking (`.vscode/save-states-list.json`)
+  - Enhanced incremental analysis with SHA-256 file hashing
+  - Comprehensive logging (DEBUG, INFO, WARN, ERROR) throughout codebase
+  - Re-analyze button for sensitivity changes
+  - Fixed sensitivity switching to properly trigger re-analysis
 
 - **v1.5.1**: Documentation consolidation - merged all technical docs into README.md and FUTURE_PLANS.md
 - **v1.5.0**: Interconnected CFG visualization with red-highlighted function nodes

@@ -81,14 +81,17 @@ export class ReachingDefinitionsAnalyzer {
    * @returns Map from block ID to ReachingDefinitionsInfo
    */
   analyze(functionCFG: FunctionCFG): Map<string, ReachingDefinitionsInfo> {
-    console.log(`[RD Analysis] Starting reaching definitions analysis for function`);
+    const analysisStartTime = Date.now();
+    console.log(`[ReachingDefinitionsAnalyzer] [INFO] Starting reaching definitions analysis for function: ${functionCFG.name}`);
+    console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Function has ${functionCFG.blocks.size} blocks`);
+    
     const rdMap = new Map<string, ReachingDefinitionsInfo>();
     
     // Step 1: Collect ALL definitions in the function
     const allDefinitions = this.collectDefinitions(functionCFG);
-    console.log(`[RD Analysis] Collected ${allDefinitions.length} total definitions in function`);
+    console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Collected ${allDefinitions.length} total definitions in function ${functionCFG.name}`);
     allDefinitions.forEach(def => {
-      console.log(`  - Definition: ${def.variable} in block ${def.blockId} (${def.definitionId})`);
+      console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Definition: ${def.variable} in block ${def.blockId} (${def.definitionId})`);
     });
     
     // Step 2: Initialize RD info for each block with GEN and KILL sets
@@ -104,9 +107,7 @@ export class ReachingDefinitionsAnalyzer {
         out: new Map<string, ReachingDefinition[]>()
       });
       
-      console.log(`[RD Analysis] Block ${blockId}:`);
-      console.log(`  - GEN: ${Array.from(gen.keys()).join(', ')}`);
-      console.log(`  - KILL: ${Array.from(kill.keys()).join(', ')}`);
+      console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Block ${blockId}: GEN=${Array.from(gen.keys()).length} vars, KILL=${Array.from(kill.keys()).length} vars`);
     });
 
     // Step 3: Iterative dataflow analysis until reaching fixed point
@@ -117,7 +118,7 @@ export class ReachingDefinitionsAnalyzer {
     while (changed && iteration < MAX_ITERATIONS) {
       iteration++;
       changed = false;
-      console.log(`[RD Analysis] Iteration ${iteration}`);
+      console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Fixed-point iteration ${iteration}/${MAX_ITERATIONS}`);
       
       // Process blocks in forward order (follows CFG edges)
       const blockIds = Array.from(functionCFG.blocks.keys());
@@ -132,7 +133,7 @@ export class ReachingDefinitionsAnalyzer {
         for (const predId of block.predecessors) {
           const predRdInfo = rdMap.get(String(predId));
           if (!predRdInfo) {
-            console.log(`[RD Analysis] Warning: predecessor ${predId} has no RD info`);
+            console.warn(`[ReachingDefinitionsAnalyzer] [WARN] Predecessor ${predId} has no RD info`);
             continue;
           }
           
@@ -227,7 +228,7 @@ export class ReachingDefinitionsAnalyzer {
                 ...def,
                 killed: true  // Mark this definition as killed in this block
               };
-              console.log(`[RD Analysis] Definition ${def.definitionId} (${varName}) killed in block ${blockId}`);
+              console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Definition ${def.definitionId} (${varName}) killed in block ${blockId}`);
             });
           }
         });
@@ -238,35 +239,25 @@ export class ReachingDefinitionsAnalyzer {
         
         if (inChanged || outChanged) {
           changed = true;
-          console.log(`[RD Analysis] Block ${blockId} changed - updating IN/OUT`);
+          console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Block ${blockId} changed - updating IN/OUT (iteration ${iteration})`);
           rdInfo.in = newIn;
           rdInfo.out = newOut;
           
-          // Log the new values WITH PROPAGATION PATHS
-          console.log(`  - IN[${blockId}]: ${Array.from(newIn.keys()).join(', ')}`);
-          newIn.forEach((defs, varName) => {
-            defs.forEach(d => {
-              const path = d.propagationPath ? d.propagationPath.join(' -> ') : 'unknown';
-              const statusLabel = d.killed ? '(KILLED)' : '';
-              console.log(`    - ${varName}: ${d.definitionId} from ${d.sourceBlock || 'unknown'} via path: ${path} ${statusLabel}`);
-            });
-          });
-          console.log(`  - OUT[${blockId}]: ${Array.from(newOut.keys()).join(', ')}`);
-          newOut.forEach((defs, varName) => {
-            defs.forEach(d => {
-              const path = d.propagationPath ? d.propagationPath.join(' -> ') : 'unknown';
-              const statusLabel = d.killed ? '(KILLED)' : '';
-              console.log(`    - ${varName}: ${d.definitionId} from ${d.sourceBlock || 'unknown'} via path: ${path} ${statusLabel}`);
-            });
-          });
+          // Log summary (detailed paths logged only in verbose mode)
+          const inVarCount = Array.from(newIn.keys()).length;
+          const outVarCount = Array.from(newOut.keys()).length;
+          console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Block ${blockId}: IN=${inVarCount} vars, OUT=${outVarCount} vars`);
         }
       }
     }
     
+    const analysisTimeMs = Date.now() - analysisStartTime;
     if (iteration >= MAX_ITERATIONS) {
-      console.warn(`[RD Analysis] WARNING: Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence!`);
+      console.warn(`[ReachingDefinitionsAnalyzer] [WARN] Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence for function ${functionCFG.name}!`);
+      console.warn(`[ReachingDefinitionsAnalyzer] [WARN] This may indicate a bug in the CFG structure or analysis algorithm.`);
     } else {
-      console.log(`[RD Analysis] Converged after ${iteration} iterations`);
+      console.log(`[ReachingDefinitionsAnalyzer] [INFO] Converged after ${iteration} iterations for function ${functionCFG.name} in ${analysisTimeMs}ms`);
+      console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Analysis completed: ${rdMap.size} blocks analyzed`);
     }
     return rdMap;
   }

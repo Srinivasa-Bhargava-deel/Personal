@@ -63,15 +63,22 @@
  * - Panel tracking for multi-file management
  * - Real-time updates when analysis state changes
  * - Backend data preparation (all data ready before tab click)
+ * - Sensitivity mismatch detection and automatic re-analysis (v1.9.1)
  * 
  * EDGE TYPES IN INTERCONNECTED CFG:
  * - Green: Control flow edges (within functions)
  * - Blue: Function call edges (between functions)
  * - Orange: Data flow edges (reaching definitions)
+ * 
+ * NEW FEATURES (v1.9.1):
+ * - Automatic sensitivity mismatch detection on tab switching
+ * - Enhanced visualization data regeneration when sensitivity changes
+ * - Comprehensive logging for debugging sensitivity issues
+ * - Sensitivity storage in visualization data for mismatch detection
  */
 
 import * as vscode from 'vscode';
-import { CFG, FunctionCFG, AnalysisState, FileAnalysisState, LivenessInfo, ReachingDefinitionsInfo, ReachingDefinition, TaintInfo, TaintLabel } from '../types';
+import { CFG, FunctionCFG, AnalysisState, FileAnalysisState, LivenessInfo, ReachingDefinitionsInfo, ReachingDefinition, TaintInfo, TaintLabel, TaintSensitivity } from '../types';
 import { Vulnerability } from '../analyzer/SecurityAnalyzer';
 import { LoggingConfig } from '../utils/LoggingConfig';
 
@@ -91,6 +98,8 @@ export class CFGVisualizer {
   private currentState: AnalysisState | null = null;  // Current analysis state
   private currentFunction: string | null = null;  // Currently displayed function
   private visNetworkUri: vscode.Uri | null = null;  // URI for vis-network library
+  private notifyCommandRegistered: boolean = false;  // Track if notify command is registered (prevents duplicate registration)
+  private context: vscode.ExtensionContext | null = null;  // Store extension context for panel recreation
 
   /**
    * Get panel key from filename and viewType
@@ -107,6 +116,39 @@ export class CFGVisualizer {
   }
 
   /**
+   * Check if any panels exist
+   * 
+   * @returns true if any panels are currently tracked
+   */
+  hasPanels(): boolean {
+    const count = this.panels.size;
+    console.log(`[CFGVisualizer] [DEBUG] hasPanels() called - panel count: ${count}`);
+    if (count > 0) {
+      const panelKeys = Array.from(this.panels.keys());
+      console.log(`[CFGVisualizer] [DEBUG] Existing panel keys:`, panelKeys);
+    }
+    return count > 0;
+  }
+
+  /**
+   * Get panel count (for debugging)
+   * 
+   * @returns number of panels currently tracked
+   */
+  getPanelCount(): number {
+    return this.panels.size;
+  }
+
+  /**
+   * Get panel keys (for debugging)
+   * 
+   * @returns array of panel keys currently tracked
+   */
+  getPanelKeys(): string[] {
+    return Array.from(this.panels.keys());
+  }
+
+  /**
    * Create or show the visualizer panel
    * 
    * Creates a new webview panel or reveals an existing one if it already exists
@@ -117,36 +159,98 @@ export class CFGVisualizer {
    * @param filename - Name of the file being analyzed (for tab title)
    * @param viewType - Type of view: 'Viz' for analysis, 'Viz/Cfg' for CFG display
    */
-  async createOrShow(context: vscode.ExtensionContext, filename?: string, viewType: 'Viz' | 'Viz/Cfg' = 'Viz'): Promise<void> {
-    console.log('[CFGVisualizer] createOrShow called');
-    console.log('[CFGVisualizer] Filename:', filename);
-    console.log('[CFGVisualizer] View type:', viewType);
+  async createOrShow(context: vscode.ExtensionContext, filename?: string, viewType: 'Viz' | 'Viz/Cfg' = 'Viz', state?: AnalysisState): Promise<void> {
+    // CRITICAL FIX: Store context for later use
+    this.context = context;
+    
+    console.log('[CFGVisualizer] [INFO] createOrShow called');
+    console.log('[CFGVisualizer] [DEBUG] Filename:', filename);
+    console.log('[CFGVisualizer] [DEBUG] View type:', viewType);
+    console.log('[CFGVisualizer] [DEBUG] Current panel count:', this.panels.size);
+    console.log('[CFGVisualizer] [DEBUG] Current panel keys:', Array.from(this.panels.keys()));
 
     const panelKey = this.getPanelKey(filename, viewType);
-    console.log('[CFGVisualizer] Panel key:', panelKey);
+    console.log('[CFGVisualizer] [DEBUG] Computed panel key:', panelKey);
 
     // Check if panel already exists for this key
     const existingPanel = this.panels.get(panelKey);
     if (existingPanel) {
-      console.log('[CFGVisualizer] Panel exists for key, revealing it');
+      console.log('[CFGVisualizer] [INFO] Panel exists for key, checking if title needs update...');
+      
+      // CRITICAL FIX: Check if panel title needs to be updated (sensitivity changed)
+      // VS Code doesn't allow runtime title updates, so we need to recreate the panel
+      // Priority: passed state > currentState > VS Code config > 'precise'
+      let currentSensitivity: TaintSensitivity | undefined = state?.taintSensitivity || this.currentState?.taintSensitivity;
+      if (!currentSensitivity) {
+        const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
+        const configValue = config.get<string>('taintSensitivity', 'precise');
+        currentSensitivity = (configValue as TaintSensitivity) || TaintSensitivity.PRECISE;
+      }
+      currentSensitivity = currentSensitivity || TaintSensitivity.PRECISE;
+      
+      const currentTitle = existingPanel.title;
+      const baseName = filename ? filename.split(/[/\\]/).pop() || filename : 'default';
+      const expectedTitle = `${baseName}: ${viewType} [${currentSensitivity.toUpperCase()}]`;
+      
+      if (currentTitle !== expectedTitle) {
+        console.log(`[CFGVisualizer] [DEBUG] Panel title mismatch: "${currentTitle}" vs "${expectedTitle}"`);
+        console.log(`[CFGVisualizer] [DEBUG] Sensitivity changed - closing old panel and creating new one with correct title`);
+        
+        // Dispose old panel
+        existingPanel.dispose();
+        this.panels.delete(panelKey);
+        
+        // Continue to create new panel below with correct title
+      } else {
+        console.log('[CFGVisualizer] [INFO] Panel title matches current sensitivity, revealing existing panel');
       const column = vscode.window.activeTextEditor
         ? vscode.window.activeTextEditor.viewColumn
         : undefined;
       existingPanel.reveal(column);
       this.panel = existingPanel; // Set current panel reference
+        
+        // CRITICAL FIX: Update the existing panel with current state if it exists
+        if (this.currentState) {
+          console.log('[CFGVisualizer] [DEBUG] Updating existing panel with current state');
+          await this.updateWebview(existingPanel);
+        }
       return;
+      }
     }
+    
+    console.log('[CFGVisualizer] [INFO] No existing panel found for key, creating new panel');
 
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
     console.log('[CFGVisualizer] Target column:', column);
 
-    // Determine panel title based on filename
+    // Determine panel title based on filename and current sensitivity
+    // CRITICAL FIX: Use passed state, then currentState, then VS Code config, then default
     let panelTitle = 'Control Flow Graph Visualizer';
     if (filename) {
       const baseName = filename.split(/[/\\]/).pop() || filename;
-      panelTitle = `${baseName}: ${viewType}`;
+      // CRITICAL FIX: Priority: passed state > currentState > VS Code config > TaintSensitivity.PRECISE
+      let sensitivity: TaintSensitivity | undefined = state?.taintSensitivity || this.currentState?.taintSensitivity;
+      if (!sensitivity) {
+        // Fallback: try to get from VS Code configuration
+        const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
+        const configValue = config.get<string>('taintSensitivity', 'precise');
+        sensitivity = (configValue as TaintSensitivity) || TaintSensitivity.PRECISE;
+        console.log(`[CFGVisualizer] [DEBUG] No sensitivity in state/currentState, using VS Code config: ${sensitivity}`);
+      } else {
+        console.log(`[CFGVisualizer] [DEBUG] Using sensitivity from ${state ? 'passed state' : 'currentState'}: ${sensitivity}`);
+      }
+      // Final fallback to PRECISE if still not set
+      sensitivity = sensitivity || TaintSensitivity.PRECISE;
+      console.log(`[CFGVisualizer] [DEBUG] Creating panel with sensitivity: ${sensitivity}`);
+      panelTitle = `${baseName}: ${viewType} [${sensitivity.toUpperCase()}]`;
+    }
+    
+    // CRITICAL FIX: Update currentState if state was passed
+    if (state) {
+      this.currentState = state;
+      console.log(`[CFGVisualizer] [DEBUG] Updated currentState from passed state parameter`);
     }
 
     console.log('[CFGVisualizer] Creating new webview panel with title:', panelTitle);
@@ -172,8 +276,10 @@ export class CFGVisualizer {
     this.panels.set(panelKey, panel);
     this.panel = panel; // Set current panel reference
 
-    console.log('[CFGVisualizer] Panel created successfully');
-    console.log('[CFGVisualizer] Total panels tracked:', this.panels.size);
+    console.log('[CFGVisualizer] [INFO] Panel created successfully');
+    console.log('[CFGVisualizer] [DEBUG] Panel key stored:', panelKey);
+    console.log('[CFGVisualizer] [DEBUG] Total panels tracked:', this.panels.size);
+    console.log('[CFGVisualizer] [DEBUG] All panel keys:', Array.from(this.panels.keys()));
     console.log('[CFGVisualizer] Panel webview available:', !!panel.webview);
     console.log('[CFGVisualizer] Panel webview CSP source:', panel.webview.cspSource);
 
@@ -190,15 +296,132 @@ export class CFGVisualizer {
     // Handle messages from webview
     panel.webview.onDidReceiveMessage(
       async message => {
+        console.log('[CFGVisualizer] [INFO] Received message from webview:', JSON.stringify(message));
+        
         if (message.type === 'changeFunction') {
-          console.log('[CFGVisualizer] Function changed to:', message.functionName);
+          console.log('[CFGVisualizer] [INFO] Function changed to:', message.functionName);
           this.currentFunction = message.functionName;
           await this.updateWebview(panel);
+        } else if (message.type === 'changeSensitivity') {
+          console.log('[CFGVisualizer] [INFO] changeSensitivity message received');
+          console.log('[CFGVisualizer] [INFO] Sensitivity:', message.sensitivity, 'triggerReAnalysis:', message.triggerReAnalysis);
+          
+          // Try to update VS Code settings (workspace or user)
+          // If workspace is not available, fall back to user settings or skip
+          let settingsUpdated = false;
+          try {
+            const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
+            // Try workspace first, fall back to global if workspace not available
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (workspaceFolder) {
+              await config.update('taintSensitivity', message.sensitivity, vscode.ConfigurationTarget.Workspace);
+              console.log('[CFGVisualizer] [DEBUG] VS Code workspace settings updated');
+              settingsUpdated = true;
+            } else {
+              // No workspace, try user settings
+              await config.update('taintSensitivity', message.sensitivity, vscode.ConfigurationTarget.Global);
+              console.log('[CFGVisualizer] [DEBUG] VS Code user settings updated (no workspace)');
+              settingsUpdated = true;
+            }
+          } catch (error) {
+            // Settings update failed, but we can still update analyzer config directly
+            console.log('[CFGVisualizer] [WARN] Failed to update VS Code settings:', error);
+            console.log('[CFGVisualizer] [DEBUG] Will update analyzer config directly instead');
+            settingsUpdated = false;
+          }
+          
+          // Only trigger re-analysis if explicitly requested
+          if (message.triggerReAnalysis) {
+            console.log('[CFGVisualizer] [INFO] Triggering re-analysis with sensitivity:', message.sensitivity);
+            vscode.window.showInformationMessage(`Taint sensitivity changed to ${message.sensitivity.toUpperCase()}. Re-analyzing workspace...`);
+            
+            // Send a message to extension to update analyzer config, then trigger re-analysis
+            // We'll use a custom command that handles both
+            try {
+              console.log('[CFGVisualizer] [DEBUG] Executing changeSensitivityAndAnalyze command...');
+              await vscode.commands.executeCommand('dataflowAnalyzer.changeSensitivityAndAnalyze', message.sensitivity);
+              console.log('[CFGVisualizer] [INFO] changeSensitivityAndAnalyze command completed successfully');
+              // Send success message back to webview
+              panel.webview.postMessage({ type: 'reAnalyzeResult', success: true });
+            } catch (error) {
+              console.error('[CFGVisualizer] [ERROR] Failed to trigger re-analysis:', error);
+              panel.webview.postMessage({ type: 'reAnalyzeResult', success: false, error: String(error) });
+            }
+          } else {
+            console.log('[CFGVisualizer] [DEBUG] Sensitivity updated, waiting for manual re-analysis trigger');
+            // Just update settings, don't trigger re-analysis
+            if (settingsUpdated) {
+              vscode.window.showInformationMessage(`Taint sensitivity set to ${message.sensitivity.toUpperCase()}. Click "Re-analyze" to apply.`);
+            } else {
+              // Settings update failed, but we can still proceed
+              // The analyzer config will be updated when re-analysis is triggered
+              vscode.window.showInformationMessage(`Taint sensitivity will be set to ${message.sensitivity.toUpperCase()} when you click "Re-analyze".`);
+            }
+          }
+        } else if (message.type === 'saveState') {
+          console.log('[CFGVisualizer] [INFO] saveState message received');
+          try {
+            // Trigger save state command
+            console.log('[CFGVisualizer] [DEBUG] Executing saveState command...');
+            await vscode.commands.executeCommand('dataflowAnalyzer.saveState');
+            console.log('[CFGVisualizer] [INFO] saveState command completed successfully');
+            // Send success message back to webview
+            panel.webview.postMessage({ type: 'saveStateResult', success: true });
+          } catch (error) {
+            console.error('[CFGVisualizer] [ERROR] Error saving state:', error);
+            panel.webview.postMessage({ type: 'saveStateResult', success: false, error: String(error) });
+          }
+        } else if (message.type === 'reAnalyze') {
+          console.log('[CFGVisualizer] [INFO] reAnalyze message received');
+          try {
+            // Trigger re-analysis command (uses current analyzer config)
+            // Note: analyzeWorkspace already updates visualization, but we need to ensure
+            // the webview gets the updated state after re-analysis completes
+            console.log('[CFGVisualizer] [DEBUG] Executing reAnalyze command...');
+            await vscode.commands.executeCommand('dataflowAnalyzer.reAnalyze');
+            console.log('[CFGVisualizer] [INFO] reAnalyze command completed successfully');
+            
+            // The reAnalyze command calls analyzeWorkspace which already updates visualization
+            // But we need to ensure the webview HTML is refreshed with new data
+            // Since updateVisualization was already called by analyzeWorkspace, the webview
+            // should have the new HTML. However, we may need to force a refresh.
+            console.log('[CFGVisualizer] [DEBUG] Re-analysis complete, visualization should be updated');
+            console.log('[CFGVisualizer] [DEBUG] Note: analyzeWorkspace already calls updateVisualization');
+            
+            // Send success message back to webview
+            panel.webview.postMessage({ type: 'reAnalyzeResult', success: true });
+          } catch (error) {
+            console.error('[CFGVisualizer] [ERROR] Failed to trigger re-analysis:', error);
+            panel.webview.postMessage({ type: 'reAnalyzeResult', success: false, error: String(error) });
+          }
+        } else {
+          console.log('[CFGVisualizer] [WARN] Unknown message type:', message.type);
         }
       },
       null,
       context.subscriptions
     );
+    
+    // Handle messages from extension to webview (for save state result)
+    // Register command only once (not per panel) to avoid duplicate registration errors
+    if (!this.notifyCommandRegistered) {
+      try {
+        context.subscriptions.push(
+          vscode.commands.registerCommand('dataflowAnalyzer.notifySaveStateResult', (success: boolean, message?: string) => {
+            // Post message to all active panels
+            this.panels.forEach((p) => {
+              p.webview.postMessage({ type: 'saveStateResult', success, message });
+            });
+          })
+        );
+        this.notifyCommandRegistered = true;
+        console.log('[CFGVisualizer] [DEBUG] notifySaveStateResult command registered');
+      } catch (error) {
+        // Command might already exist from previous activation, that's OK
+        console.log('[CFGVisualizer] [DEBUG] notifySaveStateResult command already exists (reload scenario)');
+        this.notifyCommandRegistered = true; // Mark as registered to avoid retrying
+      }
+    }
 
     // Only update webview if we have state, otherwise it will be updated when state is provided
     if (this.currentState) {
@@ -262,17 +485,63 @@ export class CFGVisualizer {
       console.log('[CFGVisualizer] No specific function requested, using current:', this.currentFunction);
     }
 
+    // CRITICAL FIX: Update currentState BEFORE checking panels
+    // This ensures panel titles and other state-dependent operations use the correct state
     this.currentState = state;
-    console.log('[CFGVisualizer] State stored, checking panel...');
+    console.log('[CFGVisualizer] State stored, checking panels...');
+    console.log(`[CFGVisualizer] [DEBUG] Current state sensitivity: ${state.taintSensitivity || 'precise'}`);
 
-    if (this.panel) {
-      console.log('[CFGVisualizer] Panel exists, calling updateWebview');
-      console.log('[CFGVisualizer] Panel is visible:', this.panel.visible);
-      console.log('[CFGVisualizer] Panel is active:', this.panel.active);
-      await this.updateWebview();
+    // Update all existing panels instead of creating new ones
+    if (this.panels.size > 0) {
+      console.log(`[CFGVisualizer] [INFO] Updating ${this.panels.size} existing panel(s) with new analysis results`);
+      // Update all panels
+      for (const [panelKey, panel] of this.panels.entries()) {
+        console.log(`[CFGVisualizer] [INFO] Updating panel: ${panelKey}`);
+        if (!panel || !panel.webview) {
+          console.log(`[CFGVisualizer] [WARN] Panel ${panelKey} has no webview, skipping`);
+          continue;
+        }
+        // Check if panel is disposed (VS Code doesn't expose this directly, but we can check visibility)
+        try {
+          const isVisible = panel.visible;
+          
+          // CRITICAL FIX: Check if panel needs to be recreated due to title mismatch
+          const sensitivity = state.taintSensitivity || 'precise';
+          const currentTitle = panel.title;
+          // Extract base name from current title or panel key
+          const baseName = panelKey.split(':')[0] || 'Workspace';
+          const viewType = panelKey.split(':')[1] || 'Viz';
+          const newTitle = `${baseName}: ${viewType} [${sensitivity.toUpperCase()}]`;
+          
+          if (currentTitle !== newTitle) {
+            console.log(`[CFGVisualizer] [DEBUG] Panel title mismatch: "${currentTitle}" vs "${newTitle}"`);
+            console.log(`[CFGVisualizer] [DEBUG] Recreating panel ${panelKey} with correct title`);
+            
+            // Dispose old panel
+            panel.dispose();
+            this.panels.delete(panelKey);
+            
+            // Recreate panel with correct title (pass state to ensure correct sensitivity)
+            const fullFilename = baseName === 'default' ? undefined : baseName;
+            if (this.context) {
+              await this.createOrShow(this.context, fullFilename, viewType as 'Viz' | 'Viz/Cfg', state);
     } else {
-      console.log('[CFGVisualizer] WARNING: Panel does not exist, cannot update');
-      console.log('[CFGVisualizer] This may indicate createOrShow was not called first');
+              console.log(`[CFGVisualizer] [ERROR] Cannot recreate panel - context not available`);
+            }
+            continue; // Skip updating this panel, it's been recreated
+          }
+          
+          this.panel = panel; // Set current panel reference
+          await this.updateWebview(panel);
+          console.log(`[CFGVisualizer] [INFO] Panel ${panelKey} updated successfully (visible: ${isVisible}, sensitivity: ${sensitivity})`);
+        } catch (error) {
+          console.log(`[CFGVisualizer] [ERROR] Failed to update panel ${panelKey}:`, error);
+          // Panel might be disposed, remove it from tracking
+          this.panels.delete(panelKey);
+        }
+      }
+    } else {
+      console.log('[CFGVisualizer] [INFO] No panels exist yet, state stored for when panel is created');
     }
   }
 
@@ -296,6 +565,12 @@ export class CFGVisualizer {
     }
 
     console.log('[CFGVisualizer] State available, functions:', state.cfg.functions.size);
+    console.log('[CFGVisualizer] [DEBUG] State has visualizationData:', !!state.visualizationData);
+    if (state.visualizationData) {
+      console.log('[CFGVisualizer] [DEBUG] Visualization data functions count:', state.visualizationData.interconnectedCFGData?.functions?.length || 'N/A');
+      console.log('[CFGVisualizer] [DEBUG] Visualization data nodes count:', state.visualizationData.interconnectedCFGData?.nodes?.length || 'N/A');
+      console.log('[CFGVisualizer] [DEBUG] Visualization data edges count:', state.visualizationData.interconnectedCFGData?.edges?.length || 'N/A');
+    }
 
     // Prefer functions from the active editor's file if available
     let preferredFunction: string | null = null;
@@ -361,14 +636,30 @@ export class CFGVisualizer {
     let interconnectedData: any;
     let interProceduralTaintData: any;
     
-    if (state.visualizationData) {
+    // CRITICAL FIX: Check if visualization data needs to be regenerated
+    // If sensitivity changed, the visualization data might be stale
+    const currentSensitivity = state.taintSensitivity || 'precise';
+    const dataSensitivity = (state.visualizationData as any)?.taintSensitivity;
+    const needsRegeneration = state.visualizationData && dataSensitivity && dataSensitivity !== currentSensitivity;
+    
+    if (needsRegeneration) {
+      console.log(`[CFGVisualizer] [DEBUG] Visualization data sensitivity mismatch: ${dataSensitivity} vs ${currentSensitivity}`);
+      console.log(`[CFGVisualizer] [DEBUG] Regenerating visualization data with new sensitivity`);
+      // CRITICAL FIX: Clear old visualization data AND regenerate it immediately
+      state.visualizationData = undefined;
+      console.log(`[CFGVisualizer] [DEBUG] Cleared old visualization data, will regenerate on-demand`);
+    }
+    
+    if (state.visualizationData && !needsRegeneration) {
       // Use pre-prepared data from backend
       console.log('[CFGVisualizer] Using pre-prepared visualization data');
-      graphData = state.visualizationData.cfgGraphData?.get(funcCFG.name);
-      callGraphData = state.visualizationData.callGraphData;
-      taintData = state.visualizationData.taintData?.get(funcCFG.name);
-      interProceduralTaintData = state.visualizationData.interProceduralTaintData?.get(funcCFG.name);
-      interconnectedData = state.visualizationData.interconnectedCFGData;
+      console.log(`[CFGVisualizer] [DEBUG] Visualization data sensitivity: ${(state.visualizationData as any)?.taintSensitivity || 'unknown'}`);
+      // CRITICAL FIX: Add null checks for Map.get() calls
+      graphData = state.visualizationData.cfgGraphData?.get(funcCFG.name) || null;
+      callGraphData = state.visualizationData.callGraphData || null;
+      taintData = state.visualizationData.taintData?.get(funcCFG.name) || null;
+      interProceduralTaintData = state.visualizationData.interProceduralTaintData?.get(funcCFG.name) || null;
+      interconnectedData = state.visualizationData.interconnectedCFGData || null;
       
       // Still need to prepare IPA data (it's function-specific and not stored)
       ipaData = this.prepareIPAData(state, funcCFG.name);
@@ -437,6 +728,21 @@ export class CFGVisualizer {
     console.log('[CFGVisualizer] First 500 chars of HTML:', htmlContent.substring(0, 500));
     console.log('[CFGVisualizer] Last 500 chars of HTML:', htmlContent.substring(htmlContent.length - 500));
 
+    // Log current sensitivity and data counts for debugging
+    const sensitivityInState = state.taintSensitivity || 'precise';
+    console.log(`[CFGVisualizer] [DEBUG] ========== WEBVIEW UPDATE ==========`);
+    console.log(`[CFGVisualizer] [DEBUG] Setting webview HTML with sensitivity: ${sensitivityInState}`);
+    console.log(`[CFGVisualizer] [DEBUG] State.taintSensitivity value: ${state.taintSensitivity}`);
+    console.log(`[CFGVisualizer] [DEBUG] State.taintSensitivity type: ${typeof state.taintSensitivity}`);
+    console.log(`[CFGVisualizer] [DEBUG] State.taintSensitivity === 'minimal': ${state.taintSensitivity === 'minimal'}`);
+    console.log(`[CFGVisualizer] [DEBUG] State.taintSensitivity === 'precise': ${state.taintSensitivity === 'precise'}`);
+    console.log(`[CFGVisualizer] [DEBUG] State functions count: ${state.cfg.functions.size}`);
+    if (interconnectedData) {
+      console.log(`[CFGVisualizer] [DEBUG] Interconnected CFG functions count: ${interconnectedData.functions?.length || 'N/A'}`);
+      console.log(`[CFGVisualizer] [DEBUG] Interconnected CFG nodes count: ${interconnectedData.nodes?.length || 'N/A'}`);
+      console.log(`[CFGVisualizer] [DEBUG] Interconnected CFG edges count: ${interconnectedData.edges?.length || 'N/A'}`);
+    }
+
     // Check for any potential issues
     if (htmlContent.includes('undefined')) {
       console.warn('[CFGVisualizer] WARNING: HTML contains "undefined" - possible template issue');
@@ -445,7 +751,10 @@ export class CFGVisualizer {
       console.warn('[CFGVisualizer] WARNING: HTML contains "null" - possible data issue');
     }
 
+    // Force webview refresh by setting HTML (this should reload the webview completely)
+    // Setting webview.html to a new value forces VS Code to reload the webview
     targetPanel.webview.html = htmlContent;
+    console.log('[CFGVisualizer] [DEBUG] Webview HTML set - webview should reload with new data');
     console.log('[CFGVisualizer] Webview HTML set successfully');
     console.log('[CFGVisualizer] Panel visibility state:', targetPanel.visible);
     console.log('[CFGVisualizer] Panel active state:', targetPanel.active);
@@ -818,46 +1127,126 @@ export class CFGVisualizer {
         
         // Check if this block has tainted variables
         const funcTaint = state.taintAnalysis.get(funcName) || [];
-        const blockTaintedVars = funcTaint.filter((t: TaintInfo) => 
-          t.sourceLocation?.blockId === blockId
+        // Get all taint info for variables defined in this block
+        const blockTaintedVars: TaintInfo[] = [];
+        block.statements.forEach(stmt => {
+          stmt.variables?.defined.forEach(varName => {
+            const varTaintInfos = funcTaint.filter((t: TaintInfo) => t.variable === varName && t.tainted);
+            blockTaintedVars.push(...varTaintInfos);
+          });
+        });
+        
+        // Check for data-flow taint and control-dependent taint separately
+        const hasDataFlowTaint = blockTaintedVars.some((t: TaintInfo) => 
+          t.labels && t.labels.some(l => l !== TaintLabel.CONTROL_DEPENDENT)
         );
-        const isTainted = blockTaintedVars.length > 0;
+        const hasControlDependentTaint = blockTaintedVars.some((t: TaintInfo) => 
+          t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)
+        );
+        
+        // Determine node color based on taint type
+        let nodeColor: string;
+        let nodeBorder: string;
+        let nodeBorderStyle: string | undefined;
+        
+        if (hasDataFlowTaint && hasControlDependentTaint) {
+          // Purple: Mixed taint
+          nodeColor = '#9d4edd';  // Purple
+          nodeBorder = '#7b2cbf';  // Dark purple
+          nodeBorderStyle = undefined;  // Solid border
+        } else if (hasControlDependentTaint) {
+          // Orange with dashed border: Control-dependent only
+          nodeColor = '#ffa94d';  // Orange
+          nodeBorder = '#ff8800';  // Dark orange
+          nodeBorderStyle = 'dashed';  // Dashed border
+        } else if (hasDataFlowTaint) {
+          // Yellow: Data-flow only
+          nodeColor = '#ffd60a';  // Yellow
+          nodeBorder = '#ffc300';  // Dark yellow/gold
+          nodeBorderStyle = undefined;  // Solid border
+        } else {
+          // Normal block
+          nodeColor = '#e8f4f8';  // Light blue
+          nodeBorder = '#2e7d32';  // Dark green
+          nodeBorderStyle = undefined;  // Solid border
+        }
+        
+        const isTainted = hasDataFlowTaint || hasControlDependentTaint;
         
         // Create detailed title with statement info
         let title = `Function: ${funcName}\nBlock: ${blockLabel} (ID: ${blockId})\nStatements: ${block.statements.length}`;
         if (isTainted) {
-          title += `\nTainted Variables: ${blockTaintedVars.map((t: TaintInfo) => t.variable).join(', ')}`;
+          title += `\nTainted Variables: ${[...new Set(blockTaintedVars.map((t: TaintInfo) => t.variable))].join(', ')}`;
+          if (hasDataFlowTaint && hasControlDependentTaint) {
+            title += `\nTaint Type: Mixed (Data-flow + Control-dependent)`;
+          } else if (hasControlDependentTaint) {
+            title += `\nTaint Type: Control-dependent (Implicit Flow)`;
+          } else {
+            title += `\nTaint Type: Data-flow (Explicit Flow)`;
+          }
         }
         if (block.statements.length > 0) {
           const firstStmt = block.statements[0].text.substring(0, 50);
           title += `\nFirst statement: ${firstStmt}${block.statements[0].text.length > 50 ? '...' : ''}`;
         }
         
-        // Use consistent colors: red for tainted blocks (matching CFG), blue for normal blocks
-        nodes.push({
+        // Calculate dynamic size based on data amount
+        // Base size: 100px width, scales with:
+        // - Number of statements (each statement adds ~15px)
+        // - Number of tainted variables (each adds ~10px)
+        // - Length of label (longer labels need more space)
+        const baseWidth = 100;
+        const statementWidth = Math.min(block.statements.length * 15, 100); // Max 100px for statements
+        const taintWidth = Math.min(blockTaintedVars.length * 10, 50); // Max 50px for taint info
+        const labelWidth = Math.min(nodeLabel.length * 6, 80); // Max 80px for label
+        const dynamicWidth = Math.max(baseWidth, Math.min(baseWidth + statementWidth + taintWidth + labelWidth, 300)); // Max 300px
+        
+        // Calculate height based on content
+        const baseHeight = 60;
+        const statementHeight = Math.min(block.statements.length * 12, 120); // Max 120px for statements
+        const dynamicHeight = Math.max(baseHeight, Math.min(baseHeight + statementHeight, 200)); // Max 200px
+        
+        // Use colors based on taint type
+        const nodeData: any = {
           id: nodeId,
           label: nodeLabel,
           group: functionGroups.get(funcName),
           title: title,
           color: {
-            background: isTainted ? '#ffe0e0' : '#e8f4f8',  // Red for tainted, light blue for normal
-            border: isTainted ? '#dc3545' : '#2e7d32',      // Red border for tainted, green for normal
+            background: nodeColor,
+            border: nodeBorder,
             highlight: {
-              background: isTainted ? '#ff6b6b' : '#74b9ff',
-              border: isTainted ? '#dc3545' : '#0984e3'
+              background: isTainted ? '#a29bfe' : '#74b9ff',
+              border: isTainted ? '#6c5ce7' : '#0984e3'
             }
           },
-          font: { color: isTainted ? '#dc3545' : '#333' },  // Red text for tainted, dark for normal
+          borderWidth: 2,
+          borderWidthSelected: 3,
+          font: { 
+            color: '#333',  // Always black text for readability
+            size: Math.max(10, Math.min(14 - Math.floor(dynamicWidth / 50), 14)) // Scale font size with width
+          },
           shape: 'box',
+          width: dynamicWidth,
+          height: dynamicHeight,
           metadata: {
             function: funcName,
             blockId: blockId,
             isEntry: block.isEntry || false,
             isExit: block.isExit || false,
             isTainted: isTainted,
-            taintedVariables: blockTaintedVars.map((t: TaintInfo) => t.variable)
+            hasDataFlowTaint: hasDataFlowTaint,
+            hasControlDependentTaint: hasControlDependentTaint,
+            taintedVariables: [...new Set(blockTaintedVars.map((t: TaintInfo) => t.variable))]
           }
-        });
+        };
+        
+        // Add dashed border for control-dependent taint
+        if (nodeBorderStyle === 'dashed') {
+          nodeData.borderDashes = [5, 5];
+        }
+        
+        nodes.push(nodeData);
       });
 
       // Add intra-function control flow edges (green)
@@ -1623,6 +2012,26 @@ export class CFGVisualizer {
   }
 
   /**
+   * Get sensitivity features text for display
+   */
+  private getSensitivityFeaturesText(sensitivity: string): string {
+    switch (sensitivity) {
+      case 'minimal':
+        return 'Data-flow taint only';
+      case 'conservative':
+        return 'Data-flow + Basic control-dependent (no nested)';
+      case 'balanced':
+        return 'Data-flow + Full recursive control-dependent + Inter-procedural';
+      case 'precise':
+        return 'All BALANCED features + Path-sensitive + Field-sensitive';
+      case 'maximum':
+        return 'All PRECISE features + Context-sensitive + Flow-sensitive';
+      default:
+        return 'Data-flow + Full recursive control-dependent + Inter-procedural';
+    }
+  }
+
+  /**
    * Get webview HTML content
    */
   private getWebviewContent(
@@ -1640,6 +2049,50 @@ export class CFGVisualizer {
     const formatVulnType = (type: string): string => {
       return type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     };
+    
+    // Calculate legend counts from interconnectedData
+    let dataFlowTaintBlocks = 0;
+    let controlDependentTaintBlocks = 0;
+    let mixedTaintBlocks = 0;
+    let normalBlocks = 0;
+    let controlFlowEdges = 0;
+    let functionCallEdges = 0;
+    let dataFlowEdges = 0;
+    
+    if (interconnectedData && interconnectedData.nodes && interconnectedData.edges) {
+      const nodes = interconnectedData.nodes;
+      const edges = interconnectedData.edges;
+      
+      // Count block types
+      nodes.forEach((node: any) => {
+        if (node.metadata) {
+          if (node.metadata.hasDataFlowTaint && node.metadata.hasControlDependentTaint) {
+            mixedTaintBlocks++;
+          } else if (node.metadata.hasControlDependentTaint) {
+            controlDependentTaintBlocks++;
+          } else if (node.metadata.hasDataFlowTaint) {
+            dataFlowTaintBlocks++;
+          } else {
+            normalBlocks++;
+          }
+        } else {
+          normalBlocks++;
+        }
+      });
+      
+      // Count edge types
+      edges.forEach((edge: any) => {
+        if (edge.metadata && edge.metadata.type) {
+          if (edge.metadata.type === 'control_flow') {
+            controlFlowEdges++;
+          } else if (edge.metadata.type === 'function_call') {
+            functionCallEdges++;
+          } else if (edge.metadata.type === 'data_flow') {
+            dataFlowEdges++;
+          }
+        }
+      });
+    }
     
     return `<!DOCTYPE html>
 <html lang="en">
@@ -1841,18 +2294,43 @@ export class CFGVisualizer {
         .debug-toggle-btn.inactive {
             background-color: #6c757d !important;
         }
+        .edge-toggle-btn {
+            transition: background-color 0.2s;
+            min-width: 50px;
+        }
+        .edge-toggle-btn:hover {
+            opacity: 0.9;
+        }
+        .edge-toggle-btn.active {
+            background-color: #28a745 !important;
+        }
+        .edge-toggle-btn.inactive {
+            background-color: #6c757d !important;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2>Dataflow Analysis: ${functionName}</h2>
-        <div class="function-selector">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div style="flex: 1;">
+                <h2 style="margin: 0;">Dataflow Analysis: ${functionName}</h2>
+                <div class="function-selector" style="margin-top: 10px;">
             <label>Function: </label>
             <select id="functionSelect">
                 ${Array.from(state.cfg.functions.keys()).map(name => 
                   `<option value="${name}" ${name === functionName ? 'selected' : ''}>${name}</option>`
                 ).join('')}
             </select>
+                </div>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
+                <div style="display: flex; gap: 10px;">
+                    <button id="reAnalyzeBtn" style="padding: 8px 16px; background-color: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 14px; font-weight: bold;">🔄 Re-analyze</button>
+                    <button id="saveStateBtn" style="padding: 8px 16px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 14px; font-weight: bold;">💾 Save State</button>
+                </div>
+                <div id="reAnalyzeStatus" style="font-size: 0.85em; color: #666666; text-align: center; min-height: 18px;"></div>
+                <div id="saveStateStatus" style="font-size: 0.85em; color: #666666; text-align: center; min-height: 18px;"></div>
+            </div>
         </div>
         <div class="debug-toggle-container" style="margin-top: 10px;">
             <label for="debugToggle" style="color: #333333; margin-right: 8px;">Show Debug Info:</label>
@@ -2257,42 +2735,117 @@ export class CFGVisualizer {
             <p style="color: #333333; margin-bottom: 10px;">
                 This view shows all functions and their relationships in a unified graph.
             </p>
+            
+            <!-- Sensitivity Level Dropdown and Re-analysis Button -->
+            <div style="margin-top: 15px; margin-bottom: 15px; padding: 10px; background: white; border-radius: 3px;">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 400px;">
+                        <label for="sensitivitySelect" style="color: #1864ab; font-weight: bold; margin-right: 10px;">Taint Analysis Sensitivity:</label>
+                        <select id="sensitivitySelect" style="padding: 6px 12px; background-color: var(--vscode-dropdown-background); color: #ffffff; border: 1px solid var(--vscode-dropdown-border); border-radius: 3px; cursor: pointer; font-size: 14px;">
+                            <option value="minimal" ${state.taintSensitivity === 'minimal' ? 'selected' : ''}>MINIMAL - Only explicit data-flow (fastest, no control-dependent)</option>
+                            <option value="conservative" ${state.taintSensitivity === 'conservative' ? 'selected' : ''}>CONSERVATIVE - Basic control-dependent (direct branches only)</option>
+                            <option value="balanced" ${state.taintSensitivity === 'balanced' ? 'selected' : ''}>BALANCED - Full recursive control-dependent + inter-procedural</option>
+                            <option value="precise" ${state.taintSensitivity === 'precise' ? 'selected' : (!state.taintSensitivity ? 'selected' : '')}>PRECISE - Path-sensitive + field-sensitive (reduces false positives)</option>
+                            <option value="maximum" ${state.taintSensitivity === 'maximum' ? 'selected' : ''}>MAXIMUM - Context-sensitive + flow-sensitive (most precise, slowest)</option>
+                        </select>
+                        <span id="sensitivityNote" style="margin-left: 10px; color: #666666; font-size: 0.9em; font-style: italic;">Current: ${(state.taintSensitivity || 'precise').toUpperCase()}</span>
+                    </div>
+                </div>
+                <div id="sensitivityFeatures" style="margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 3px; font-size: 0.85em;">
+                    <strong style="color: #1864ab;">Active Features:</strong>
+                    <span id="sensitivityFeaturesList" style="color: #333333;">
+                        ${this.getSensitivityFeaturesText(state.taintSensitivity || 'precise')}
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Edge Type Toggles -->
+            <div style="margin-top: 15px; margin-bottom: 15px; padding: 10px; background: white; border-radius: 3px;">
+                <strong style="color: #1864ab; display: block; margin-bottom: 10px;">Toggle Edge Types:</strong>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <button id="toggleControlFlow" class="edge-toggle-btn active" style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px;">ON</button>
+                        <div style="width: 30px; height: 3px; background: #51cf66;"></div>
+                        <span style="color: #333333;">Control Flow</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <button id="toggleFunctionCalls" class="edge-toggle-btn active" style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px;">ON</button>
+                        <div style="width: 30px; height: 3px; background: #4dabf7; border-top: 2px dashed #4dabf7;"></div>
+                        <span style="color: #333333;">Function Calls</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <button id="toggleDataFlow" class="edge-toggle-btn active" style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px;">ON</button>
+                        <div style="width: 30px; height: 3px; background: #ffa94d; border-top: 2px dashed #ffa94d;"></div>
+                        <span style="color: #333333;">Data Flow</span>
+                    </div>
+                </div>
+            </div>
+            
             <div style="display: flex; gap: 30px; flex-wrap: wrap; margin-top: 15px;">
                 <div>
                     <strong style="color: #1864ab;">Total Functions:</strong>
-                    <span style="color: #333333;">${interconnectedData.functions.length}</span>
+                    <span style="color: #333333;">${interconnectedData && interconnectedData.functions ? interconnectedData.functions.length : 0}</span>
                 </div>
                 <div>
                     <strong style="color: #1864ab;">Total Nodes:</strong>
-                    <span style="color: #333333;">${interconnectedData.nodes.length}</span>
+                    <span style="color: #333333;">${interconnectedData && interconnectedData.nodes ? interconnectedData.nodes.length : 0}</span>
                 </div>
                 <div>
                     <strong style="color: #1864ab;">Total Edges:</strong>
-                    <span style="color: #333333;">${interconnectedData.edges.length}</span>
+                    <span style="color: #333333;">${interconnectedData && interconnectedData.edges ? interconnectedData.edges.length : 0}</span>
                 </div>
             </div>
             <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 3px;">
                 <strong style="color: #1864ab;">Legend:</strong>
-                <div style="display: flex; gap: 20px; margin-top: 8px; flex-wrap: wrap;">
-                    <div style="display: flex; align-items: center; gap: 5px;">
-                        <div style="width: 20px; height: 20px; background: #ffe0e0; border: 2px solid #dc3545;"></div>
-                        <span style="color: #333333;">Tainted Blocks (Red)</span>
-                        <div style="width: 20px; height: 20px; background: #e8f4f8; border: 2px solid #2e7d32; margin-left: 15px;"></div>
-                        <span style="color: #333333;">Normal Blocks (Blue)</span>
+                ${interconnectedData && interconnectedData.nodes && interconnectedData.edges ? `
+                    <div style="margin-top: 12px;">
+                        <div style="margin-bottom: 12px;">
+                            <strong style="color: #1864ab; font-size: 0.95em;">Block Types:</strong>
+                            <div style="display: flex; gap: 15px; margin-top: 8px; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="width: 20px; height: 20px; background: #ffd60a; border: 2px solid #ffc300; border-radius: 2px;"></div>
+                                    <span style="color: #333333; font-size: 0.9em;">Data-flow Taint</span>
+                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${dataFlowTaintBlocks})</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 5px;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="width: 20px; height: 20px; background: #ffa94d; border: 2px dashed #ff8800; border-radius: 2px;"></div>
+                                    <span style="color: #333333; font-size: 0.9em;">Control-dependent Taint</span>
+                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${controlDependentTaintBlocks})</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="width: 20px; height: 20px; background: #9d4edd; border: 2px solid #7b2cbf; border-radius: 2px;"></div>
+                                    <span style="color: #333333; font-size: 0.9em;">Mixed Taint</span>
+                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${mixedTaintBlocks})</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="width: 20px; height: 20px; background: #e8f4f8; border: 2px solid #2e7d32; border-radius: 2px;"></div>
+                                    <span style="color: #333333; font-size: 0.9em;">Normal Blocks</span>
+                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${normalBlocks})</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <strong style="color: #1864ab; font-size: 0.95em;">Edge Types:</strong>
+                            <div style="display: flex; gap: 15px; margin-top: 8px; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
                         <div style="width: 30px; height: 3px; background: #51cf66;"></div>
-                        <span style="color: #333333;">Control Flow (Green)</span>
+                                    <span style="color: #333333; font-size: 0.9em;">Control Flow</span>
+                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${controlFlowEdges})</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 5px;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
                         <div style="width: 30px; height: 3px; background: #4dabf7; border-top: 2px dashed #4dabf7;"></div>
-                        <span style="color: #333333;">Function Calls (Blue, Dashed)</span>
+                                    <span style="color: #333333; font-size: 0.9em;">Function Calls</span>
+                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${functionCallEdges})</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 5px;">
+                                <div style="display: flex; align-items: center; gap: 6px;">
                         <div style="width: 30px; height: 3px; background: #ffa94d; border-top: 2px dashed #ffa94d;"></div>
-                        <span style="color: #333333;">Data Flow (Orange, Dashed)</span>
+                                    <span style="color: #333333; font-size: 0.9em;">Data Flow</span>
+                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${dataFlowEdges})</span>
                     </div>
                 </div>
+                        </div>
+                    </div>
+                ` : '<div style="color: #666666; margin-top: 8px;">No data available</div>'}
             </div>
         </div>
         
@@ -2316,23 +2869,63 @@ export class CFGVisualizer {
         
 
     <script type="application/json" id="graph-data-json">
-${JSON.stringify(graphData).replace(/<\//g, '<\\/')}
+${JSON.stringify(graphData, (key, value) => {
+        // Replace null/undefined with empty values to prevent "null" in HTML
+        if (value === null || value === undefined) {
+            return '';
+        }
+        return value;
+    }).replace(/<\//g, '<\\/')}
     </script>
     
     <script type="application/json" id="callgraph-data-json">
-${callGraphData ? JSON.stringify(callGraphData).replace(/<\//g, '<\\/') : '{}'}
+${callGraphData ? JSON.stringify(callGraphData, (key, value) => {
+        // Replace null/undefined with empty values to prevent "null" in HTML
+        if (value === null || value === undefined) {
+            return '';
+        }
+        return value;
+    }).replace(/<\//g, '<\\/') : '{}'}
     </script>
     
     <script type="application/json" id="ipa-data-json">
-${ipaData ? JSON.stringify(ipaData).replace(/<\//g, '<\\/') : '{}'}
+${ipaData ? JSON.stringify(ipaData, (key, value) => {
+        // Replace null/undefined with empty values to prevent "null" in HTML
+        if (value === null || value === undefined) {
+            return '';
+        }
+        return value;
+    }).replace(/<\//g, '<\\/') : '{}'}
     </script>
     
     <script type="application/json" id="taint-data-json">
-${taintData ? JSON.stringify(taintData).replace(/<\//g, '<\\/') : '{}'}
+${taintData ? JSON.stringify(taintData, (key, value) => {
+        // Replace null/undefined with empty values to prevent "null" in HTML
+        if (value === null || value === undefined) {
+            return '';
+        }
+        return value;
+    }).replace(/<\//g, '<\\/') : '{}'}
     </script>
     
     <script type="application/json" id="interconnected-data-json">
-${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/') : '{}'}
+${interconnectedData ? JSON.stringify(interconnectedData, (key, value) => {
+        // Replace null/undefined with empty values to prevent "null" in HTML
+        if (value === null || value === undefined) {
+            return '';
+        }
+        return value;
+    }).replace(/<\//g, '<\\/') : '{}'}
+    </script>
+    
+    <script type="application/json" id="state-data-json">
+${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key, value) => {
+        // Replace null/undefined with empty values to prevent "null" in HTML
+        if (value === null || value === undefined) {
+            return '';
+        }
+        return value;
+    }).replace(/<\//g, '<\\/')}
     </script>
 
     <script>
@@ -2347,6 +2940,11 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
         }
 
         logDebug('Starting initialization...');
+        
+        // CRITICAL: Acquire VS Code API once at the top level
+        // This must be done before any event listeners that use it
+        const vscode = acquireVsCodeApi();
+        logDebug('VS Code API acquired');
 
         // Debug panel toggle functionality
         let debugVisible = true;
@@ -2385,7 +2983,7 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             logDebug('vis-network loaded, initializing...');
 
             try {
-            const vscode = acquireVsCodeApi();
+            // Use the top-level vscode variable (already acquired above)
             const graphDataElement = document.getElementById('graph-data-json');
                 
                 if (!graphDataElement) {
@@ -2499,7 +3097,7 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
             if (functionSelect) {
                 functionSelect.addEventListener('change', function(event) {
                     const selectedFunction = event.target.value;
-                    logDebug('Function selector changed to: ' + selectedFunction);
+                    logDebug('[FUNCTION-SELECT] Changed to: ' + selectedFunction);
 
                     // Send message to extension to update visualization
                     try {
@@ -2507,14 +3105,241 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                         type: 'changeFunction',
                         functionName: selectedFunction
                     });
+                        logDebug('[FUNCTION-SELECT] Message sent successfully');
                     } catch (messageError) {
-                        logDebug('ERROR: Failed to send message to extension: ' + messageError);
+                        logDebug('[FUNCTION-SELECT] ERROR: Failed to send message: ' + messageError);
                     }
                 });
-                logDebug('Function selector event listener attached');
+                logDebug('[FUNCTION-SELECT] Event listener attached');
                 } else {
-                logDebug('WARNING: functionSelect element not found (this is OK if no functions available)');
+                logDebug('[FUNCTION-SELECT] WARNING: functionSelect element not found (this is OK if no functions available)');
             }
+            
+            // Handle re-analyze button (in header, available in all tabs except Interconnected CFG)
+            const reAnalyzeBtn = document.getElementById('reAnalyzeBtn');
+            const reAnalyzeStatus = document.getElementById('reAnalyzeStatus');
+            if (reAnalyzeBtn) {
+                // Check if we're in the Interconnected CFG tab - if so, hide the button
+                const interconnectedTab = document.getElementById('interconnected-tab');
+                const isInterconnectedTab = interconnectedTab && interconnectedTab.classList.contains('active');
+                
+                if (isInterconnectedTab) {
+                    // Hide the button in Interconnected CFG tab (sensitivity dropdown handles re-analysis there)
+                    reAnalyzeBtn.style.display = 'none';
+                    if (reAnalyzeStatus) {
+                        reAnalyzeStatus.style.display = 'none';
+                    }
+                    logDebug('[RE-ANALYZE] Button hidden in Interconnected CFG tab');
+                } else {
+                    // Show and attach handler for other tabs
+                    reAnalyzeBtn.style.display = 'inline-block';
+                    if (reAnalyzeStatus) {
+                        reAnalyzeStatus.style.display = 'block';
+                    }
+                    
+                    reAnalyzeBtn.addEventListener('click', function() {
+                        logDebug('[RE-ANALYZE] Button clicked (Viz tab)');
+                        
+                        // Update button state
+                        reAnalyzeBtn.textContent = '🔄 Analyzing...';
+                        reAnalyzeBtn.disabled = true;
+                        reAnalyzeBtn.style.backgroundColor = '#6c757d';
+                        if (reAnalyzeStatus) {
+                            reAnalyzeStatus.textContent = 'Re-analysis in progress...';
+                            reAnalyzeStatus.style.color = '#ff8800';
+                        }
+                        
+                        // Send message to trigger re-analysis with current analyzer config
+                        try {
+                            logDebug('[RE-ANALYZE] Sending reAnalyze message');
+                            vscode.postMessage({
+                                type: 'reAnalyze',
+                                triggerReAnalysis: true
+                            });
+                            logDebug('[RE-ANALYZE] Message sent successfully');
+                        } catch (error) {
+                            logDebug('[RE-ANALYZE] ERROR: Failed to send message: ' + error);
+                            // Reset button state on error
+                            reAnalyzeBtn.textContent = '🔄 Re-analyze';
+                            reAnalyzeBtn.disabled = false;
+                            reAnalyzeBtn.style.backgroundColor = '#007bff';
+                            if (reAnalyzeStatus) {
+                                reAnalyzeStatus.textContent = 'Failed to send message: ' + error;
+                                reAnalyzeStatus.style.color = '#dc3545';
+                            }
+                        }
+                    });
+                    logDebug('[RE-ANALYZE] Event listener attached to reAnalyzeBtn (Viz tab)');
+                }
+            } else {
+                logDebug('[RE-ANALYZE] WARNING: reAnalyzeBtn element not found');
+            }
+            
+            // Handle save state button (in header, available in all tabs)
+            const saveStateBtn = document.getElementById('saveStateBtn');
+            const saveStateStatus = document.getElementById('saveStateStatus');
+            if (saveStateBtn) {
+                saveStateBtn.addEventListener('click', function() {
+                    logDebug('[SAVE-STATE] Button clicked');
+                    try {
+                        vscode.postMessage({
+                            type: 'saveState'
+                        });
+                        logDebug('[SAVE-STATE] Message sent successfully');
+                        
+                        // Update button and status
+                        saveStateBtn.textContent = '💾 Saving...';
+                        saveStateBtn.disabled = true;
+                        saveStateBtn.style.backgroundColor = '#6c757d';
+                        if (saveStateStatus) {
+                            saveStateStatus.textContent = 'Saving state...';
+                            saveStateStatus.style.color = '#ff8800';
+                        }
+                    } catch (error) {
+                        logDebug('[SAVE-STATE] ERROR: Failed to send message: ' + error);
+                        if (saveStateStatus) {
+                            saveStateStatus.textContent = 'Failed to send message: ' + error;
+                            saveStateStatus.style.color = '#dc3545';
+                        }
+                    }
+                });
+                logDebug('[SAVE-STATE] Event listener attached to saveStateBtn');
+            } else {
+                logDebug('[SAVE-STATE] WARNING: saveStateBtn element not found');
+            }
+            
+            // Function to attach edge toggle handlers (can be called multiple times safely)
+            // CRITICAL FIX: Make it globally accessible
+            window.attachEdgeToggleHandlers = function attachEdgeToggleHandlers() {
+                // Initialize edge visibility state if not already set
+                if (!window.icEdgeVisibility) {
+                    window.icEdgeVisibility = {
+                        controlFlow: true,
+                        functionCalls: true,
+                        dataFlow: true
+                    };
+                }
+                
+                // Initialize toggle functions if not already set
+                if (!window.toggleEdgeType) {
+                    window.toggleEdgeType = function(edgeType, buttonId) {
+                        const button = document.getElementById(buttonId);
+                        if (!button) {
+                            logDebug('[EDGE-TOGGLE] Button not found: ' + buttonId);
+                            return;
+                        }
+                        if (!window.icNetwork || !window.icEdgeDataSet) {
+                            logDebug('[EDGE-TOGGLE] WARNING: Network or dataset not ready, cannot toggle');
+                            return;
+                        }
+                        
+                        window.icEdgeVisibility[edgeType] = !window.icEdgeVisibility[edgeType];
+                        const isEnabled = window.icEdgeVisibility[edgeType];
+                        
+                        // Update button
+                        button.textContent = isEnabled ? 'ON' : 'OFF';
+                        button.style.backgroundColor = isEnabled ? '#28a745' : '#6c757d';
+                        button.classList.toggle('active', isEnabled);
+                        button.classList.toggle('inactive', !isEnabled);
+                        
+                        // Update all edge visibility
+                        if (window.updateAllEdgeVisibility) {
+                            const updatedCount = window.updateAllEdgeVisibility();
+                            logDebug('[EDGE-TOGGLE] Edge type ' + edgeType + ' toggled to: ' + (isEnabled ? 'ON' : 'OFF') + ' (updated ' + updatedCount + ' edges)');
+                        }
+                    };
+                }
+                
+                if (!window.updateAllEdgeVisibility) {
+                    window.updateAllEdgeVisibility = function() {
+                        if (!window.icEdgeDataSet) return 0;
+                        
+                        const allEdges = window.icEdgeDataSet.get();
+                        const updates = [];
+                        
+                        allEdges.forEach(function(edge) {
+                            const metadata = edge.metadata || {};
+                            const metadataType = metadata.type || '';
+                            
+                            let shouldHide = false;
+                            if (metadataType === 'control_flow') {
+                                shouldHide = !window.icEdgeVisibility.controlFlow;
+                            } else if (metadataType === 'function_call') {
+                                shouldHide = !window.icEdgeVisibility.functionCalls;
+                            } else if (metadataType === 'data_flow') {
+                                shouldHide = !window.icEdgeVisibility.dataFlow;
+                            }
+                            
+                            if (edge.hidden !== shouldHide) {
+                                updates.push({
+                                    id: edge.id,
+                                    hidden: shouldHide
+                                });
+                            }
+                        });
+                        
+                        if (updates.length > 0) {
+                            window.icEdgeDataSet.update(updates);
+                        }
+                        
+                        return updates.length;
+                    };
+                }
+                
+                // Attach handlers to toggle buttons
+                logDebug('[EDGE-TOGGLE] Attaching toggle button handlers...');
+                const toggleControlFlowBtn = document.getElementById('toggleControlFlow');
+                if (toggleControlFlowBtn) {
+                    // Remove old listener by cloning
+                    const newBtn = toggleControlFlowBtn.cloneNode(true);
+                    toggleControlFlowBtn.parentNode?.replaceChild(newBtn, toggleControlFlowBtn);
+                    const btn = document.getElementById('toggleControlFlow');
+                    if (btn) {
+                        btn.addEventListener('click', function() {
+                            logDebug('[EDGE-TOGGLE] Control Flow button clicked');
+                            window.toggleEdgeType('controlFlow', 'toggleControlFlow');
+                        });
+                        logDebug('[EDGE-TOGGLE] Control Flow handler attached');
+                    }
+                }
+                
+                const toggleFunctionCallsBtn = document.getElementById('toggleFunctionCalls');
+                if (toggleFunctionCallsBtn) {
+                    const newBtn = toggleFunctionCallsBtn.cloneNode(true);
+                    toggleFunctionCallsBtn.parentNode?.replaceChild(newBtn, toggleFunctionCallsBtn);
+                    const btn = document.getElementById('toggleFunctionCalls');
+                    if (btn) {
+                        btn.addEventListener('click', function() {
+                            logDebug('[EDGE-TOGGLE] Function Calls button clicked');
+                            window.toggleEdgeType('functionCalls', 'toggleFunctionCalls');
+                        });
+                        logDebug('[EDGE-TOGGLE] Function Calls handler attached');
+                    }
+                }
+                
+                const toggleDataFlowBtn = document.getElementById('toggleDataFlow');
+                if (toggleDataFlowBtn) {
+                    const newBtn = toggleDataFlowBtn.cloneNode(true);
+                    toggleDataFlowBtn.parentNode?.replaceChild(newBtn, toggleDataFlowBtn);
+                    const btn = document.getElementById('toggleDataFlow');
+                    if (btn) {
+                        btn.addEventListener('click', function() {
+                            logDebug('[EDGE-TOGGLE] Data Flow button clicked');
+                            window.toggleEdgeType('dataFlow', 'toggleDataFlow');
+                        });
+                        logDebug('[EDGE-TOGGLE] Data Flow handler attached');
+                    }
+                }
+            }
+            
+            // Attach edge toggle handlers immediately (buttons exist in HTML)
+            // CRITICAL FIX: Use window.attachEdgeToggleHandlers if available, otherwise call directly
+            if (window.attachEdgeToggleHandlers) {
+                window.attachEdgeToggleHandlers();
+            } else if (typeof attachEdgeToggleHandlers === 'function') {
+                attachEdgeToggleHandlers();
+            }
+            logDebug('[EDGE-TOGGLE] Initial toggle handlers attached');
             
             // Handle node click (show info on click)
             if (window.network) {
@@ -2607,7 +3432,37 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                         // Inter-Procedural Taint tab - no special initialization needed
                         logDebug('Switched to Inter-Procedural Taint tab');
                     } else if (targetTab === 'interconnected' && typeof vis !== 'undefined') {
+                        logDebug('Switching to interconnected tab, initializing network...');
                         initInterconnectedNetwork();
+                        // Also ensure toggle handlers are attached (in case they weren't attached during init)
+                        // CRITICAL FIX: Use window.attachEdgeToggleHandlers if available
+                        if (window.attachEdgeToggleHandlers) {
+                            window.attachEdgeToggleHandlers();
+                        } else if (typeof attachEdgeToggleHandlers === 'function') {
+                            attachEdgeToggleHandlers();
+                        }
+                        
+                        // Hide re-analyze button in Interconnected CFG tab (sensitivity dropdown handles re-analysis)
+                        const reAnalyzeBtn = document.getElementById('reAnalyzeBtn');
+                        const reAnalyzeStatus = document.getElementById('reAnalyzeStatus');
+                        if (reAnalyzeBtn) {
+                            reAnalyzeBtn.style.display = 'none';
+                            logDebug('[RE-ANALYZE] Button hidden in Interconnected CFG tab');
+                        }
+                        if (reAnalyzeStatus) {
+                            reAnalyzeStatus.style.display = 'none';
+                        }
+                    } else {
+                        // Show re-analyze button in other tabs
+                        const reAnalyzeBtn = document.getElementById('reAnalyzeBtn');
+                        const reAnalyzeStatus = document.getElementById('reAnalyzeStatus');
+                        if (reAnalyzeBtn) {
+                            reAnalyzeBtn.style.display = 'inline-block';
+                            logDebug('[RE-ANALYZE] Button shown in ' + targetTab + ' tab');
+                        }
+                        if (reAnalyzeStatus) {
+                            reAnalyzeStatus.style.display = 'block';
+                        }
                     }
                 } else {
                     logDebug('WARNING: Tab content element not found for: ' + targetTab + '-tab');
@@ -2903,7 +3758,8 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                 nodes: {
                     shape: 'box',
                     margin: 10,
-                    widthConstraint: { maximum: 200 }
+                    widthConstraint: { maximum: 300 },  // Increased to support dynamic sizing
+                    heightConstraint: { maximum: 200 }  // Added height constraint
                 },
                 edges: {
                     smooth: { type: 'continuous' },  // Use continuous curves for better non-overlapping routing
@@ -2957,8 +3813,12 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                 }
             }
             
+            // Store network reference globally for edge toggling
+            window.icNetwork = null;
+            
             try {
             const icNetwork = new vis.Network(icContainer, icData, icOptions);
+            window.icNetwork = icNetwork; // Store for edge toggling
             logDebug('Interconnected CFG network created successfully');
             
                 // Handle node click with error handling
@@ -2976,6 +3836,17 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                             html += '<p style="color: #333333;"><strong>Entry Block:</strong> ' + (node.metadata.isEntry ? 'Yes' : 'No') + '</p>';
                             html += '<p style="color: #333333;"><strong>Exit Block:</strong> ' + (node.metadata.isExit ? 'Yes' : 'No') + '</p>';
                             html += '<p style="color: #333333;"><strong>Label:</strong> ' + node.label + '</p>';
+                            if (node.metadata.hasDataFlowTaint || node.metadata.hasControlDependentTaint) {
+                                html += '<p style="color: #333333;"><strong>Taint Type:</strong> ';
+                                if (node.metadata.hasDataFlowTaint && node.metadata.hasControlDependentTaint) {
+                                    html += '<span style="color: #7b2cbf;">Mixed (Data-flow + Control-dependent)</span>';
+                                } else if (node.metadata.hasControlDependentTaint) {
+                                    html += '<span style="color: #ff8800;">Control-dependent (Implicit Flow)</span>';
+                                } else {
+                                    html += '<span style="color: #ffc300;">Data-flow (Explicit Flow)</span>';
+                                }
+                                html += '</p>';
+                            }
                             infoDiv.innerHTML = html;
                         }
                     }
@@ -2989,6 +3860,180 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                         logDebug('ERROR: Failed to handle interconnected network node click: ' + clickError);
                     }
                 });
+                
+                // Store original edges and nodes for toggling
+                window.icOriginalEdges = processedEdges;
+                window.icOriginalNodes = interconnectedData.nodes;
+                window.icEdgeVisibility = {
+                    controlFlow: true,
+                    functionCalls: true,
+                    dataFlow: true
+                };
+                window.icEdgeDataSet = icEdges; // Store the DataSet for updates
+                
+                // CRITICAL FIX: Call attachEdgeToggleHandlers after network is created
+                // Make sure it's defined and accessible
+                if (window.attachEdgeToggleHandlers) {
+                    window.attachEdgeToggleHandlers();
+                    logDebug('[EDGE-TOGGLE] Toggle handlers attached after interconnected network creation');
+                } else {
+                    logDebug('[EDGE-TOGGLE] WARNING: attachEdgeToggleHandlers not available, will be called later');
+                }
+                
+                // Handle sensitivity dropdown change - CRITICAL FIX: Remove old listener before adding new one
+                const sensitivitySelect = document.getElementById('sensitivitySelect');
+                if (sensitivitySelect) {
+                    // CRITICAL FIX: Remove any existing event listeners by cloning the element
+                    const newSelect = sensitivitySelect.cloneNode(true);
+                    sensitivitySelect.parentNode.replaceChild(newSelect, sensitivitySelect);
+                    
+                    // CRITICAL FIX: Read current sensitivity from state JSON data
+                    let currentSensitivity = 'precise';
+                    try {
+                        const stateDataElement = document.getElementById('state-data-json');
+                        if (stateDataElement) {
+                            const stateData = JSON.parse(stateDataElement.textContent);
+                            currentSensitivity = stateData.taintSensitivity || 'precise';
+                            logDebug('[SENSITIVITY] Read sensitivity from state JSON: ' + currentSensitivity);
+                            
+                            // Set dropdown value to match current state
+                            newSelect.value = currentSensitivity;
+                            logDebug('[SENSITIVITY] Set dropdown value to: ' + currentSensitivity);
+                        }
+                    } catch (error) {
+                        logDebug('[SENSITIVITY] WARNING: Failed to read state JSON: ' + error);
+                    }
+                    
+                    // Update features list to match current sensitivity
+                    const featuresList = document.getElementById('sensitivityFeaturesList');
+                    if (featuresList) {
+                        const featuresText = {
+                            'minimal': 'Data-flow taint only',
+                            'conservative': 'Data-flow + Basic control-dependent (no nested)',
+                            'balanced': 'Data-flow + Full recursive control-dependent + Inter-procedural',
+                            'precise': 'All BALANCED features + Path-sensitive + Field-sensitive',
+                            'maximum': 'All PRECISE features + Context-sensitive + Flow-sensitive'
+                        };
+                        featuresList.textContent = featuresText[currentSensitivity] || featuresText['balanced'];
+                    }
+                    
+                    // Update note to show current sensitivity
+                    const note = document.getElementById('sensitivityNote');
+                    if (note) {
+                        note.textContent = 'Current: ' + currentSensitivity.toUpperCase();
+                        note.style.color = '#666666';
+                    }
+                    
+                    // Add event listener to the new select element
+                    newSelect.addEventListener('change', function(event) {
+                        const selectedSensitivity = event.target.value;
+                        logDebug('[SENSITIVITY] Dropdown changed to: ' + selectedSensitivity);
+                        
+                        // Update features list
+                        const featuresList = document.getElementById('sensitivityFeaturesList');
+                        if (featuresList) {
+                            const featuresText = {
+                                'minimal': 'Data-flow taint only',
+                                'conservative': 'Data-flow + Basic control-dependent (no nested)',
+                                'balanced': 'Data-flow + Full recursive control-dependent + Inter-procedural',
+                                'precise': 'All BALANCED features + Path-sensitive + Field-sensitive',
+                                'maximum': 'All PRECISE features + Context-sensitive + Flow-sensitive'
+                            };
+                            featuresList.textContent = featuresText[selectedSensitivity] || featuresText['balanced'];
+                        }
+                        
+                        // Update note - re-analysis will be triggered automatically
+                        const note = document.getElementById('sensitivityNote');
+                        if (note) {
+                            note.textContent = 'Current: ' + selectedSensitivity.toUpperCase() + ' - Re-analyzing...';
+                            note.style.color = '#ff8800';
+                        }
+                        
+                        // Update VS Code settings and trigger re-analysis automatically
+                        try {
+                            logDebug('[SENSITIVITY] Sending changeSensitivity message with re-analysis');
+                            vscode.postMessage({
+                                type: 'changeSensitivity',
+                                sensitivity: selectedSensitivity,
+                                triggerReAnalysis: true  // Trigger re-analysis automatically
+                            });
+                            logDebug('[SENSITIVITY] Message sent successfully - re-analysis will be triggered');
+                        } catch (error) {
+                            logDebug('[SENSITIVITY] ERROR: Failed to send message: ' + error);
+                        }
+                    });
+                    logDebug('[SENSITIVITY] Event listener attached to sensitivitySelect (replaced old element)');
+                } else {
+                    logDebug('[SENSITIVITY] WARNING: sensitivitySelect element not found (not in Interconnected CFG tab)');
+                }
+                
+                // Note: Re-analyze and Save State button handlers are set up in main initialization
+                // (above, outside of tab-specific code) so they work in all tabs
+                
+                // Function to update all edge visibility based on current toggle states
+                function updateAllEdgeVisibility() {
+                    if (!window.icEdgeDataSet) return;
+                    
+                    // Get all edges from the DataSet
+                    const allEdges = window.icEdgeDataSet.get();
+                    const updates = [];
+                    
+                    allEdges.forEach(function(edge) {
+                        const metadataType = edge.metadata?.type || 'control_flow';
+                        let shouldHide = false;
+                        
+                        // Determine if this edge should be hidden based on its type and visibility settings
+                        if (metadataType === 'control_flow' || (!metadataType && !edge.metadata)) {
+                            shouldHide = !window.icEdgeVisibility.controlFlow;
+                        } else if (metadataType === 'function_call') {
+                            shouldHide = !window.icEdgeVisibility.functionCalls;
+                        } else if (metadataType === 'data_flow') {
+                            shouldHide = !window.icEdgeVisibility.dataFlow;
+                        }
+                        
+                        // Only update if visibility changed
+                        if (edge.hidden !== shouldHide) {
+                            updates.push({
+                                id: edge.id,
+                                hidden: shouldHide
+                            });
+                        }
+                    });
+                    
+                    // Batch update all edges
+                    if (updates.length > 0) {
+                        window.icEdgeDataSet.update(updates);
+                    }
+                    
+                    return updates.length;
+                }
+                
+                // Handle edge toggle buttons - use hidden property instead of filtering
+                function toggleEdgeType(edgeType, buttonId) {
+                    const button = document.getElementById(buttonId);
+                    if (!button || !window.icNetwork || !window.icEdgeDataSet) return;
+                    
+                    window.icEdgeVisibility[edgeType] = !window.icEdgeVisibility[edgeType];
+                    const isEnabled = window.icEdgeVisibility[edgeType];
+                    
+                    // Update button
+                    button.textContent = isEnabled ? 'ON' : 'OFF';
+                    button.style.backgroundColor = isEnabled ? '#28a745' : '#6c757d';
+                    button.classList.toggle('active', isEnabled);
+                    button.classList.toggle('inactive', !isEnabled);
+                    
+                    // Update all edge visibility (re-evaluate all edges)
+                    const updatedCount = updateAllEdgeVisibility();
+                    
+                    logDebug('Edge type ' + edgeType + ' toggled to: ' + (isEnabled ? 'ON' : 'OFF') + ' (updated ' + updatedCount + ' edges)');
+                }
+                
+                // Attach toggle button handlers (use global function)
+                // Note: Handlers are also attached globally on page load, but re-attach here
+                // to ensure they work after network initialization
+                attachEdgeToggleHandlers();
+                logDebug('[EDGE-TOGGLE] Toggle handlers re-attached after network initialization');
+                
             } catch (icError) {
                 logDebug('ERROR: Failed to create interconnected network: ' + icError);
             }
@@ -3060,6 +4105,72 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
                 logDebug('Updating visualization with new data');
                 // This would require reloading the graph data, for now just log
                 logDebug('Visualization update requested but not implemented in webview');
+            } else if (message.type === 'saveStateResult') {
+                const saveStateBtn = document.getElementById('saveStateBtn');
+                const saveStateStatus = document.getElementById('saveStateStatus');
+                
+                if (message.success) {
+                    if (saveStateBtn) {
+                        saveStateBtn.textContent = '💾 Save State';
+                        saveStateBtn.disabled = false;
+                        saveStateBtn.style.backgroundColor = '#28a745';
+                    }
+                    if (saveStateStatus) {
+                        saveStateStatus.textContent = 'State saved successfully';
+                        saveStateStatus.style.color = '#28a745';
+                        // Clear status after 3 seconds
+                        setTimeout(() => {
+                            if (saveStateStatus) {
+                                saveStateStatus.textContent = '';
+                            }
+                        }, 3000);
+                    }
+                    logDebug('State saved successfully');
+                } else {
+                    if (saveStateBtn) {
+                        saveStateBtn.textContent = '💾 Save State';
+                        saveStateBtn.disabled = false;
+                        saveStateBtn.style.backgroundColor = '#28a745';
+                    }
+                    if (saveStateStatus) {
+                        saveStateStatus.textContent = 'Failed to save state: ' + (message.error || 'Unknown error');
+                        saveStateStatus.style.color = '#dc3545';
+                    }
+                    logDebug('State save failed: ' + (message.error || 'Unknown error'));
+                }
+            } else if (message.type === 'reAnalyzeResult') {
+                const reAnalyzeBtn = document.getElementById('reAnalyzeBtn');
+                const reAnalyzeStatus = document.getElementById('reAnalyzeStatus');
+                
+                if (message.success) {
+                    if (reAnalyzeBtn) {
+                        reAnalyzeBtn.textContent = '🔄 Re-analyze';
+                        reAnalyzeBtn.disabled = false;
+                        reAnalyzeBtn.style.backgroundColor = '#007bff';
+                    }
+                    if (reAnalyzeStatus) {
+                        reAnalyzeStatus.textContent = 'Re-analysis completed';
+                        reAnalyzeStatus.style.color = '#28a745';
+                        // Clear status after 3 seconds
+                        setTimeout(() => {
+                            if (reAnalyzeStatus) {
+                                reAnalyzeStatus.textContent = '';
+                            }
+                        }, 3000);
+                    }
+                    logDebug('Re-analysis completed successfully');
+                } else {
+                    if (reAnalyzeBtn) {
+                        reAnalyzeBtn.textContent = '🔄 Re-analyze';
+                        reAnalyzeBtn.disabled = false;
+                        reAnalyzeBtn.style.backgroundColor = '#007bff';
+                    }
+                    if (reAnalyzeStatus) {
+                        reAnalyzeStatus.textContent = 'Re-analysis failed: ' + (message.error || 'Unknown error');
+                        reAnalyzeStatus.style.color = '#dc3545';
+                    }
+                    logDebug('Re-analysis failed: ' + (message.error || 'Unknown error'));
+                }
             }
         });
 
@@ -3328,6 +4439,7 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
    */
   static async prepareAllVisualizationData(state: AnalysisState): Promise<any> {
     console.log('[CFGVisualizer] Preparing all visualization data for backend...');
+    console.log(`[CFGVisualizer] [DEBUG] Preparing visualization data with sensitivity: ${state.taintSensitivity || 'precise'}`);
     const visualizer = new CFGVisualizer();
     
     const cfgGraphData = new Map<string, any>();
@@ -3363,11 +4475,17 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
     console.log(`[BACKEND_PREP] Total Functions: ${state.cfg.functions.size}`);
     
     for (const [funcName, funcCFG] of state.cfg.functions) {
-      const graphData = cfgGraphData.get(funcName)!;
-      const taintDataForFunc = taintData.get(funcName)!;
-      const interProceduralTaintDataForFunc = interProceduralTaintData.get(funcName)!;
+      // CRITICAL FIX: Add null checks to prevent null variable errors
+      const graphData = cfgGraphData.get(funcName);
+      const taintDataForFunc = taintData.get(funcName);
+      const interProceduralTaintDataForFunc = interProceduralTaintData.get(funcName);
       
+      // Only log if data exists
+      if (graphData && taintDataForFunc && interProceduralTaintDataForFunc) {
       visualizer.logAllTabData(funcName, graphData, callGraphData, taintDataForFunc, interProceduralTaintDataForFunc, interconnectedCFGData);
+      } else {
+        console.log(`[CFGVisualizer] [WARN] Missing visualization data for function: ${funcName}`);
+      }
     }
     
     // Log interconnected CFG summary
@@ -3375,13 +4493,18 @@ ${interconnectedData ? JSON.stringify(interconnectedData).replace(/<\//g, '<\\/'
     
     console.log('========== END BACKEND VISUALIZATION DATA PREPARATION ==========\n');
     
-    return {
+    const result = {
       cfgGraphData,
       callGraphData,
       taintData,
       interProceduralTaintData,
-      interconnectedCFGData
+      interconnectedCFGData,
+      // CRITICAL FIX: Store sensitivity in visualization data to detect when it needs regeneration
+      taintSensitivity: state.taintSensitivity || 'precise'
     };
+    
+    console.log(`[CFGVisualizer] [DEBUG] Visualization data prepared with sensitivity: ${result.taintSensitivity}`);
+    return result;
   }
 }
 

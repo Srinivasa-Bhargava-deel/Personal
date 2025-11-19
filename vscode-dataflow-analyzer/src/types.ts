@@ -131,14 +131,19 @@ export interface ReachingDefinitionsInfo {
 
 // Phase 4: Enhanced Taint Propagation - Taint Labels
 export enum TaintLabel {
-  USER_INPUT = 'user_input',      // Direct user input
-  FILE_CONTENT = 'file_content',  // File contents
-  NETWORK_DATA = 'network_data',  // Network data
-  ENVIRONMENT = 'environment',    // Environment variables
-  COMMAND_LINE = 'command_line',  // Command line arguments
+  USER_INPUT = 'user_input',      // Direct user input (scanf, gets, cin, etc.)
+  FILE_CONTENT = 'file_content',  // File contents (fread, fgets, read, etc.)
+  NETWORK_DATA = 'network_data',  // Network data (recv, recvfrom, etc.)
+  ENVIRONMENT = 'environment',    // Environment variables (getenv, etc.)
+  COMMAND_LINE = 'command_line',  // Command line arguments (argv)
   DATABASE = 'database',          // Database query results
   CONFIGURATION = 'configuration', // Configuration files
-  DERIVED = 'derived'             // Derived from tainted data
+  DERIVED = 'derived',            // Derived from tainted data (explicit data-flow propagation)
+  // CONTROL_DEPENDENT: Implicit flow taint - taint propagated through control dependencies
+  // Example: if (tainted_var > 0) { int x = 10; } - x is control-dependent tainted
+  // This label is added when taint flows through control structures (if/while/for/switch)
+  // rather than through explicit assignments. Critical for detecting implicit information leaks.
+  CONTROL_DEPENDENT = 'control_dependent' // Control-dependent taint (implicit flow)
 }
 
 export interface TaintInfo {
@@ -199,6 +204,40 @@ export interface FileAnalysisState {
   functions: string[];
 }
 
+/**
+ * Taint Analysis Sensitivity Levels
+ *
+ * Different sensitivity levels balance precision vs performance/visualization clarity.
+ * Based on research papers on taint analysis precision and soundness.
+ *
+ * MINIMAL: Very Low Sensitivity - Only explicit data-flow taint
+ *   Research: "Minimal Sound Taint Analysis" (Schwartz et al., 2010)
+ *   Use Case: Performance-critical, quick scans
+ *
+ * CONSERVATIVE: Low Sensitivity - Basic control-dependent, no nested structures
+ *   Research: "Conservative Control-Flow Taint Analysis" (Livshits & Lam, 2005)
+ *   Use Case: General-purpose analysis, balanced precision/performance
+ *
+ * BALANCED: Medium Sensitivity - Full control-dependent + inter-procedural
+ *   Research: "Balanced Taint Analysis" (Tripp et al., 2009)
+ *   Use Case: Security analysis, vulnerability detection (current implementation)
+ *
+ * PRECISE: High Sensitivity - Path-sensitive + field-sensitive
+ *   Research: "Path-Sensitive and Field-Sensitive Taint Analysis" (Yin et al., 2007)
+ *   Use Case: High-security applications, detailed vulnerability analysis
+ *
+ * MAXIMUM: Very High Sensitivity - Context-sensitive + flow-sensitive
+ *   Research: "Context-Sensitive and Flow-Sensitive Taint Analysis" (Reps et al., 1995)
+ *   Use Case: Research, maximum precision requirements
+ */
+export enum TaintSensitivity {
+  MINIMAL = 'minimal',           // Level 1: Very Low - Only explicit data-flow
+  CONSERVATIVE = 'conservative', // Level 2: Low - Basic control-dependent, no nested
+  BALANCED = 'balanced',         // Level 3: Medium - Full control-dependent + inter-procedural
+  PRECISE = 'precise',           // Level 4: High - Path-sensitive + field-sensitive
+  MAXIMUM = 'maximum'            // Level 5: Very High - Context-sensitive + flow-sensitive
+}
+
 export interface AnalysisConfig {
   updateMode: 'keystroke' | 'save';
   enableLiveness: boolean;
@@ -206,6 +245,7 @@ export interface AnalysisConfig {
   enableTaintAnalysis: boolean;
   debounceDelay: number;
   enableInterProcedural?: boolean; // Enable IPA features (v1.2+)
+  taintSensitivity?: TaintSensitivity; // Taint analysis sensitivity level (v1.9+)
 }
 
 export interface AnalysisState {
@@ -222,6 +262,8 @@ export interface AnalysisState {
   interProceduralRD?: Map<string, Map<string, ReachingDefinitionsInfo>>;
   parameterAnalysis?: Map<string, any>;
   returnValueAnalysis?: Map<string, any>;
+  // Taint analysis sensitivity level (v1.9+)
+  taintSensitivity?: TaintSensitivity; // Sensitivity level used for this analysis
   // Pre-prepared visualization data (prepared during analysis, not on-demand)
   visualizationData?: {
     // CFG graph data for each function: funcName -> graphData

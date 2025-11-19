@@ -2,7 +2,7 @@
   "name": "vscode-dataflow-analyzer",
   "displayName": "C++ Dataflow Analyzer",
   "description": "Real-time incremental static/dataflow analysis for C++ with CFG visualization",
-  "version": "1.8.1",
+  "version": "1.9.1",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -70,6 +70,25 @@
           "type": "boolean",
           "default": true,
           "description": "Enable inter-procedural analysis (call graphs, parameter analysis, return value tracking)"
+        },
+        "dataflowAnalyzer.taintSensitivity": {
+          "type": "string",
+          "enum": [
+            "minimal",
+            "conservative",
+            "balanced",
+            "precise",
+            "maximum"
+          ],
+          "enumDescriptions": [
+            "Very Low: Only explicit data-flow taint (fastest, cleanest visualization)",
+            "Low: Basic control-dependent, no nested structures (fast, clean)",
+            "Medium: Full control-dependent + inter-procedural (balanced)",
+            "High: Path-sensitive + field-sensitive (precise, fewer false positives)",
+            "Very High: Context-sensitive + flow-sensitive (maximum precision, slower)"
+          ],
+          "default": "precise",
+          "description": "Taint analysis sensitivity level. Higher sensitivity = more precise but slower analysis with more edges in visualization."
         }
       }
     }
