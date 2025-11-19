@@ -98,6 +98,7 @@ import {
   ReachingDefinitionsInfo,
   TaintLabel,
   TaintSensitivity,
+  TaintInfo,
   StatementType
 } from '../types';
 
@@ -1798,8 +1799,38 @@ export class DataflowAnalyzer {
         });
         
         LoggingConfig.log('TaintAnalysis', `[DataflowAnalyzer] Taint analysis for ${funcName}: collected RD info for ${funcRD.size} blocks`);
+        
+        // CRITICAL FIX: Log sensitivity being used for taint analysis
+        const currentSensitivity = this.config.taintSensitivity || TaintSensitivity.PRECISE;
+        const analyzerSensitivity = (this.taintAnalyzer as any).sensitivity || 'unknown';
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] Analyzing ${funcName} with config sensitivity: ${currentSensitivity}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] TaintAnalyzer sensitivity: ${analyzerSensitivity}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] Sensitivity match: ${currentSensitivity === analyzerSensitivity}`);
+        
+        if (currentSensitivity !== analyzerSensitivity) {
+          console.warn(`[DataflowAnalyzer] [SENSITIVITY-CHECK] WARNING: Sensitivity mismatch! Config: ${currentSensitivity}, Analyzer: ${analyzerSensitivity}`);
+        }
+        
         const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
-        taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
+        
+        // CRITICAL FIX: Log taint results to verify sensitivity is working
+        const totalTaints = Array.from(taintResult.taintMap.values()).flat();
+        const controlDependentTaints = totalTaints.filter((t: TaintInfo) => t.labels?.includes(TaintLabel.CONTROL_DEPENDENT));
+        const dataFlowTaints = totalTaints.filter((t: TaintInfo) => t.labels && t.labels.some(l => l !== TaintLabel.CONTROL_DEPENDENT));
+        
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] ${funcName} taint results:`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Total taints: ${totalTaints.length}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Data-flow taints: ${dataFlowTaints.length}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Control-dependent taints: ${controlDependentTaints.length}`);
+        
+        // Verify sensitivity-specific expectations
+        if (currentSensitivity === TaintSensitivity.MINIMAL) {
+          if (controlDependentTaints.length > 0) {
+            console.warn(`[DataflowAnalyzer] [SENSITIVITY-CHECK] WARNING: Found ${controlDependentTaints.length} control-dependent taints in MINIMAL mode!`);
+          }
+        }
+        
+        taintAnalysis.set(funcName, totalTaints);
         
         // Add taint vulnerabilities to vulnerabilities map
         if (taintResult.vulnerabilities.length > 0) {

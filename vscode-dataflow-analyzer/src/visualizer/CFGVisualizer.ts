@@ -751,13 +751,26 @@ export class CFGVisualizer {
       console.warn('[CFGVisualizer] WARNING: HTML contains "null" - possible data issue');
     }
 
+    // CRITICAL FIX: Log interconnected data sensitivity for verification
+    if (interconnectedData && interconnectedData.taintSensitivity) {
+      console.log(`[CFGVisualizer] [DEBUG] Interconnected data sensitivity: ${interconnectedData.taintSensitivity}`);
+      console.log(`[CFGVisualizer] [DEBUG] Sensitivity match: ${sensitivityInState === interconnectedData.taintSensitivity}`);
+      if (sensitivityInState !== interconnectedData.taintSensitivity) {
+        console.warn(`[CFGVisualizer] [WARNING] Sensitivity mismatch in interconnected data! State: ${sensitivityInState}, Data: ${interconnectedData.taintSensitivity}`);
+      }
+    } else {
+      console.warn(`[CFGVisualizer] [WARNING] Interconnected data missing sensitivity metadata!`);
+    }
+    
     // Force webview refresh by setting HTML (this should reload the webview completely)
     // Setting webview.html to a new value forces VS Code to reload the webview
+    console.log(`[CFGVisualizer] [DEBUG] Setting webview HTML with interconnected data sensitivity: ${interconnectedData?.taintSensitivity || 'not set'}`);
     targetPanel.webview.html = htmlContent;
     console.log('[CFGVisualizer] [DEBUG] Webview HTML set - webview should reload with new data');
     console.log('[CFGVisualizer] Webview HTML set successfully');
     console.log('[CFGVisualizer] Panel visibility state:', targetPanel.visible);
     console.log('[CFGVisualizer] Panel active state:', targetPanel.active);
+    console.log(`[CFGVisualizer] [DEBUG] Webview reloaded - JavaScript will re-initialize with new data (sensitivity: ${sensitivityInState})`);
   }
 
   /**
@@ -3433,6 +3446,66 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                         logDebug('Switched to Inter-Procedural Taint tab');
                     } else if (targetTab === 'interconnected' && typeof vis !== 'undefined') {
                         logDebug('Switching to interconnected tab, initializing network...');
+                        
+                        // CRITICAL FIX: Check if network already exists and data has changed
+                        // If network exists but data changed, destroy and re-initialize
+                        if (window.icNetwork) {
+                            try {
+                                // Check if data has changed by comparing sensitivity
+                                const stateDataElement = document.getElementById('state-data-json');
+                                const interconnectedDataElement = document.getElementById('interconnected-data-json');
+                                
+                                if (stateDataElement && interconnectedDataElement) {
+                                    try {
+                                        const stateData = JSON.parse(stateDataElement.textContent);
+                                        const interconnectedData = JSON.parse(interconnectedDataElement.textContent);
+                                        
+                                        const stateSensitivity = stateData.taintSensitivity || 'precise';
+                                        const dataSensitivity = interconnectedData.taintSensitivity || stateSensitivity;
+                                        
+                                        // If sensitivity changed or network exists but data might be stale, re-initialize
+                                        if (stateSensitivity !== dataSensitivity || !window.icEdgeDataSet) {
+                                            logDebug('[TAB-SWITCH] Data changed or network stale, destroying and re-initializing...');
+                                            window.icNetwork.destroy();
+                                            window.icNetwork = null;
+                                            window.icOriginalEdges = null;
+                                            window.icOriginalNodes = null;
+                                            window.icEdgeDataSet = null;
+                                        } else {
+                                            logDebug('[TAB-SWITCH] Network exists and data matches, skipping re-initialization');
+                                            // Network already initialized with correct data, just ensure handlers are attached
+                                            if (window.attachEdgeToggleHandlers) {
+                                                window.attachEdgeToggleHandlers();
+                                            }
+                                            return; // Skip re-initialization
+                                        }
+                                    } catch (parseError) {
+                                        logDebug('[TAB-SWITCH] WARNING: Failed to check data, re-initializing anyway: ' + parseError);
+                                        // If we can't check, destroy and re-initialize to be safe
+                                        window.icNetwork.destroy();
+                                        window.icNetwork = null;
+                                        window.icOriginalEdges = null;
+                                        window.icOriginalNodes = null;
+                                        window.icEdgeDataSet = null;
+                                    }
+                                } else {
+                                    logDebug('[TAB-SWITCH] Data elements not found, destroying old network and re-initializing...');
+                                    window.icNetwork.destroy();
+                                    window.icNetwork = null;
+                                    window.icOriginalEdges = null;
+                                    window.icOriginalNodes = null;
+                                    window.icEdgeDataSet = null;
+                                }
+                            } catch (destroyError) {
+                                logDebug('[TAB-SWITCH] WARNING: Failed to destroy old network: ' + destroyError);
+                                // Clear references anyway
+                                window.icNetwork = null;
+                                window.icOriginalEdges = null;
+                                window.icOriginalNodes = null;
+                                window.icEdgeDataSet = null;
+                            }
+                        }
+                        
                         initInterconnectedNetwork();
                         // Also ensure toggle handlers are attached (in case they weren't attached during init)
                         // CRITICAL FIX: Use window.attachEdgeToggleHandlers if available
@@ -4158,7 +4231,86 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                             }
                         }, 3000);
                     }
-                    logDebug('Re-analysis completed successfully');
+                    logDebug('[RE-ANALYZE] Re-analysis completed successfully');
+                    
+                    // CRITICAL FIX: Re-initialize interconnected network if we're on that tab
+                    // The HTML has been updated with new data, but the network needs to be re-initialized
+                    const interconnectedTab = document.getElementById('interconnected-tab');
+                    const isInterconnectedTab = interconnectedTab && interconnectedTab.classList.contains('active');
+                    
+                    if (isInterconnectedTab && typeof vis !== 'undefined') {
+                        logDebug('[RE-ANALYZE] Re-initializing interconnected network with new data...');
+                        
+                        // Destroy old network if it exists
+                        if (window.icNetwork) {
+                            try {
+                                window.icNetwork.destroy();
+                                logDebug('[RE-ANALYZE] Destroyed old interconnected network');
+                            } catch (destroyError) {
+                                logDebug('[RE-ANALYZE] WARNING: Failed to destroy old network: ' + destroyError);
+                            }
+                            window.icNetwork = null;
+                        }
+                        
+                        // Clear old data references
+                        window.icOriginalEdges = null;
+                        window.icOriginalNodes = null;
+                        window.icEdgeDataSet = null;
+                        
+                        // Re-initialize with new data from updated HTML
+                        setTimeout(() => {
+                            try {
+                                initInterconnectedNetwork();
+                                logDebug('[RE-ANALYZE] Interconnected network re-initialized successfully');
+                                
+                                // Re-attach toggle handlers
+                                if (window.attachEdgeToggleHandlers) {
+                                    window.attachEdgeToggleHandlers();
+                                    logDebug('[RE-ANALYZE] Edge toggle handlers re-attached');
+                                }
+                                
+                                // Update sensitivity dropdown to match new state
+                                const stateDataElement = document.getElementById('state-data-json');
+                                if (stateDataElement) {
+                                    try {
+                                        const stateData = JSON.parse(stateDataElement.textContent);
+                                        const currentSensitivity = stateData.taintSensitivity || 'precise';
+                                        const sensitivitySelect = document.getElementById('sensitivitySelect');
+                                        if (sensitivitySelect) {
+                                            sensitivitySelect.value = currentSensitivity;
+                                            logDebug('[RE-ANALYZE] Updated sensitivity dropdown to: ' + currentSensitivity);
+                                            
+                                            // Update features list
+                                            const featuresList = document.getElementById('sensitivityFeaturesList');
+                                            if (featuresList) {
+                                                const featuresText = {
+                                                    'minimal': 'Data-flow taint only',
+                                                    'conservative': 'Data-flow + Basic control-dependent (no nested)',
+                                                    'balanced': 'Data-flow + Full recursive control-dependent + Inter-procedural',
+                                                    'precise': 'All BALANCED features + Path-sensitive + Field-sensitive',
+                                                    'maximum': 'All PRECISE features + Context-sensitive + Flow-sensitive'
+                                                };
+                                                featuresList.textContent = featuresText[currentSensitivity] || featuresText['balanced'];
+                                            }
+                                            
+                                            // Update note
+                                            const note = document.getElementById('sensitivityNote');
+                                            if (note) {
+                                                note.textContent = 'Current: ' + currentSensitivity.toUpperCase();
+                                                note.style.color = '#666666';
+                                            }
+                                        }
+                                    } catch (stateError) {
+                                        logDebug('[RE-ANALYZE] WARNING: Failed to update sensitivity dropdown: ' + stateError);
+                                    }
+                                }
+                            } catch (initError) {
+                                logDebug('[RE-ANALYZE] ERROR: Failed to re-initialize network: ' + initError);
+                            }
+                        }, 100); // Small delay to ensure HTML is fully updated
+                    } else {
+                        logDebug('[RE-ANALYZE] Not on interconnected tab, skipping network re-initialization');
+                    }
                 } else {
                     if (reAnalyzeBtn) {
                         reAnalyzeBtn.textContent = '🔄 Re-analyze';
@@ -4169,12 +4321,115 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                         reAnalyzeStatus.textContent = 'Re-analysis failed: ' + (message.error || 'Unknown error');
                         reAnalyzeStatus.style.color = '#dc3545';
                     }
-                    logDebug('Re-analysis failed: ' + (message.error || 'Unknown error'));
+                    logDebug('[RE-ANALYZE] Re-analysis failed: ' + (message.error || 'Unknown error'));
                 }
             }
         });
 
         logDebug('Initialization script completed, waiting for vis-network to load');
+        
+        // CRITICAL FIX: Check if we're on interconnected tab when page loads
+        // This handles the case where HTML is updated but we're already on that tab
+        function checkAndInitializeInterconnectedTab() {
+            const interconnectedTab = document.getElementById('interconnected-tab');
+            const isInterconnectedTab = interconnectedTab && interconnectedTab.classList.contains('active');
+            
+            if (isInterconnectedTab && typeof vis !== 'undefined') {
+                logDebug('[INIT] Page loaded on interconnected tab, initializing network...');
+                
+                // Small delay to ensure all data is parsed
+                setTimeout(() => {
+                    try {
+                        // Check if network already exists
+                        if (window.icNetwork) {
+                            logDebug('[INIT] Network already exists, checking if data changed...');
+                            
+                            // Check if data has changed
+                            const stateDataElement = document.getElementById('state-data-json');
+                            const interconnectedDataElement = document.getElementById('interconnected-data-json');
+                            
+                            if (stateDataElement && interconnectedDataElement) {
+                                try {
+                                    const stateData = JSON.parse(stateDataElement.textContent);
+                                    const interconnectedData = JSON.parse(interconnectedDataElement.textContent);
+                                    
+                                    const stateSensitivity = stateData.taintSensitivity || 'precise';
+                                    const dataSensitivity = interconnectedData.taintSensitivity || stateSensitivity;
+                                    
+                                    logDebug('[INIT] State sensitivity: ' + stateSensitivity);
+                                    logDebug('[INIT] Data sensitivity: ' + dataSensitivity);
+                                    
+                                    // If data changed or network is stale, re-initialize
+                                    if (stateSensitivity !== dataSensitivity || !window.icEdgeDataSet) {
+                                        logDebug('[INIT] Data changed or network stale, re-initializing...');
+                                        window.icNetwork.destroy();
+                                        window.icNetwork = null;
+                                        window.icOriginalEdges = null;
+                                        window.icOriginalNodes = null;
+                                        window.icEdgeDataSet = null;
+                                        initInterconnectedNetwork();
+                                        
+                                        // Re-attach handlers
+                                        if (window.attachEdgeToggleHandlers) {
+                                            window.attachEdgeToggleHandlers();
+                                        }
+                                    } else {
+                                        logDebug('[INIT] Network exists and data matches, no re-initialization needed');
+                                    }
+                                } catch (parseError) {
+                                    logDebug('[INIT] WARNING: Failed to check data, re-initializing anyway: ' + parseError);
+                                    window.icNetwork.destroy();
+                                    window.icNetwork = null;
+                                    window.icOriginalEdges = null;
+                                    window.icOriginalNodes = null;
+                                    window.icEdgeDataSet = null;
+                                    initInterconnectedNetwork();
+                                    
+                                    if (window.attachEdgeToggleHandlers) {
+                                        window.attachEdgeToggleHandlers();
+                                    }
+                                }
+                            } else {
+                                logDebug('[INIT] Data elements not found, re-initializing network...');
+                                window.icNetwork.destroy();
+                                window.icNetwork = null;
+                                window.icOriginalEdges = null;
+                                window.icOriginalNodes = null;
+                                window.icEdgeDataSet = null;
+                                initInterconnectedNetwork();
+                                
+                                if (window.attachEdgeToggleHandlers) {
+                                    window.attachEdgeToggleHandlers();
+                                }
+                            }
+                        } else {
+                            logDebug('[INIT] No network exists, initializing...');
+                            initInterconnectedNetwork();
+                            
+                            if (window.attachEdgeToggleHandlers) {
+                                window.attachEdgeToggleHandlers();
+                            }
+                        }
+                    } catch (initError) {
+                        logDebug('[INIT] ERROR: Failed to initialize interconnected network: ' + initError);
+                    }
+                }, 200); // Delay to ensure vis-network and data are ready
+            } else {
+                logDebug('[INIT] Not on interconnected tab or vis-network not loaded, skipping initialization');
+            }
+        }
+        
+        // Check when vis-network loads
+        if (typeof vis !== 'undefined') {
+            logDebug('[INIT] vis-network already loaded, checking interconnected tab...');
+            checkAndInitializeInterconnectedTab();
+        } else {
+            // Wait for vis-network to load
+            window.addEventListener('load', function() {
+                logDebug('[INIT] Window loaded, checking interconnected tab...');
+                setTimeout(checkAndInitializeInterconnectedTab, 500);
+            });
+        }
     </script>
 </body>
 </html>`;
