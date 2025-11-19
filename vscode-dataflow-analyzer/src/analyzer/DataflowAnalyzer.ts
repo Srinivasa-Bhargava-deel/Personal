@@ -1818,10 +1818,39 @@ export class DataflowAnalyzer {
         const controlDependentTaints = totalTaints.filter((t: TaintInfo) => t.labels?.includes(TaintLabel.CONTROL_DEPENDENT));
         const dataFlowTaints = totalTaints.filter((t: TaintInfo) => t.labels && t.labels.some(l => l !== TaintLabel.CONTROL_DEPENDENT));
         
+        // CRITICAL FIX: Calculate comprehensive counts
+        const uniqueTaintedVars = new Set(totalTaints.map((t: TaintInfo) => t.variable));
+        const mixedTaints = totalTaints.filter((t: TaintInfo) => 
+          t.labels?.includes(TaintLabel.CONTROL_DEPENDENT) && 
+          t.labels?.some(l => l !== TaintLabel.CONTROL_DEPENDENT)
+        );
+        const pureDataFlowTaints = totalTaints.filter((t: TaintInfo) => 
+          t.labels && 
+          !t.labels.includes(TaintLabel.CONTROL_DEPENDENT) &&
+          t.labels.length > 0
+        );
+        const pureControlDependentTaints = totalTaints.filter((t: TaintInfo) => 
+          t.labels?.includes(TaintLabel.CONTROL_DEPENDENT) && 
+          t.labels?.length === 1
+        );
+        
         console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] ${funcName} taint results:`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Total taints: ${totalTaints.length}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Data-flow taints: ${dataFlowTaints.length}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Control-dependent taints: ${controlDependentTaints.length}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Total taint entries: ${totalTaints.length}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Unique tainted variables: ${uniqueTaintedVars.size}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Pure data-flow taints: ${pureDataFlowTaints.length}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Pure control-dependent taints: ${pureControlDependentTaints.length}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Mixed taints (both types): ${mixedTaints.length}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Total data-flow taints (including mixed): ${dataFlowTaints.length}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Total control-dependent taints (including mixed): ${controlDependentTaints.length}`);
+        
+        // Log CFG structure counts
+        const funcCFGNodeCount = funcCFG.blocks.size;
+        const funcCFGEdgeCount = Array.from(funcCFG.blocks.values()).reduce((sum, block) => 
+          sum + (block.successors?.length || 0), 0
+        );
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] ${funcName} CFG structure:`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   CFG Blocks (nodes): ${funcCFGNodeCount}`);
+        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   CFG Edges: ${funcCFGEdgeCount}`);
         
         // Verify sensitivity-specific expectations
         if (currentSensitivity === TaintSensitivity.MINIMAL) {

@@ -2,6 +2,26 @@
 
 All notable changes to the C++ Dataflow Analyzer extension will be documented in this file.
 
+## [1.9.2] - 2025-01-XX
+
+### Added
+- **Comprehensive Logging for Counts**: Added detailed logging for function, node, edge, and legend counts in visualization output
+  - `[SUMMARY]` logs with comprehensive visualization data summary
+  - `[SENSITIVITY-CHECK]` logs with detailed taint counts and CFG structure
+  - `[ALL_FUNCTIONS_LOG]` logs with edge type and node type breakdowns
+- **Dry Run Analysis Document**: Created `DRY_RUN_ANALYSIS.md` with expected parameter values for each sensitivity level
+- **Validation Framework**: Created `VALIDATION_SUMMARY.md` with testing instructions and validation checklist
+- **Windows Build Instructions**: Created comprehensive `WINDOWS_BUILD_INSTRUCTIONS_v1.9.1.md` with complete Windows setup guide
+
+### Fixed
+- **Windows Path Handling**: Fixed `ClangASTParser.ts` to automatically detect Windows platform and handle `.exe` extension and `Release` subdirectory
+- **Cross-Platform Binary Detection**: Improved cfg-exporter binary detection to work on both Windows and Unix systems
+
+### Changed
+- Enhanced logging in `DataflowAnalyzer.ts` to include comprehensive taint counts (pure data-flow, pure control-dependent, mixed)
+- Enhanced logging in `CFGVisualizer.ts` to include detailed legend counts and edge type breakdowns
+- Improved error messages for cfg-exporter binary not found with platform-specific build instructions
+
 ## [1.9.1] - 2025-01-XX
 
 ### Fixed
@@ -49,4 +69,5 @@ All notable changes to the C++ Dataflow Analyzer extension will be documented in
 ## [1.8.2] - Previous Version
 
 See individual fix files for detailed changelog.
+
 

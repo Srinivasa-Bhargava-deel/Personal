@@ -2,7 +2,7 @@
   "name": "vscode-dataflow-analyzer",
   "displayName": "C++ Dataflow Analyzer",
   "description": "Real-time incremental static/dataflow analysis for C++ with CFG visualization",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "engines": {
     "vscode": "^1.80.0"
   },

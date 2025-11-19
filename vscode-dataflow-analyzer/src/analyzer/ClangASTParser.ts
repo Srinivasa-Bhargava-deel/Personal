@@ -349,13 +349,31 @@ export class ClangASTParser {
     return new Promise((resolve, reject) => {
       // Build path to cfg-exporter binary
       // Relative path: from src/analyzer -> src -> . (root) -> cpp-tools/cfg-exporter/build/cfg-exporter
-      const exporterPath = path.join(__dirname, '..', '..', 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter');
+      // Windows: build/Release/cfg-exporter.exe
+      // Unix: build/cfg-exporter
+      const fs = require('fs');
+      const isWindows = process.platform === 'win32';
+      
+      // Try Windows path first (Release subdirectory + .exe extension)
+      let exporterPath = path.join(__dirname, '..', '..', 'cpp-tools', 'cfg-exporter', 'build', 'Release', isWindows ? 'cfg-exporter.exe' : 'cfg-exporter');
+      
+      // If Windows path doesn't exist, try Unix path (directly in build/)
+      if (!fs.existsSync(exporterPath)) {
+        exporterPath = path.join(__dirname, '..', '..', 'cpp-tools', 'cfg-exporter', 'build', isWindows ? 'cfg-exporter.exe' : 'cfg-exporter');
+      }
+      
+      // If still not found, try without extension (for Unix compatibility)
+      if (!fs.existsSync(exporterPath)) {
+        exporterPath = path.join(__dirname, '..', '..', 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter');
+      }
       
       try {
         // Check if exporter exists
-        const fs = require('fs');
         if (!fs.existsSync(exporterPath)) {
-          reject(new Error(`cfg-exporter binary not found at ${exporterPath}. Please build it first: cd cpp-tools/cfg-exporter && mkdir -p build && clang++ cfg-exporter.cpp -o build/cfg-exporter`));
+          const buildInstructions = isWindows 
+            ? 'cd cpp-tools\\cfg-exporter\\build && cmake .. -G "Visual Studio 17 2022" -A x64 && cmake --build . --config Release'
+            : 'cd cpp-tools/cfg-exporter && mkdir -p build && cd build && cmake .. && cmake --build .';
+          reject(new Error(`cfg-exporter binary not found at ${exporterPath}. Please build it first: ${buildInstructions}`));
           return;
         }
       } catch (err) {

@@ -4671,16 +4671,44 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
       return edgeColor === '#ffa94d' || edgeColor === '#ff9500' || edgeColor === '#ff8800' || (e.metadata && e.metadata.type === 'data_flow');
     }).length;
     
+    // CRITICAL FIX: Calculate detailed legend counts from interconnectedData
+    let dataFlowTaintBlocks = 0;
+    let controlDependentTaintBlocks = 0;
+    let mixedTaintBlocks = 0;
+    let normalBlocks = 0;
+    
+    interconnectedData.nodes.forEach((node: any) => {
+      if (node.metadata) {
+        if (node.metadata.hasDataFlowTaint && node.metadata.hasControlDependentTaint) {
+          mixedTaintBlocks++;
+        } else if (node.metadata.hasControlDependentTaint) {
+          controlDependentTaintBlocks++;
+        } else if (node.metadata.hasDataFlowTaint) {
+          dataFlowTaintBlocks++;
+        } else {
+          normalBlocks++;
+        }
+      } else {
+        normalBlocks++;
+      }
+    });
+    
     console.log(`\n[ALL_FUNCTIONS_LOG] Interconnected CFG Summary:`);
     console.log(`  - Total Functions: ${interconnectedData.functions.length}`);
     console.log(`  - Function Names: [${interconnectedData.functions.join(', ')}]`);
     console.log(`  - Total Nodes: ${interconnectedData.nodes.length}`);
-    console.log(`  - Red/Tainted Blocks: ${redBlocks}`);
-    console.log(`  - Normal Blocks: ${interconnectedData.nodes.length - redBlocks}`);
     console.log(`  - Total Edges: ${interconnectedData.edges.length}`);
+    console.log(`\n[ALL_FUNCTIONS_LOG] Edge Type Counts:`);
     console.log(`  - Green (Control Flow): ${greenEdges}`);
     console.log(`  - Blue (Function Calls): ${blueEdges}`);
     console.log(`  - Orange (Data Flow): ${orangeEdges}`);
+    console.log(`\n[ALL_FUNCTIONS_LOG] Node Type Counts (Legend):`);
+    console.log(`  - Data-flow Taint Blocks: ${dataFlowTaintBlocks}`);
+    console.log(`  - Control-dependent Taint Blocks: ${controlDependentTaintBlocks}`);
+    console.log(`  - Mixed Taint Blocks: ${dataFlowTaintBlocks + controlDependentTaintBlocks > 0 ? mixedTaintBlocks : 0}`);
+    console.log(`  - Normal Blocks: ${normalBlocks}`);
+    console.log(`  - Total Tainted Blocks: ${dataFlowTaintBlocks + controlDependentTaintBlocks + mixedTaintBlocks}`);
+    console.log(`  - Red/Tainted Blocks (legacy): ${redBlocks}`);
     
     console.log('========== END ALL FUNCTIONS TAB LOG ==========\n');
   }
@@ -4745,6 +4773,87 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
     
     // Log interconnected CFG summary
     visualizer.logAllFunctionsTabData(state, interconnectedCFGData);
+    
+    // CRITICAL FIX: Log comprehensive summary with all counts
+    console.log('\n========== COMPREHENSIVE VISUALIZATION DATA SUMMARY ==========');
+    console.log(`[SUMMARY] Sensitivity: ${state.taintSensitivity || 'precise'}`);
+    console.log(`[SUMMARY] Total Functions Analyzed: ${state.cfg.functions.size}`);
+    console.log(`[SUMMARY] Call Graph Nodes: ${callGraphData?.nodes?.length || 0}`);
+    console.log(`[SUMMARY] Call Graph Edges: ${callGraphData?.edges?.length || 0}`);
+    
+    if (interconnectedCFGData) {
+      // Calculate detailed counts
+      let dataFlowTaintBlocks = 0;
+      let controlDependentTaintBlocks = 0;
+      let mixedTaintBlocks = 0;
+      let normalBlocks = 0;
+      
+      interconnectedCFGData.nodes.forEach((node: any) => {
+        if (node.metadata) {
+          if (node.metadata.hasDataFlowTaint && node.metadata.hasControlDependentTaint) {
+            mixedTaintBlocks++;
+          } else if (node.metadata.hasControlDependentTaint) {
+            controlDependentTaintBlocks++;
+          } else if (node.metadata.hasDataFlowTaint) {
+            dataFlowTaintBlocks++;
+          } else {
+            normalBlocks++;
+          }
+        } else {
+          normalBlocks++;
+        }
+      });
+      
+      const greenEdges = interconnectedCFGData.edges.filter((e: any) => 
+        e.metadata?.type === 'control_flow' || (!e.metadata?.type && !e.metadata)
+      ).length;
+      const blueEdges = interconnectedCFGData.edges.filter((e: any) => 
+        e.metadata?.type === 'function_call'
+      ).length;
+      const orangeEdges = interconnectedCFGData.edges.filter((e: any) => 
+        e.metadata?.type === 'data_flow'
+      ).length;
+      
+      console.log(`[SUMMARY] Interconnected CFG:`);
+      console.log(`  - Total Nodes: ${interconnectedCFGData.nodes.length}`);
+      console.log(`  - Total Edges: ${interconnectedCFGData.edges.length}`);
+      console.log(`[SUMMARY] Edge Breakdown:`);
+      console.log(`  - Control Flow (Green): ${greenEdges}`);
+      console.log(`  - Function Calls (Blue): ${blueEdges}`);
+      console.log(`  - Data Flow (Orange): ${orangeEdges}`);
+      console.log(`[SUMMARY] Node Breakdown (Legend):`);
+      console.log(`  - Data-flow Taint Only: ${dataFlowTaintBlocks}`);
+      console.log(`  - Control-dependent Taint Only: ${controlDependentTaintBlocks}`);
+      console.log(`  - Mixed Taint (Both): ${mixedTaintBlocks}`);
+      console.log(`  - Normal Blocks: ${normalBlocks}`);
+      console.log(`  - Total Tainted: ${dataFlowTaintBlocks + controlDependentTaintBlocks + mixedTaintBlocks}`);
+    }
+    
+    // Log per-function summary
+    let totalCFGNodes = 0;
+    let totalCFGEdges = 0;
+    let totalTaintVars = 0;
+    let totalVulnerabilities = 0;
+    
+    for (const [funcName, graphData] of cfgGraphData.entries()) {
+      if (graphData) {
+        totalCFGNodes += graphData.nodes?.length || 0;
+        totalCFGEdges += graphData.edges?.length || 0;
+      }
+      const funcTaintData = taintData.get(funcName);
+      if (funcTaintData) {
+        totalTaintVars += funcTaintData.totalTaintedVariables || 0;
+        totalVulnerabilities += funcTaintData.totalVulnerabilities || 0;
+      }
+    }
+    
+    console.log(`[SUMMARY] Per-Function Aggregates:`);
+    console.log(`  - Total CFG Nodes (all functions): ${totalCFGNodes}`);
+    console.log(`  - Total CFG Edges (all functions): ${totalCFGEdges}`);
+    console.log(`  - Total Tainted Variables: ${totalTaintVars}`);
+    console.log(`  - Total Vulnerabilities: ${totalVulnerabilities}`);
+    
+    console.log('========== END COMPREHENSIVE VISUALIZATION DATA SUMMARY ==========\n');
     
     console.log('========== END BACKEND VISUALIZATION DATA PREPARATION ==========\n');
     
