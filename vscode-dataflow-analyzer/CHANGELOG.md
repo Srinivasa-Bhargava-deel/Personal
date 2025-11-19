@@ -2,6 +2,15 @@
 
 All notable changes to the C++ Dataflow Analyzer extension will be documented in this file.
 
+## [1.9.2.1] - 2025-01-XX
+
+### Fixed
+- **Windows Build Instructions**: Fixed "a subdirectory or a file build already exists" error when creating build directory
+  - Updated instructions to properly handle existing build directories
+  - Added `Remove-Item` command before creating build directory
+  - Added troubleshooting section for this specific issue
+  - Updated both PowerShell and Command Prompt methods
+
 ## [1.9.2] - 2025-01-XX
 
 ### Added

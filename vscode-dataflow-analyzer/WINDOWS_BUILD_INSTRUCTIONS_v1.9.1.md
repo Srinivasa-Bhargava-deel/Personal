@@ -199,8 +199,15 @@ This is the most critical step. The `cfg-exporter` tool is required for CFG gene
 # Navigate to cfg-exporter directory
 cd cpp-tools\cfg-exporter
 
-# Create build directory
-mkdir build -Force
+# Create build directory (if it doesn't exist)
+# If build directory already exists, you can either:
+# Option A: Remove and recreate (clean build)
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path build -Force | Out-Null
+
+# Option B: Just use existing directory (if you want to keep previous build)
+# if (!(Test-Path build)) { New-Item -ItemType Directory -Path build | Out-Null }
+
 cd build
 
 # Configure with CMake
@@ -214,7 +221,7 @@ cmake .. -G "Visual Studio 17 2022" -A x64
 cmake --build . --config Release
 
 # Verify binary was created
-dir cfg-exporter.exe
+dir Release\cfg-exporter.exe
 # Should show: cfg-exporter.exe in Release\ directory
 ```
 
@@ -232,6 +239,10 @@ dir cfg-exporter.exe
    ```
 3. Build:
    ```cmd
+   REM Remove existing build directory if it exists (optional - for clean build)
+   if exist build rmdir /s /q build
+   
+   REM Create build directory
    mkdir build
    cd build
    cmake .. -G "Visual Studio 17 2022" -A x64
@@ -239,6 +250,28 @@ dir cfg-exporter.exe
    ```
 
 #### Troubleshooting CMake Build
+
+**Issue: "a subdirectory or a file build already exists"**
+
+**Symptoms**: Error when trying to create build directory
+
+**Solutions**:
+1. **Remove existing build directory** (recommended for clean build):
+   ```powershell
+   Remove-Item -Recurse -Force build
+   New-Item -ItemType Directory -Path build
+   ```
+2. **Or use existing directory** (if you want to keep previous configuration):
+   ```powershell
+   # Just navigate to existing build directory
+   cd build
+   # Then run cmake configuration
+   ```
+3. **In Command Prompt**:
+   ```cmd
+   rmdir /s /q build
+   mkdir build
+   ```
 
 **Issue: CMake can't find LLVM**
 
@@ -619,7 +652,10 @@ npm run watch
 npm run lint
 
 # Build cfg-exporter
-cd cpp-tools\cfg-exporter\build
+cd cpp-tools\cfg-exporter
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path build -Force | Out-Null
+cd build
 cmake .. -G "Visual Studio 17 2022" -A x64
 cmake --build . --config Release
 
