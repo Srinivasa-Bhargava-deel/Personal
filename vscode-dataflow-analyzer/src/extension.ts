@@ -237,7 +237,7 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('Dataflow Analyzer extension is now active');
 
     // Initialize visualizer component
-    let visualizer = new CFGVisualizer();
+    visualizer = new CFGVisualizer();
 
     // Load extension configuration from VS Code settings
     const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
@@ -258,7 +258,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Initialize main analyzer with workspace path and configuration
     const analyzerInitStartTime = Date.now();
-    let analyzer = new DataflowAnalyzer(workspacePath, analysisConfig);
+    analyzer = new DataflowAnalyzer(workspacePath, analysisConfig);
     const analyzerInitTimeMs = Date.now() - analyzerInitStartTime;
     
     // Check if state was loaded and notify user

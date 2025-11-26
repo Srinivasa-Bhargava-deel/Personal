@@ -10,6 +10,14 @@
 
 **CRITICAL RULE**: Whenever you complete a task or provide a reply, **you MUST update all related markdown files accordingly**.
 
+## 🚫 Git Push Protocol
+
+**CRITICAL RULE**: **NEVER push to git automatically**. Only commit changes locally unless explicitly requested by the user.
+- User will request git pushes manually when ready
+- Do NOT run `git push` commands unless explicitly asked
+- You may commit changes locally (`git add` and `git commit`) but do NOT push
+- Wait for explicit user request like "push to git" or "commit and push"
+
 ## 📋 Log Validation Protocol
 
 **SPECIAL RULE**: When user pastes log output for a test file, automatically:
