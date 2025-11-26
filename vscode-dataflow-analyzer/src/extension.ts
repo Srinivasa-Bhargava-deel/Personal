@@ -80,8 +80,8 @@ export function activate(context: vscode.ExtensionContext) {
     // Determine workspace path from VS Code workspace folders or active editor
     const workspaceFolders = vscode.workspace.workspaceFolders;
     let workspacePath: string;
-  
-  if (!workspaceFolders || workspaceFolders.length === 0) {
+    
+    if (!workspaceFolders || workspaceFolders.length === 0) {
     // Fallback: Try to get workspace from active editor
     const activeEditor = vscode.window.activeTextEditor;
     if (activeEditor && activeEditor.document.uri.fsPath) {
@@ -219,11 +219,11 @@ export function activate(context: vscode.ExtensionContext) {
         `You can open a workspace folder or C++ file for better integration.`
       );
     }
-  } else {
-    // Use first workspace folder
-    workspacePath = workspaceFolders[0].uri.fsPath;
-  }
-  
+    } else {
+      // Use first workspace folder
+      workspacePath = workspaceFolders[0].uri.fsPath;
+    }
+    
     // Initialize file logging to .vscode/logs.txt FIRST before any other logging
     LoggingConfig.initializeFileLogging(workspacePath);
     
@@ -239,44 +239,44 @@ export function activate(context: vscode.ExtensionContext) {
     // Initialize visualizer component
     let visualizer = new CFGVisualizer();
 
-  // Load extension configuration from VS Code settings
-  const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
-  const taintSensitivityStr = config.get<string>('taintSensitivity', 'precise');
-  const taintSensitivity = taintSensitivityStr as TaintSensitivity || TaintSensitivity.PRECISE;
-  
-  console.log(`[Extension] Configuration loaded: Taint Sensitivity = ${taintSensitivity}`);
-  
-  const analysisConfig: AnalysisConfig = {
-    updateMode: config.get('updateMode', 'save'),  // 'save' or 'keystroke'
-    enableLiveness: config.get('enableLiveness', true),
-    enableReachingDefinitions: config.get('enableReachingDefinitions', true),
-    enableTaintAnalysis: config.get('enableTaintAnalysis', true),
-    debounceDelay: config.get('debounceDelay', 500),  // Milliseconds for keystroke debouncing
-    enableInterProcedural: config.get('enableInterProcedural', true),
-    taintSensitivity: taintSensitivity  // Taint analysis sensitivity level (v1.9+)
-  };
+    // Load extension configuration from VS Code settings
+    const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
+    const taintSensitivityStr = config.get<string>('taintSensitivity', 'precise');
+    const taintSensitivity = taintSensitivityStr as TaintSensitivity || TaintSensitivity.PRECISE;
+    
+    console.log(`[Extension] Configuration loaded: Taint Sensitivity = ${taintSensitivity}`);
+    
+    const analysisConfig: AnalysisConfig = {
+      updateMode: config.get('updateMode', 'save'),  // 'save' or 'keystroke'
+      enableLiveness: config.get('enableLiveness', true),
+      enableReachingDefinitions: config.get('enableReachingDefinitions', true),
+      enableTaintAnalysis: config.get('enableTaintAnalysis', true),
+      debounceDelay: config.get('debounceDelay', 500),  // Milliseconds for keystroke debouncing
+      enableInterProcedural: config.get('enableInterProcedural', true),
+      taintSensitivity: taintSensitivity  // Taint analysis sensitivity level (v1.9+)
+    };
 
-  // Initialize main analyzer with workspace path and configuration
-  const analyzerInitStartTime = Date.now();
-  let analyzer = new DataflowAnalyzer(workspacePath, analysisConfig);
-  const analyzerInitTimeMs = Date.now() - analyzerInitStartTime;
-  
-  // Check if state was loaded and notify user
-  setTimeout(() => {
-    const state = analyzer?.getState();
-    if (state && state.cfg.functions.size > 0 && (state as any).loadTimeMs !== undefined) {
-      // State was loaded (has functions and load time)
-      const fileName = Array.from(state.fileStates.keys())[0]?.split(/[/\\]/).pop() || 'workspace';
-      const loadTimeMs = (state as any).loadTimeMs;
-      vscode.window.showInformationMessage(`Loaded saved analysis state for ${fileName} (${loadTimeMs}ms)`);
-      console.log(`[Extension] Analyzer initialized in ${analyzerInitTimeMs}ms, state loaded in ${loadTimeMs}ms`);
-    } else {
-      console.log(`[Extension] Analyzer initialized in ${analyzerInitTimeMs}ms (no saved state)`);
-    }
-  }, 100);
+    // Initialize main analyzer with workspace path and configuration
+    const analyzerInitStartTime = Date.now();
+    let analyzer = new DataflowAnalyzer(workspacePath, analysisConfig);
+    const analyzerInitTimeMs = Date.now() - analyzerInitStartTime;
+    
+    // Check if state was loaded and notify user
+    setTimeout(() => {
+      const state = analyzer?.getState();
+      if (state && state.cfg.functions.size > 0 && (state as any).loadTimeMs !== undefined) {
+        // State was loaded (has functions and load time)
+        const fileName = Array.from(state.fileStates.keys())[0]?.split(/[/\\]/).pop() || 'workspace';
+        const loadTimeMs = (state as any).loadTimeMs;
+        vscode.window.showInformationMessage(`Loaded saved analysis state for ${fileName} (${loadTimeMs}ms)`);
+        console.log(`[Extension] Analyzer initialized in ${analyzerInitTimeMs}ms, state loaded in ${loadTimeMs}ms`);
+      } else {
+        console.log(`[Extension] Analyzer initialized in ${analyzerInitTimeMs}ms (no saved state)`);
+      }
+    }, 100);
 
-  // Register VS Code commands
-  const showCFGCommand = vscode.commands.registerCommand('dataflowAnalyzer.showCFG', async () => {
+    // Register VS Code commands
+    const showCFGCommand = vscode.commands.registerCommand('dataflowAnalyzer.showCFG', async () => {
     LoggingConfig.section('Extension', '🎯 MAJOR EVENT: showCFG command triggered');
     LoggingConfig.raw('[MAJOR EVENT] User clicked: Show CFG Visualization');
     if (visualizer) {
@@ -812,15 +812,15 @@ export function activate(context: vscode.ExtensionContext) {
       console.error('[Extension] Error saving state:', error);
       vscode.window.showErrorMessage(`Failed to save state: ${error instanceof Error ? error.message : String(error)}`);
     }
-  });
+    });
 
-  context.subscriptions.push(showCFGCommand, analyzeWorkspaceCommand, analyzeActiveFileCommand, clearStateCommand, deleteStateAndReAnalyzeCommand, changeSensitivityAndAnalyzeCommand, saveStateCommand, reAnalyzeCommand);
+    context.subscriptions.push(showCFGCommand, analyzeWorkspaceCommand, analyzeActiveFileCommand, clearStateCommand, deleteStateAndReAnalyzeCommand, changeSensitivityAndAnalyzeCommand, saveStateCommand, reAnalyzeCommand);
 
-  // Set up file change listeners
-  setupFileWatchers(context, analysisConfig);
+    // Set up file change listeners
+    setupFileWatchers(context, analysisConfig);
 
-  // Watch for configuration changes
-  vscode.workspace.onDidChangeConfiguration(e => {
+    // Watch for configuration changes
+    vscode.workspace.onDidChangeConfiguration(e => {
     if (e.affectsConfiguration('dataflowAnalyzer')) {
       // Skip sensitivity updates if we're programmatically updating it
       // This prevents the config change handler from resetting sensitivity to PRECISE
@@ -872,8 +872,7 @@ export function activate(context: vscode.ExtensionContext) {
         setupFileWatchers(context, newConfig);
       }
     }
-  });
-
+    });
 
     // Initial analysis prompt
     vscode.window.showInformationMessage(
