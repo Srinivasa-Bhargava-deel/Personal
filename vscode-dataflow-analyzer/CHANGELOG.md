@@ -48,6 +48,17 @@ All notable changes to the C++ Dataflow Analyzer extension will be documented in
   - Each phase includes related bugs for integrated validation
 - **Final Validation Instructions**: Created comprehensive merged validation guide
   - FINAL_VALIDATION_INSTRUCTIONS.md with complete workflow
+- **Log Validation Protocol**: Created LOG_VALIDATION_PROTOCOL.md for automated log analysis workflow
+
+### Fixed
+- **CRITICAL**: Commands not appearing in command palette (Cmd+Shift+P)
+  - Added missing commands to `package.json` contributes section:
+    - `dataflowAnalyzer.changeSensitivityAndAnalyze`
+    - `dataflowAnalyzer.saveState`
+    - `dataflowAnalyzer.reAnalyze`
+  - Added `onStartupFinished` activation event for earlier extension activation
+  - Added command-specific activation events for all commands
+  - Commands now appear immediately in command palette without requiring C/C++ file open
   - Phase 0: Critical bug fixes (must fix first)
   - Integrated bug validation with feature validation
 - **Agent Instructions**: Created file update protocol for AI agents

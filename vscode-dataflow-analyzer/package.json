@@ -11,7 +11,16 @@
   ],
   "activationEvents": [
     "onLanguage:cpp",
-    "onLanguage:c"
+    "onLanguage:c",
+    "onStartupFinished",
+    "onCommand:dataflowAnalyzer.showCFG",
+    "onCommand:dataflowAnalyzer.analyzeWorkspace",
+    "onCommand:dataflowAnalyzer.analyzeActiveFile",
+    "onCommand:dataflowAnalyzer.clearState",
+    "onCommand:dataflowAnalyzer.deleteStateAndReAnalyze",
+    "onCommand:dataflowAnalyzer.changeSensitivityAndAnalyze",
+    "onCommand:dataflowAnalyzer.saveState",
+    "onCommand:dataflowAnalyzer.reAnalyze"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -36,6 +45,18 @@
       {
         "command": "dataflowAnalyzer.deleteStateAndReAnalyze",
         "title": "Delete State and Re-Analyze (Fresh)"
+      },
+      {
+        "command": "dataflowAnalyzer.changeSensitivityAndAnalyze",
+        "title": "Change Taint Sensitivity and Re-Analyze"
+      },
+      {
+        "command": "dataflowAnalyzer.saveState",
+        "title": "Save Analysis State"
+      },
+      {
+        "command": "dataflowAnalyzer.reAnalyze",
+        "title": "Re-Analyze Workspace"
       }
     ],
     "configuration": {
