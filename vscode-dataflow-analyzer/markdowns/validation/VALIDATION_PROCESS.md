@@ -163,3 +163,14 @@ For each test file, use this checklist:
 3. Create summary report
 4. Update `TEMP_VALIDATION.md` with completion status
 
+---
+
+## 🤖 Agent Instructions
+
+**For AI Agents**: After completing validation:
+- Update all relevant markdown files (see `AGENT_INSTRUCTIONS.md`)
+- Update validation status in `TEMP_VALIDATION.md`
+- Update test results in `markdowns/test_validation/*.md`
+- Update `CHANGELOG.md` for significant changes
+- Keep documentation synchronized with codebase
+

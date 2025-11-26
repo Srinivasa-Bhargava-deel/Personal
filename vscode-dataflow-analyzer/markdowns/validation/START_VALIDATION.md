@@ -33,11 +33,23 @@
 
 ## 🚀 How to Proceed
 
+### ⭐ START HERE: Read Final Instructions
+
+**👉 `FINAL_VALIDATION_INSTRUCTIONS.md`** - **Complete merged instructions** (READ THIS FIRST!)
+
+This file contains:
+- ✅ Merged instructions from all validation files
+- ✅ Critical bug fixes that must be done first (Phase 0)
+- ✅ Complete validation workflow
+- ✅ Step-by-step instructions for all phases
+- ✅ Bug validation integrated with feature validation
+
 ### Step 1: Review Documentation
 
-1. **Read `markdowns/validation/VALIDATION_PROCESS.md`** - Comprehensive guide for the entire validation process
-2. **Read `markdowns/validation/VALIDATION_INSTRUCTIONS.md`** - Detailed step-by-step instructions
-3. **Review `markdowns/validation/TEMP_VALIDATION.md`** - See all validation items including comprehensive test validation
+1. **Read `markdowns/validation/FINAL_VALIDATION_INSTRUCTIONS.md`** - **START HERE** - Complete merged instructions
+2. **Review `markdowns/validation/TEMP_VALIDATION.md`** - See all validation items organized by phase
+3. **Reference `markdowns/validation/VALIDATION_INSTRUCTIONS.md`** - Detailed step-by-step for specific items
+4. **Reference `markdowns/validation/VALIDATION_PROCESS.md`** - Process overview and workflow
 
 ### Step 2: Start Validation
 
@@ -91,14 +103,15 @@ After validating each test:
 
 ## 📁 Key Files Reference
 
-| File | Purpose |
-|------|---------|
-| `markdowns/validation/TEMP_VALIDATION.md` | List of all validation items |
-| `markdowns/validation/VALIDATION_INSTRUCTIONS.md` | Detailed validation instructions |
-| `markdowns/validation/VALIDATION_PROCESS.md` | Comprehensive validation process guide |
-| `markdowns/test_validation/*.md` | Expected results for each test |
-| `tests/*.cpp` | Test files to validate |
-| `.vscode/logs.txt` | Analysis logs |
+| File | Purpose | Priority |
+|------|---------|----------|
+| **`FINAL_VALIDATION_INSTRUCTIONS.md`** | **Complete merged instructions - START HERE** | **⭐ HIGHEST** |
+| `TEMP_VALIDATION.md` | All validation items organized by phase | HIGH |
+| `VALIDATION_INSTRUCTIONS.md` | Detailed step-by-step for specific items | MEDIUM |
+| `VALIDATION_PROCESS.md` | Process overview and workflow | MEDIUM |
+| `markdowns/test_validation/*.md` | Expected results for each test | HIGH |
+| `tests/*.cpp` | Test files to validate | HIGH |
+| `.vscode/logs.txt` | Analysis logs | HIGH |
 
 ## 🎯 Quick Start Commands
 
@@ -150,11 +163,33 @@ For each test file, check:
 
 ## 🎉 Next Steps
 
-1. **Start Now**: Begin with `VALIDATION_INSTRUCTIONS.md` Section 1 (Output Count Validation)
-2. **Or Start Later**: Review `VALIDATION_PROCESS.md` for full process overview
-3. **Questions?**: Check `markdowns/test_validation/README.md` for test file descriptions
+1. **⭐ START HERE**: Open `FINAL_VALIDATION_INSTRUCTIONS.md` and follow Phase 0 (Critical Bug Fixes)
+2. **Then**: Follow Phase 1 (Foundation) validation
+3. **Continue**: Follow remaining phases in order
+4. **Reference**: Use `TEMP_VALIDATION.md` for complete checklist
 
 ---
 
-**Ready to start?** Open `VALIDATION_INSTRUCTIONS.md` and begin with Section 1!
+## ⚠️ CRITICAL: Fix Bugs First!
+
+**Before validating features**, you **MUST** fix these critical bugs:
+- BUG-001: Unsafe Non-Null Assertions in CFGVisualizer.ts
+- BUG-002: Unsafe Map.get() Calls in TaintByBlock
+- BUG-003: Unsafe Map.get() in ReachingDefinitionsAnalyzer
+- BUG-004: Potential Division by Zero in Path-Sensitive Analysis
+
+**See**: `FINAL_VALIDATION_INSTRUCTIONS.md` Phase 0 for details.
+
+---
+
+**Ready to start?** Open `FINAL_VALIDATION_INSTRUCTIONS.md` and begin with Phase 0!
+
+---
+
+## 🤖 Agent Instructions
+
+**For AI Agents**: After completing any task, update all relevant markdown files accordingly.
+- See `AGENT_INSTRUCTIONS.md` for complete file update protocol
+- Always update validation status, dates, and cross-references
+- Keep documentation synchronized with codebase changes
 

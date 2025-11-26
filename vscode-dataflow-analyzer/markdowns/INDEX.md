@@ -25,11 +25,16 @@ Current documentation actively maintained:
 
 Validation-related documentation:
 
+### Agent Instructions
+- **AGENT_INSTRUCTIONS.md** - **File update protocol for AI agents** - Instructions for updating markdown files after completing tasks
+
 ### Core Validation Files
+- **FINAL_VALIDATION_INSTRUCTIONS.md** - Complete merged validation instructions (START HERE)
 - **VALIDATION_INSTRUCTIONS.md** - Step-by-step validation instructions
 - **VALIDATION_PROCESS.md** - Comprehensive validation process guide
-- **TEMP_VALIDATION.md** - Current validation checklist
+- **TEMP_VALIDATION.md** - Current validation checklist (merged with bug report)
 - **START_VALIDATION.md** - Quick start guide for validation
+- **LOGICAL_BUGS.md** - Detailed bug report (merged into TEMP_VALIDATION.md)
 
 ### Validation Results (Historical)
 - **ERROR_ANALYSIS.md** - Error analysis from validation

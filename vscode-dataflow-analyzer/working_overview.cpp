@@ -50,8 +50,23 @@
  *     └── State Serialization
  * 
  * Data Flow:
- * C++ Source File → cfg-exporter → JSON → ClangASTParser → EnhancedCPPParser → CFG
- * → DataflowAnalyzer → Analyzers → Analysis Results → StateManager → CFGVisualizer → Webview
+ * C++ Source File → cfg-exporter (C++ binary, uses Clang/LLVM) → JSON → ClangASTParser → EnhancedCPPParser → CFG
+ * → DataflowAnalyzer → Analyzers (Liveness, RD, Taint, Security) → Analysis Results
+ * → StateManager (persistence) → CFGVisualizer (visualization data preparation) → Webview (vis-network)
+ * 
+ * Taint Sensitivity Levels (v1.9.0+):
+ * - MINIMAL (Level 1): Only explicit data-flow taint
+ * - CONSERVATIVE (Level 2): Basic control-dependent taint
+ * - BALANCED (Level 3): Full control-dependent + inter-procedural
+ * - PRECISE (Level 4): Path-sensitive + field-sensitive
+ * - MAXIMUM (Level 5): Context-sensitive + flow-sensitive
+ * 
+ * CFG Block Colors:
+ * - Yellow (#ffd60a): Data-flow taint only
+ * - Orange (#ffa94d): Control-dependent taint only
+ * - Purple (#9d4edd): Mixed taint (both types)
+ * - Magenta (#c77dff): Synthetic taint (return statements without variables)
+ * - Light Blue (#e8f4f8): Normal blocks (no taint)
  */
 
 #include <iostream>
@@ -85,6 +100,33 @@ class LoggingConfig;
 class ErrorLogger;
 
 /**
+ * LoggingConfig - Centralized logging system (v1.9.0+)
+ * Models: src/utils/LoggingConfig.ts
+ */
+class LoggingConfig {
+public:
+    static void initializeFileLogging(const std::string& workspacePath) {
+        std::cout << "[LoggingConfig] Initializing file logging to .vscode/logs.txt...\n";
+        std::cout << "  [LoggingConfig] Setting up console interception...\n";
+    }
+    
+    static void closeFileLogging(bool clearOnClose) {
+        std::cout << "[LoggingConfig] Closing file logging...\n";
+        if (clearOnClose) {
+            std::cout << "  [LoggingConfig] Clearing log file...\n";
+        }
+    }
+    
+    static void raw(const std::string& message) {
+        std::cout << "[LoggingConfig] " << message << "\n";
+    }
+    
+    static void section(const std::string& module, const std::string& title) {
+        std::cout << "[LoggingConfig] [" << module << "] ========== " << title << " ==========\n";
+    }
+};
+
+/**
  * Extension Layer - Entry point and command orchestration
  * Models: src/extension.ts
  */
@@ -115,18 +157,30 @@ public:
     
 private:
     void registerCommands(DataflowAnalyzer* analyzer, CFGVisualizer* visualizer) {
-        // Command: Show CFG
+        // Command 1: Show CFG
         std::cout << "[Extension] Registering 'Show CFG' command...\n";
         
-        // Command: Analyze Workspace
+        // Command 2: Analyze Workspace
         std::cout << "[Extension] Registering 'Analyze Workspace' command...\n";
         // This triggers: analyzer->analyzeWorkspace()
         
-        // Command: Analyze Active File
+        // Command 3: Analyze Active File
         std::cout << "[Extension] Registering 'Analyze Active File' command...\n";
         
-        // Command: Clear State
+        // Command 4: Clear State
         std::cout << "[Extension] Registering 'Clear State' command...\n";
+        
+        // Command 5: Delete State and Re-Analyze (v1.9.1+)
+        std::cout << "[Extension] Registering 'Delete State and Re-Analyze' command...\n";
+        
+        // Command 6: Change Sensitivity and Analyze (v1.9.0+)
+        std::cout << "[Extension] Registering 'Change Sensitivity and Analyze' command...\n";
+        
+        // Command 7: Save State (v1.9.0+)
+        std::cout << "[Extension] Registering 'Save State' command...\n";
+        
+        // Command 8: Re-Analyze (v1.9.0+)
+        std::cout << "[Extension] Registering 'Re-Analyze' command...\n";
     }
     
     void setupFileWatchers() {
@@ -404,20 +458,36 @@ public:
 class TaintAnalyzer {
 public:
     void* analyze(void* funcCFG, void* reachingDefs) {
-        // Block 1: Detect taint sources
+        // Block 1: Detect taint sources (TaintSourceRegistry)
         std::cout << "[TaintAnalyzer] Detecting taint sources...\n";
         
-        // Block 2: Propagate taint forward
-        std::cout << "[TaintAnalyzer] Propagating taint...\n";
+        // Block 2: Forward propagation (worklist algorithm)
+        std::cout << "[TaintAnalyzer] Propagating taint forward...\n";
         
-        // Block 3: Detect taint sinks
+        // Block 3: Control-dependent taint propagation (if sensitivity ≥ CONSERVATIVE)
+        std::cout << "[TaintAnalyzer] Building control dependency graph...\n";
+        std::cout << "[TaintAnalyzer] Propagating control-dependent taint...\n";
+        std::cout << "[TaintAnalyzer] Creating synthetic taint variables (__block_X__)...\n";
+        
+        // Block 4: Detect sanitization (SanitizationRegistry)
+        std::cout << "[TaintAnalyzer] Detecting sanitization...\n";
+        
+        // Block 5: Detect taint sinks (TaintSinkRegistry)
         std::cout << "[TaintAnalyzer] Detecting taint sinks...\n";
         
-        // Block 4: Check for vulnerabilities (source → sink paths)
+        // Block 6: Check for vulnerabilities (source → sink paths)
         std::cout << "[TaintAnalyzer] Checking for vulnerabilities...\n";
         
         return nullptr;
     }
+    
+    // Sensitivity level helpers (v1.9.0+)
+    bool shouldEnableControlDependent() { return true; }  // Level 2+
+    bool shouldEnableRecursivePropagation() { return true; }  // Level 3+
+    bool shouldEnablePathSensitive() { return true; }  // Level 4+
+    bool shouldEnableFieldSensitive() { return true; }  // Level 4+
+    bool shouldEnableContextSensitive() { return false; }  // Level 5 only
+    bool shouldEnableFlowSensitive() { return false; }  // Level 5 only
 };
 
 /**
@@ -439,13 +509,25 @@ public:
 class CallGraphAnalyzer {
 public:
     void* buildCallGraph() {
-        // Block 1: Extract function calls
+        // Block 1: Index functions (name, parameters, return type)
+        std::cout << "[CallGraphAnalyzer] Indexing functions...\n";
+        
+        // Block 2: Extract function calls (FunctionCallExtractor)
         std::cout << "[CallGraphAnalyzer] Extracting function calls...\n";
         
-        // Block 2: Build caller/callee maps
+        // Block 3: Collect function pointer assignments
+        std::cout << "[CallGraphAnalyzer] Collecting function pointer assignments...\n";
+        
+        // Block 4: Collect callback arguments
+        std::cout << "[CallGraphAnalyzer] Collecting callback arguments...\n";
+        
+        // Block 5: Resolve indirect calls (function pointers, callbacks)
+        std::cout << "[CallGraphAnalyzer] Resolving indirect calls...\n";
+        
+        // Block 6: Build caller/callee maps (callsFrom, callsTo)
         std::cout << "[CallGraphAnalyzer] Building caller/callee maps...\n";
         
-        // Block 3: Detect recursion
+        // Block 7: Detect recursion (direct, mutual, tail)
         std::cout << "[CallGraphAnalyzer] Detecting recursion...\n";
         
         return nullptr;
@@ -586,30 +668,38 @@ public:
 class CFGVisualizer {
 public:
     static void* prepareAllVisualizationData(void* state) {
-        // Block 1: Prepare CFG graph data
+        // Block 1: Prepare CFG graph data (for each function)
         std::cout << "[CFGVisualizer] Preparing CFG graph data...\n";
+        std::cout << "  [CFGVisualizer] Applying taint colors (Yellow/Orange/Purple/Magenta/Light Blue)...\n";
+        std::cout << "  [CFGVisualizer] Adding double-click navigation (file path + line number)...\n";
         
         // Block 2: Prepare call graph data
         std::cout << "[CFGVisualizer] Preparing call graph data...\n";
         
-        // Block 3: Prepare taint data
+        // Block 3: Prepare taint data (for each function)
         std::cout << "[CFGVisualizer] Preparing taint data...\n";
+        std::cout << "  [CFGVisualizer] Processing synthetic taint variables (__block_X__)...\n";
         
-        // Block 4: Prepare inter-procedural taint data
+        // Block 4: Prepare inter-procedural taint data (for each function)
         std::cout << "[CFGVisualizer] Preparing inter-procedural taint data...\n";
         
-        // Block 5: Prepare interconnected CFG data
+        // Block 5: Prepare interconnected CFG data (unified view)
         std::cout << "[CFGVisualizer] Preparing interconnected CFG data...\n";
+        std::cout << "  [CFGVisualizer] Adding edge types (Control Flow, Function Calls, Data Flow)...\n";
         
         return nullptr;
     }
     
     void createOrShow() {
         std::cout << "[CFGVisualizer] Creating/showing webview panel...\n";
+        std::cout << "  [CFGVisualizer] Setting up message handlers (function selection, tab switching, sensitivity change, double-click)...\n";
     }
     
     void updateVisualization(void* state) {
         std::cout << "[CFGVisualizer] Updating visualization...\n";
+        std::cout << "  [CFGVisualizer] Checking for sensitivity mismatch...\n";
+        std::cout << "  [CFGVisualizer] Regenerating visualization data if needed...\n";
+        std::cout << "  [CFGVisualizer] Sending data to webview via postMessage...\n";
     }
 };
 
@@ -621,15 +711,28 @@ class StateManager {
 public:
     void* loadState() {
         std::cout << "[StateManager] Loading state from disk...\n";
+        std::cout << "  [StateManager] Reading .vscode/dataflow-state.json...\n";
+        std::cout << "  [StateManager] Deserializing JSON to AnalysisState...\n";
+        std::cout << "  [StateManager] Reconstructing Maps and Sets...\n";
         return nullptr;
     }
     
     void saveState(void* state) {
         std::cout << "[StateManager] Saving state to disk...\n";
+        std::cout << "  [StateManager] Serializing AnalysisState to JSON...\n";
+        std::cout << "  [StateManager] Converting Maps to arrays...\n";
+        std::cout << "  [StateManager] Converting Sets to arrays...\n";
+        std::cout << "  [StateManager] Writing to .vscode/dataflow-state.json...\n";
     }
     
     void clearState() {
         std::cout << "[StateManager] Clearing state...\n";
+        std::cout << "  [StateManager] Deleting .vscode/dataflow-state.json...\n";
+    }
+    
+    std::string computeFileHash(const std::string& filePath) {
+        std::cout << "[StateManager] Computing file hash (SHA-256) for incremental analysis...\n";
+        return "";
     }
 };
 
@@ -641,15 +744,21 @@ public:
  * 
  * Entry → Extension.activate()
  *   ├─→ Initialize workspace
+ *   ├─→ Initialize LoggingConfig (file logging to .vscode/logs.txt)
  *   ├─→ Initialize visualizer
- *   ├─→ Load configuration
+ *   ├─→ Load configuration (taint sensitivity, update mode, etc.)
  *   ├─→ Initialize analyzer
- *   ├─→ Register commands
+ *   ├─→ Register commands (8 commands)
  *   │   ├─→ Show CFG command
  *   │   ├─→ Analyze Workspace command → DataflowAnalyzer.analyzeWorkspace()
  *   │   ├─→ Analyze Active File command
- *   │   └─→ Clear State command
- *   ├─→ Setup file watchers
+ *   │   ├─→ Clear State command
+ *   │   ├─→ Delete State and Re-Analyze command (v1.9.1+)
+ *   │   ├─→ Change Sensitivity and Analyze command (v1.9.0+)
+ *   │   ├─→ Save State command (v1.9.0+)
+ *   │   └─→ Re-Analyze command (v1.9.0+)
+ *   ├─→ Setup file watchers (incremental analysis)
+ *   ├─→ Load saved state (if exists)
  *   └─→ Show initial prompt
  * 
  * When "Analyze Workspace" is invoked:
@@ -708,13 +817,15 @@ public:
  * 
  * Visualization Flow:
  * CFGVisualizer.updateWebview()
- *   ├─→ Get pre-prepared data from state
- *   ├─→ Prepare graph data for current function
- *   ├─→ Prepare call graph data
- *   ├─→ Prepare taint data
- *   ├─→ Prepare inter-procedural taint data
- *   ├─→ Prepare interconnected CFG data
- *   └─→ Render webview HTML with vis-network
+ *   ├─→ Get pre-prepared data from state.visualizationData (prepared during analysis)
+ *   ├─→ If missing: Prepare data on-demand
+ *   ├─→ Check for sensitivity mismatch (regenerate if needed)
+ *   ├─→ Send data to webview via postMessage
+ *   └─→ Webview JavaScript (vis-network)
+ *       ├─→ Render CFG nodes and edges
+ *       ├─→ Apply colors (Yellow/Orange/Purple/Magenta/Light Blue)
+ *       ├─→ Handle user interactions (function selection, tab switching, double-click)
+ *       └─→ Send messages back to extension host (sensitivity change, re-analyze, etc.)
  */
 int main() {
     std::cout << "=== VS Code Dataflow Analyzer - Architecture CFG ===\n\n";
@@ -777,8 +888,18 @@ int main() {
             analyzer->parseFile(filePath);
         }
         
-        // Block 12: Run intra-procedural analyses
+        // Block 12: Run intra-procedural analyses (for each function)
         std::cout << "[BLOCK 12] Running intra-procedural analyses...\n";
+        std::cout << "  [BLOCK 12.1] Liveness Analysis (backward dataflow)...\n";
+        std::cout << "  [BLOCK 12.2] Reaching Definitions (forward dataflow)...\n";
+        std::cout << "  [BLOCK 12.3] Taint Analysis (forward propagation with sensitivity levels)...\n";
+        std::cout << "    [BLOCK 12.3.1] Detect taint sources...\n";
+        std::cout << "    [BLOCK 12.3.2] Forward propagation (worklist algorithm)...\n";
+        std::cout << "    [BLOCK 12.3.3] Control-dependent taint propagation (if sensitivity ≥ CONSERVATIVE)...\n";
+        std::cout << "    [BLOCK 12.3.4] Create synthetic taint variables (__block_X__) for return statements...\n";
+        std::cout << "    [BLOCK 12.3.5] Detect sanitization...\n";
+        std::cout << "    [BLOCK 12.3.6] Detect sink vulnerabilities...\n";
+        std::cout << "  [BLOCK 12.4] Security Analysis (vulnerability detection)...\n";
         analyzer->runIntraProceduralAnalyses();
         
         // Block 13: Check if inter-procedural enabled
@@ -788,20 +909,43 @@ int main() {
         if (interProceduralEnabled) {
             // Block 14: Build call graph
             std::cout << "[BLOCK 14] Building call graph...\n";
+            std::cout << "  [BLOCK 14.1] Index functions...\n";
+            std::cout << "  [BLOCK 14.2] Extract function calls...\n";
+            std::cout << "  [BLOCK 14.3] Collect function pointer assignments...\n";
+            std::cout << "  [BLOCK 14.4] Collect callback arguments...\n";
+            std::cout << "  [BLOCK 14.5] Resolve indirect calls (function pointers, callbacks)...\n";
+            std::cout << "  [BLOCK 14.6] Build caller/callee maps...\n";
+            std::cout << "  [BLOCK 14.7] Detect recursion...\n";
             void* callGraph = analyzer->buildCallGraph();
             
             // Block 15: Run inter-procedural analyses
             std::cout << "[BLOCK 15] Running inter-procedural analyses...\n";
+            std::cout << "  [BLOCK 15.1] Inter-Procedural Reaching Definitions...\n";
+            std::cout << "  [BLOCK 15.2] Parameter Analysis (parameter mapping)...\n";
+            std::cout << "  [BLOCK 15.3] Return Value Analysis (return value tracking)...\n";
+            std::cout << "  [BLOCK 15.4] Inter-Procedural Taint Analysis...\n";
+            std::cout << "    [BLOCK 15.4.1] Process function calls (worklist algorithm)...\n";
+            std::cout << "    [BLOCK 15.4.2] Propagate parameter taint (actual → formal)...\n";
+            std::cout << "    [BLOCK 15.4.3] Propagate return value taint (callee → caller)...\n";
+            std::cout << "    [BLOCK 15.4.4] Process library functions (FunctionSummaries)...\n";
+            std::cout << "  [BLOCK 15.5] Context-Sensitive Taint Analysis (if sensitivity = MAXIMUM)...\n";
             analyzer->runInterProceduralAnalyses(callGraph);
+            
+            // Block 15.6: Re-propagate taint for functions with new parameter taint
+            std::cout << "[BLOCK 15.6] Re-propagating taint for functions with new parameter taint...\n";
         }
         
-        // Block 16: Prepare visualization data
+        // Block 16: Prepare visualization data (backend, during analysis)
         std::cout << "[BLOCK 16] Preparing visualization data...\n";
-        std::cout << "  [CFGVisualizer] Preparing CFG graph data...\n";
+        std::cout << "  [CFGVisualizer] Preparing CFG graph data (for each function)...\n";
+        std::cout << "    [CFGVisualizer] Applying taint colors (Yellow/Orange/Purple/Magenta/Light Blue)...\n";
+        std::cout << "    [CFGVisualizer] Adding double-click navigation (file path + line number)...\n";
         std::cout << "  [CFGVisualizer] Preparing call graph data...\n";
-        std::cout << "  [CFGVisualizer] Preparing taint data...\n";
-        std::cout << "  [CFGVisualizer] Preparing inter-procedural taint data...\n";
-        std::cout << "  [CFGVisualizer] Preparing interconnected CFG data...\n";
+        std::cout << "  [CFGVisualizer] Preparing taint data (for each function)...\n";
+        std::cout << "    [CFGVisualizer] Processing synthetic taint variables (__block_X__)...\n";
+        std::cout << "  [CFGVisualizer] Preparing inter-procedural taint data (for each function)...\n";
+        std::cout << "  [CFGVisualizer] Preparing interconnected CFG data (unified view)...\n";
+        std::cout << "    [CFGVisualizer] Adding edge types (Control Flow, Function Calls, Data Flow)...\n";
         
         // Block 17: Save state
         std::cout << "[BLOCK 17] Saving analysis state...\n";

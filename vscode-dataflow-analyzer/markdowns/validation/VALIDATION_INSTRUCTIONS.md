@@ -395,3 +395,12 @@ After completing validation:
 4. Update validation files with actual results
 5. Complete comprehensive test validation for all 30 test files
 
+---
+
+## 🤖 Agent Instructions
+
+**For AI Agents**: After completing any validation task:
+- Update all relevant markdown files (see `AGENT_INSTRUCTIONS.md`)
+- Update validation status, dates, and cross-references
+- Keep documentation synchronized with codebase changes
+

@@ -1,16 +1,17 @@
-# Validation Checklist - Logical Order
+# Validation Checklist - Logical Order (Merged with Bug Report)
 
-This document provides a comprehensive, logically organized validation checklist for all features of the Dataflow Analyzer.
+This document provides a comprehensive, logically organized validation checklist for all features of the Dataflow Analyzer, integrated with logical bug validation.
 
 ## Validation Organization
 
 Validations are organized in logical order following the analysis pipeline:
-1. **Foundation** - Core dataflow analyses (CFG, Liveness, Reaching Definitions)
-2. **Taint Analysis** - Basic to advanced taint features
-3. **Inter-Procedural Analysis** - Cross-function analysis
-4. **Security** - Vulnerability detection
-5. **Visualization** - UI and visualization features
-6. **System** - State management and incremental analysis
+1. **Foundation** - Core dataflow analyses (CFG, Liveness, Reaching Definitions) + Related Bugs
+2. **Taint Analysis** - Basic to advanced taint features + Related Bugs
+3. **Inter-Procedural Analysis** - Cross-function analysis + Related Bugs
+4. **Security** - Vulnerability detection + Related Bugs
+5. **Visualization** - UI and visualization features + Related Bugs
+6. **System** - State management and incremental analysis + Related Bugs
+7. **Code Quality** - Comprehensive bug validation and fixes
 
 ---
 
@@ -29,6 +30,13 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Loop structures are identified
 - [ ] Nested structures are handled correctly
 
+**Related Bugs**:
+- [ ] **BUG-053**: Missing Validation in Regex Match Group Access (`ClangASTParser.ts:599`)
+- [ ] **BUG-054**: Missing Validation in Successor/Predecessor Parsing (`ClangASTParser.ts:628, 636`)
+- [ ] **BUG-055**: Missing Validation in Statement Match (`ClangASTParser.ts:642-644`)
+- [ ] **BUG-059**: Potential Issue with Empty Blocks Array (`ClangASTParser.ts:587, 662`)
+- [ ] **BUG-060**: Missing Validation in Buffer Size Check (`ClangASTParser.ts:405`)
+
 **Priority**: HIGH (Foundation for all other analyses)
 
 ---
@@ -46,6 +54,8 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Completes in finite iterations
 - [ ] UI displays liveness information correctly
 
+**Related Bugs**: None identified (LivenessAnalyzer uses safe patterns)
+
 **Priority**: HIGH (Core backward dataflow analysis)
 
 ---
@@ -62,6 +72,10 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Analysis converges (reaches fixed point)
 - [ ] UI displays RD information correctly
 - [ ] RD data is passed to taint analysis correctly
+
+**Related Bugs**:
+- [ ] **BUG-003**: Unsafe Map.get() in ReachingDefinitionsAnalyzer (`ReachingDefinitionsAnalyzer.ts:142-143, 161, 221, 413`)
+- [ ] **BUG-017**: Unsafe Split in Key Parsing (`DataflowAnalyzer.ts:440`)
 
 **Priority**: HIGH (Core forward dataflow analysis, required for taint)
 
@@ -81,6 +95,13 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Taint sinks are detected (printf, strcpy, etc.)
 - [ ] Vulnerabilities are detected (source-to-sink paths)
 - [ ] RD information is used correctly for taint propagation
+
+**Related Bugs**:
+- [ ] **BUG-013**: Missing Validation in Taint Source Detection (`TaintAnalyzer.ts:279-310`)
+- [ ] **BUG-022**: Missing Null Check After detectTaintSource (`TaintAnalyzer.ts:281-308`)
+- [ ] **BUG-051**: Unsafe Array Access in Regex Match Groups (`TaintAnalyzer.ts:316, 693, 854, 859`)
+- [ ] **BUG-052**: Unsafe Worklist Shift (`TaintAnalyzer.ts:359`)
+- [ ] **BUG-056**: Potential Issue with Fallback Taint Source (`TaintAnalyzer.ts:410`)
 
 **Priority**: HIGH (Foundation of taint analysis)
 
@@ -103,6 +124,8 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Taint labels are correctly assigned (USER_INPUT, FILE_CONTENT, etc.)
 - [ ] Blocks are colored yellow (data-flow taint)
 
+**Related Bugs**: See 2.1 Basic Taint Propagation
+
 **Priority**: HIGH (Core taint feature)
 
 ---
@@ -118,6 +141,10 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Nested conditionals are handled correctly
 - [ ] Blocks are colored orange (control-dependent taint)
 - [ ] CONTROL_DEPENDENT label is correctly assigned
+
+**Related Bugs**:
+- [ ] **BUG-004**: Potential Division by Zero in Path-Sensitive Analysis (`TaintAnalyzer.ts:1272`)
+- [ ] **BUG-012**: Potential Infinite Loop in Control-Dependent Propagation (`TaintAnalyzer.ts:1305`)
 
 **Priority**: HIGH (Critical implicit flow detection)
 
@@ -140,13 +167,6 @@ Validations are organized in logical order following the analysis pipeline:
   - [ ] `return 1;` (block 1)
 
 **Priority**: CRITICAL (Primary test for synthetic taint)
-
-**Specific Validation Items**:
-- [ ] Block 2 taint detection - verify block 2 is correctly identified as tainted
-- [ ] Return value analysis - verify all return statements appear with correct badges
-- [ ] Coloring consistency - verify only 5 colors appear (Yellow, Orange, Purple, Magenta, Light Blue)
-- [ ] Synthetic taint detection logic - verify synthetic variables are created
-- [ ] Variable labels - verify correct labels in interconnected taint tab
 
 ---
 
@@ -196,6 +216,9 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Partial sanitization works correctly (some paths sanitized)
 - [ ] No vulnerabilities detected for sanitized variables
 
+**Related Bugs**:
+- [ ] **BUG-024**: Missing Validation in Parameter Split (`SanitizationRegistry.ts:368, 403`)
+
 **Priority**: HIGH (Critical for reducing false positives)
 
 ---
@@ -219,6 +242,10 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Sensitivity dropdown works correctly
 - [ ] Re-analysis triggers when sensitivity changes
 - [ ] Visualization updates with new sensitivity
+
+**Related Bugs**:
+- [ ] **BUG-007**: Potential Race Condition in Sensitivity Change (`extension.ts:564, 637-651`)
+- [ ] **BUG-021**: Potential Race Condition in State Mutation (`extension.ts:637-651`)
 
 **Priority**: CRITICAL (Core feature configuration)
 
@@ -285,6 +312,9 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Taint propagation is context-aware
 - [ ] k-limited context tracking distinguishes call sites
 
+**Related Bugs**:
+- [ ] **BUG-031**: Missing Null Check in Callee Metadata Access (`ContextSensitiveTaintAnalyzer.ts:299-303`)
+
 **Priority**: LOW (Requires MAXIMUM sensitivity, advanced feature)
 
 ---
@@ -306,6 +336,12 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] External function calls are marked
 - [ ] Call graph visualization shows all relationships
 - [ ] Function call edges appear in interconnected CFG
+
+**Related Bugs**:
+- [ ] **BUG-008**: Missing Validation in Function Pointer Resolution (`CallGraphAnalyzer.ts:568, 606`)
+- [ ] **BUG-034**: Unsafe Map.get() After Has Check (`CallGraphAnalyzer.ts:800, 808`)
+- [ ] **BUG-030**: Unsafe Stack Pop in Tarjan's Algorithm (`CallGraphAnalyzer.Extensions.ts:408`)
+- [ ] **BUG-035**: Missing Validation in LowLink Map Access (`CallGraphAnalyzer.Extensions.ts:397, 399`)
 
 **Priority**: HIGH (Foundation for IPA)
 
@@ -338,6 +374,10 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Parameter mapping is correct (7 derivation types)
 - [ ] Return value tracking is correct (6 return types)
 
+**Related Bugs**:
+- [ ] **BUG-023**: Unsafe Map.get() in InterProceduralTaintAnalyzer (`InterProceduralTaintAnalyzer.ts:839, 845`)
+- [ ] **BUG-036**: Potential Issue with Return Value Variable Name Parsing (`DataflowAnalyzer.ts:613-614, 722`)
+
 **Priority**: HIGH (Critical for real-world analysis)
 
 ---
@@ -369,6 +409,9 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Global arrays are tracked element-wise
 - [ ] Global variables in control flow create control-dependent taint
 
+**Related Bugs**:
+- [ ] **BUG-040**: Missing Validation in Global Variable Detection (`InterProceduralReachingDefinitions.ts:619`)
+
 **Priority**: MEDIUM (Important IPA feature)
 
 ---
@@ -387,6 +430,9 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] system summary models command execution
 - [ ] External functions are identified correctly
 - [ ] Vulnerabilities are detected based on function summaries
+
+**Related Bugs**:
+- [ ] **BUG-058**: Missing Validation in Function Summary Lookup (`FunctionSummaries.ts`)
 
 **Priority**: MEDIUM (Important for accurate analysis)
 
@@ -411,6 +457,11 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Source-to-sink paths are highlighted
 - [ ] Vulnerability severity is displayed
 - [ ] CWE information is displayed
+
+**Related Bugs**:
+- [ ] **BUG-041**: Unsafe Map.get() in SecurityAnalyzer (`SecurityAnalyzer.ts:325, 474`)
+- [ ] **BUG-042**: Unsafe Optional Chaining in Function Name Extraction (`SecurityAnalyzer.ts:470`)
+- [ ] **BUG-014**: Array Access Without Bounds Check (`TaintAnalyzer.ts:727-728`)
 
 **Priority**: CRITICAL (Core security feature)
 
@@ -449,6 +500,12 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Block information displays correctly
 - [ ] Click blocks shows detailed information
 
+**Related Bugs**:
+- [ ] **BUG-001**: Unsafe Non-Null Assertions in CFGVisualizer.ts (`CFGVisualizer.ts:674, 678, 683`)
+- [ ] **BUG-002**: Unsafe Map.get() Calls in TaintByBlock (`CFGVisualizer.ts:1026, 1128`)
+- [ ] **BUG-005**: Missing Null Check in File Contents Map (`CFGVisualizer.ts:2251`)
+- [ ] **BUG-006**: Unsafe Map.get() in Return Value Analysis (`CFGVisualizer.ts:2368`)
+
 **Priority**: HIGH (Core visualization)
 
 ---
@@ -486,6 +543,11 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Re-analyze button works on all tabs
 - [ ] Block information displays correctly
 
+**Related Bugs**:
+- [ ] **BUG-009**: Potential Memory Leak in Panel Tracking (`CFGVisualizer.ts:96`) - FIXED at line 291
+- [ ] **BUG-027**: Potential Memory Leak in Panel Disposal (`CFGVisualizer.ts:293-296`) - FIXED at line 291
+- [ ] **BUG-050**: Potential Race Condition in Panel Key Generation (`CFGVisualizer.ts:115-118`)
+
 **Priority**: HIGH (User experience)
 
 ---
@@ -504,6 +566,10 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Legend counts match actual colored blocks
 - [ ] Interconnected CFG tab coloring matches single-function CFG tab
 - [ ] Blocks with synthetic taint use magenta color
+
+**Related Bugs**:
+- [ ] **BUG-010**: Inconsistent Map vs Object Handling (`CFGVisualizer.ts:2641`)
+- [ ] **BUG-020**: Unsafe Array Access in Split Operations (`CFGVisualizer.ts:1013, 1046, 2767-2768`)
 
 **Priority**: CRITICAL (Visual consistency)
 
@@ -526,6 +592,10 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] No emojis appear in the indicator
 - [ ] Clearing state removes saved state file
 - [ ] State persists across extension restarts
+
+**Related Bugs**:
+- [ ] **BUG-032**: Potential Empty Hash Return on File Error (`StateManager.ts:228-237`)
+- [ ] **BUG-026**: Missing Error Handling in File Hash Computation (`StateManager.ts`) - HANDLED with try-catch
 
 **Priority**: HIGH (User experience)
 
@@ -560,6 +630,22 @@ Validations are organized in logical order following the analysis pipeline:
 - [ ] Unreachable code is handled
 - [ ] Dead code is handled
 - [ ] No crashes or errors occur
+
+**Related Bugs**:
+- [ ] **BUG-011**: Missing Error Handling in Parameter Extraction (`EnhancedCPPParser.ts:267-273`)
+- [ ] **BUG-019**: Missing Validation for Unbalanced Parentheses (`EnhancedCPPParser.ts:267-283`)
+- [ ] **BUG-028**: Missing Validation in Expression Tokenization (`DataflowAnalyzer.ts:2303`)
+- [ ] **BUG-029**: Unsafe Array Access in Return Match (`DataflowAnalyzer.ts:2273-2275`)
+- [ ] **BUG-033**: Missing Validation in Variable Name Extraction (`DataflowAnalyzer.ts:2239-2242`)
+- [ ] **BUG-037**: Missing Error Handling in File Read Operations (`EnhancedCPPParser.ts:222`)
+- [ ] **BUG-043**: Missing Validation in Argument Extraction Depth (`TaintSinkRegistry.ts:424-452`)
+- [ ] **BUG-044**: Missing Validation in Ternary Operator Parsing (`ReturnValueAnalyzer.ts:206-210`)
+- [ ] **BUG-045**: Potential Issue with Member Access Split (`ParameterAnalyzer.ts:236`)
+- [ ] **BUG-046**: Missing Validation in Argument Index Access (`TaintSourceRegistry.ts:236, 250`)
+- [ ] **BUG-047**: Missing Error Handling in Regex Match (`TaintSourceRegistry.ts:244`)
+- [ ] **BUG-048**: Potential Issue with Empty Argument String (`TaintSinkRegistry.ts:428`)
+- [ ] **BUG-049**: Missing Validation in Return Match Group Access (`DataflowAnalyzer.ts:2273`)
+- [ ] **BUG-057**: Missing Error Handling in JSON Parsing (`ClangASTParser.ts:427`)
 
 **Priority**: LOW (Edge case coverage)
 
@@ -635,48 +721,204 @@ Validations are organized in logical order following the analysis pipeline:
 
 ---
 
+## Phase 10: Code Quality and Logical Bugs
+
+### 10.1 Comprehensive Bug Validation
+**Status**: PENDING VALIDATION  
+**Total Bugs Found**: 60
+
+**Critical Bugs** (4 bugs - Must fix first):
+- [ ] **BUG-001**: Unsafe Non-Null Assertions in CFGVisualizer.ts
+- [ ] **BUG-002**: Unsafe Map.get() Calls in TaintByBlock
+- [ ] **BUG-003**: Unsafe Map.get() in ReachingDefinitionsAnalyzer
+- [ ] **BUG-004**: Potential Division by Zero in Path-Sensitive Analysis
+
+**High Priority Bugs** (9 bugs):
+- [ ] **BUG-005**: Missing Null Check in File Contents Map
+- [ ] **BUG-006**: Unsafe Map.get() in Return Value Analysis
+- [ ] **BUG-007**: Potential Race Condition in Sensitivity Change
+- [ ] **BUG-008**: Missing Validation in Function Pointer Resolution
+- [ ] **BUG-017**: Unsafe Split in Key Parsing
+- [ ] **BUG-021**: Potential Race Condition in State Mutation
+- [ ] **BUG-023**: Unsafe Map.get() in InterProceduralTaintAnalyzer
+- [ ] **BUG-030**: Unsafe Stack Pop in Tarjan's Algorithm
+- [ ] **BUG-035**: Missing Validation in LowLink Map Access
+
+**Moderate Priority Bugs** (29 bugs):
+- [ ] **BUG-010**: Inconsistent Map vs Object Handling
+- [ ] **BUG-011**: Missing Error Handling in Parameter Extraction
+- [ ] **BUG-012**: Potential Infinite Loop in Control-Dependent Propagation
+- [ ] **BUG-013**: Missing Validation in Taint Source Detection
+- [ ] **BUG-014**: Array Access Without Bounds Check
+- [ ] **BUG-018**: Unsafe Split in Panel Key Parsing
+- [ ] **BUG-019**: Missing Validation for Unbalanced Parentheses
+- [ ] **BUG-020**: Unsafe Array Access in Split Operations
+- [ ] **BUG-022**: Missing Null Check After detectTaintSource
+- [ ] **BUG-024**: Missing Validation in Parameter Split
+- [ ] **BUG-025**: Potential Index Out of Bounds in ParameterAnalyzer
+- [ ] **BUG-028**: Missing Validation in Expression Tokenization
+- [ ] **BUG-029**: Unsafe Array Access in Return Match
+- [ ] **BUG-031**: Missing Null Check in Callee Metadata Access
+- [ ] **BUG-032**: Potential Empty Hash Return on File Error
+- [ ] **BUG-033**: Missing Validation in Variable Name Extraction
+- [ ] **BUG-034**: Unsafe Map.get() After Has Check
+- [ ] **BUG-036**: Potential Issue with Return Value Variable Name Parsing
+- [ ] **BUG-037**: Missing Error Handling in File Read Operations
+- [ ] **BUG-039**: Missing Validation in Function Call String Matching
+- [ ] **BUG-041**: Unsafe Map.get() in SecurityAnalyzer
+- [ ] **BUG-042**: Unsafe Optional Chaining in Function Name Extraction
+- [ ] **BUG-043**: Missing Validation in Argument Extraction Depth
+- [ ] **BUG-044**: Missing Validation in Ternary Operator Parsing
+- [ ] **BUG-045**: Potential Issue with Member Access Split
+- [ ] **BUG-046**: Missing Validation in Argument Index Access
+- [ ] **BUG-047**: Missing Error Handling in Regex Match
+- [ ] **BUG-048**: Potential Issue with Empty Argument String
+- [ ] **BUG-049**: Missing Validation in Return Match Group Access
+- [ ] **BUG-051**: Unsafe Array Access in Regex Match Groups
+- [ ] **BUG-052**: Unsafe Worklist Shift
+- [ ] **BUG-053**: Missing Validation in Regex Match Group Access
+- [ ] **BUG-054**: Missing Validation in Successor/Predecessor Parsing
+- [ ] **BUG-055**: Missing Validation in Statement Match
+- [ ] **BUG-056**: Potential Issue with Fallback Taint Source
+- [ ] **BUG-057**: Missing Error Handling in JSON Parsing
+
+**Low Priority Bugs** (18 bugs):
+- [ ] **BUG-015**: Hardcoded External Function List
+- [ ] **BUG-016**: Inefficient Set Comparison
+- [ ] **BUG-038**: Potential Division by Zero in Metrics Calculation
+- [ ] **BUG-040**: Missing Validation in Global Variable Detection
+- [ ] **BUG-058**: Missing Validation in Function Summary Lookup
+- [ ] **BUG-059**: Potential Issue with Empty Blocks Array
+- [ ] **BUG-060**: Missing Validation in Buffer Size Check
+
+**Fixed Bugs** (2 bugs):
+- [x] **BUG-009**: Potential Memory Leak in Panel Tracking - FIXED at line 291
+- [x] **BUG-027**: Potential Memory Leak in Panel Disposal - FIXED at line 291
+
+**Priority**: HIGH (Code quality and stability)
+
+---
+
+### 10.2 Null Safety Validation
+**Status**: PENDING VALIDATION
+
+**Validation Required**:
+- [ ] Verify all Map.get() calls have null checks (20 bugs identified)
+- [ ] Verify all non-null assertions are safe
+- [ ] Test with malformed CFG data
+- [ ] Test with missing function data
+- [ ] Test with empty analysis results
+
+**Priority**: HIGH (Prevents runtime crashes)
+
+---
+
+### 10.3 Array Bounds Validation
+**Status**: PENDING VALIDATION
+
+**Validation Required**:
+- [ ] Verify all array index accesses have bounds checks (13 bugs identified)
+- [ ] Verify all split() operations validate results
+- [ ] Test with empty arrays
+- [ ] Test with malformed strings
+
+**Priority**: HIGH (Prevents runtime crashes)
+
+---
+
+### 10.4 Error Handling Validation
+**Status**: PENDING VALIDATION
+
+**Validation Required**:
+- [ ] Verify all file operations have error handling (8 bugs identified)
+- [ ] Verify all JSON parsing has error handling
+- [ ] Verify all regex operations have validation
+- [ ] Test with invalid input data
+
+**Priority**: MEDIUM (Prevents crashes on edge cases)
+
+---
+
+### 10.5 Algorithm Correctness Validation
+**Status**: PENDING VALIDATION
+
+**Validation Required**:
+- [ ] Verify fixed-point iteration converges (6 bugs identified)
+- [ ] Verify MAX_ITERATIONS limits are respected
+- [ ] Verify cycle detection works correctly
+- [ ] Test with pathological CFG structures
+
+**Priority**: MEDIUM (Ensures algorithm correctness)
+
+---
+
 ## Validation Summary
 
 ### By Priority
 
 **CRITICAL** (Must validate first):
-1. CFG Generation
+1. CFG Generation + Related Bugs
 2. Liveness Analysis
-3. Reaching Definitions Analysis
-4. Basic Taint Propagation
-5. Control-Dependent Taint
+3. Reaching Definitions Analysis + Related Bugs
+4. Basic Taint Propagation + Related Bugs
+5. Control-Dependent Taint + Related Bugs
 6. Synthetic Taint (Return Statements)
-7. Taint Sensitivity Levels
-8. Security Vulnerabilities
-9. Coloring Consistency
+7. Taint Sensitivity Levels + Related Bugs
+8. Security Vulnerabilities + Related Bugs
+9. Coloring Consistency + Related Bugs
+10. Critical Bug Fixes (BUG-001 through BUG-004)
 
 **HIGH** (Core features):
-10. Data-Flow Taint
-11. Comprehensive Synthetic Taint
-12. Sanitization Detection
-13. Call Graph Construction
-14. Inter-Procedural Taint Analysis
-15. Basic CFG Visualization
-16. Visualization UI Features
-17. State Management
+11. Data-Flow Taint
+12. Comprehensive Synthetic Taint
+13. Sanitization Detection + Related Bugs
+14. Call Graph Construction + Related Bugs
+15. Inter-Procedural Taint Analysis + Related Bugs
+16. Basic CFG Visualization + Related Bugs
+17. Visualization UI Features + Related Bugs
+18. State Management + Related Bugs
+19. High Priority Bug Fixes (BUG-005 through BUG-013, BUG-017, BUG-021, BUG-023, BUG-030, BUG-035)
 
 **MEDIUM** (Important features):
-18. Arithmetic Taint Propagation
-19. Path-Sensitive Analysis
-20. Field-Sensitive Analysis
-21. Flow-Sensitive Analysis
-22. Complex Function Calls
-23. Inter-Procedural Taint Scenarios
-24. Data Flow Edge Visualization
-25. Incremental Analysis
-26. Output Count Validation
-27. Log Validation
+20. Arithmetic Taint Propagation
+21. Path-Sensitive Analysis
+22. Field-Sensitive Analysis
+23. Flow-Sensitive Analysis
+24. Complex Function Calls
+25. Inter-Procedural Taint Scenarios
+26. Global Variable Handling + Related Bugs
+27. Function Summaries + Related Bugs
+28. Data Flow Edge Visualization
+29. Incremental Analysis
+30. Output Count Validation
+31. Log Validation
+32. Moderate Priority Bug Fixes (29 bugs)
 
 **LOW** (Edge cases and verification):
-28. Context-Sensitive Analysis
-29. Edge Cases
-30. Liveness Convergence
-31. Function Count Validation
+33. Context-Sensitive Analysis + Related Bugs
+34. Edge Cases + Related Bugs (15 bugs)
+35. Liveness Convergence
+36. Function Count Validation
+37. Low Priority Bug Fixes (18 bugs)
+
+### Bug Statistics
+
+**Total Bugs**: 60
+- **Critical**: 4
+- **High Priority**: 9
+- **Moderate Priority**: 29
+- **Low Priority**: 18
+- **Fixed**: 2
+
+**By Category**:
+- **Null Safety**: 20 bugs
+- **Array Bounds**: 13 bugs
+- **Error Handling**: 8 bugs
+- **Algorithm Correctness**: 6 bugs
+- **Type Safety**: 5 bugs
+- **Concurrency**: 3 bugs
+- **Resource Management**: 3 bugs
+- **Logic**: 2 bugs
 
 ### Test Files Coverage
 
@@ -692,9 +934,13 @@ Validations are organized in logical order following the analysis pipeline:
 ### Validation Process
 
 1. **Start with CRITICAL priority items** - Validate foundation first
-2. **Then HIGH priority items** - Validate core features
-3. **Then MEDIUM priority items** - Validate advanced features
-4. **Finally LOW priority items** - Validate edge cases
+2. **Fix critical bugs** - BUG-001 through BUG-004 must be fixed before proceeding
+3. **Then HIGH priority items** - Validate core features
+4. **Fix high-priority bugs** - BUG-005 through BUG-013, etc.
+5. **Then MEDIUM priority items** - Validate advanced features
+6. **Fix moderate-priority bugs** - 29 bugs
+7. **Finally LOW priority items** - Validate edge cases
+8. **Fix low-priority bugs** - 18 bugs
 
 For each test file:
 - Open `tests/test_*.cpp` in VS Code
@@ -705,3 +951,20 @@ For each test file:
 - Document results
 
 Use `markdowns/validation/VALIDATION_INSTRUCTIONS.md` for detailed step-by-step instructions.
+
+---
+
+**Last Updated**: Merged with LOGICAL_BUGS.md - 2025-01-XX  
+**Status**: Ready for validation  
+**Next Step**: Fix critical bugs (BUG-001 through BUG-004) before proceeding with feature validation
+
+---
+
+## 🤖 Agent Instructions
+
+**For AI Agents**: After completing any validation task or bug fix:
+- Update validation status in this file (mark items as VALIDATED/FIXED)
+- Update `CHANGELOG.md` for significant changes
+- Update `working_overview` if architecture changes
+- Update test validation files with actual results
+- See `AGENT_INSTRUCTIONS.md` for complete file update protocol

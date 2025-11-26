@@ -34,7 +34,35 @@ All notable changes to the C++ Dataflow Analyzer extension will be documented in
 - Enhanced documentation structure for better maintainability
 - Improved validation process documentation
 - Updated all references to reflect current codebase state
->>>>>>> 236d9a3 (Release v1.9.5: Comprehensive test suite, documentation reorganization, and synchronization)
+
+## [1.9.5.1] - 2025-01-XX
+
+### Added
+- **Comprehensive Bug Scan**: Completed systematic codebase scan identifying 60 logical bugs
+  - 4 Critical bugs (null safety, runtime crashes)
+  - 9 High priority bugs (null safety, concurrency, array bounds)
+  - 29 Moderate priority bugs (validation, error handling, edge cases)
+  - 18 Low priority bugs (maintainability, performance, heuristics)
+- **Bug Report Integration**: Merged LOGICAL_BUGS.md into TEMP_VALIDATION.md
+  - Bugs organized by component/phase for contextual validation
+  - Each phase includes related bugs for integrated validation
+- **Final Validation Instructions**: Created comprehensive merged validation guide
+  - FINAL_VALIDATION_INSTRUCTIONS.md with complete workflow
+  - Phase 0: Critical bug fixes (must fix first)
+  - Integrated bug validation with feature validation
+- **Agent Instructions**: Created file update protocol for AI agents
+  - AGENT_INSTRUCTIONS.md with complete update checklist
+  - Instructions for keeping documentation synchronized
+  - Update patterns and best practices
+
+### Changed
+- Reorganized validation files with logical bug integration
+- Updated all validation files to reference agent instructions
+- Enhanced validation workflow with bug-first approach
+
+### Fixed
+- Documentation consistency across all validation files
+- Cross-references between validation files
 
 ## [1.9.2] - 2025-01-XX
 
