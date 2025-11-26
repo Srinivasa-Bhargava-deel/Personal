@@ -74,19 +74,12 @@ let debounceTimer: NodeJS.Timeout | null = null;  // Timer for debouncing keystr
 let isUpdatingSensitivityProgrammatically = false;
 
 export function activate(context: vscode.ExtensionContext) {
-  // ============================================================
-  // COMPREHENSIVE LOGGING: Extension Activation
-  // ============================================================
-  LoggingConfig.section('Extension', '🚀 MAJOR EVENT: Extension Activation Started');
-  LoggingConfig.raw('[MAJOR EVENT] Extension: Dataflow Analyzer is activating');
-  LoggingConfig.log('Extension', `Extension Version: 1.9.1`);
-  LoggingConfig.log('Extension', `Activation Time: ${new Date().toISOString()}`);
-  
-  console.log('Dataflow Analyzer extension is now active');
+  try {
+    console.log('Dataflow Analyzer extension is activating...');
 
-  // Determine workspace path from VS Code workspace folders or active editor
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  let workspacePath: string;
+    // Determine workspace path from VS Code workspace folders or active editor
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    let workspacePath: string;
   
   if (!workspaceFolders || workspaceFolders.length === 0) {
     // Fallback: Try to get workspace from active editor
@@ -231,12 +224,20 @@ export function activate(context: vscode.ExtensionContext) {
     workspacePath = workspaceFolders[0].uri.fsPath;
   }
   
-  // Initialize file logging to .vscode/logs.txt
-  LoggingConfig.initializeFileLogging(workspacePath);
-  LoggingConfig.log('Extension', `Workspace path: ${workspacePath}`);
-  
-  // Initialize visualizer component
-  let visualizer = new CFGVisualizer();
+    // Initialize file logging to .vscode/logs.txt FIRST before any other logging
+    LoggingConfig.initializeFileLogging(workspacePath);
+    
+    // NOW we can use LoggingConfig methods safely
+    LoggingConfig.section('Extension', '🚀 MAJOR EVENT: Extension Activation Started');
+    LoggingConfig.raw('[MAJOR EVENT] Extension: Dataflow Analyzer is activating');
+    LoggingConfig.log('Extension', `Extension Version: 1.9.5.1`);
+    LoggingConfig.log('Extension', `Activation Time: ${new Date().toISOString()}`);
+    LoggingConfig.log('Extension', `Workspace path: ${workspacePath}`);
+    
+    console.log('Dataflow Analyzer extension is now active');
+
+    // Initialize visualizer component
+    let visualizer = new CFGVisualizer();
 
   // Load extension configuration from VS Code settings
   const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
@@ -874,15 +875,45 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
 
-  // Initial analysis prompt
-  vscode.window.showInformationMessage(
-    'Dataflow Analyzer is ready. Run "Analyze Workspace" to start.',
-    'Analyze Workspace'
-  ).then(selection => {
-    if (selection === 'Analyze Workspace') {
-      vscode.commands.executeCommand('dataflowAnalyzer.analyzeWorkspace');
+    // Initial analysis prompt
+    vscode.window.showInformationMessage(
+      'Dataflow Analyzer is ready. Run "Analyze Workspace" to start.',
+      'Analyze Workspace'
+    ).then(selection => {
+      if (selection === 'Analyze Workspace') {
+        vscode.commands.executeCommand('dataflowAnalyzer.analyzeWorkspace');
+      }
+    });
+  } catch (error) {
+    // CRITICAL: Catch any errors during activation to prevent silent failure
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('[Extension] CRITICAL: Activation failed:', errorMessage);
+    if (errorStack) {
+      console.error('[Extension] Stack trace:', errorStack);
     }
-  });
+    
+    // Try to log to file if logging is initialized
+    try {
+      LoggingConfig.error('Extension', `CRITICAL: Activation failed: ${errorMessage}`);
+      if (errorStack) {
+        LoggingConfig.raw(`[Extension] Stack trace: ${errorStack}`);
+      }
+    } catch (logError) {
+      // If logging fails, at least show error to user
+      console.error('[Extension] Failed to log activation error:', logError);
+    }
+    
+    // Show error to user
+    vscode.window.showErrorMessage(
+      `Dataflow Analyzer failed to activate: ${errorMessage}. ` +
+      `Please check the Developer Console (Help > Toggle Developer Tools) for details.`
+    );
+    
+    // Re-throw to let VS Code know activation failed
+    throw error;
+  }
 }
 
 /**
