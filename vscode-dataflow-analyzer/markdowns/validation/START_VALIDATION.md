@@ -193,3 +193,10 @@ For each test file, check:
 - Always update validation status, dates, and cross-references
 - Keep documentation synchronized with codebase changes
 
+**Special Protocol**: When user pastes log output for a test file:
+- Automatically validate with validation MD files
+- Note down bugs/fixes to be made
+- Fix all bugs robustly
+- Follow AGENT_INSTRUCTIONS protocol
+- See `LOG_VALIDATION_PROTOCOL.md` for complete workflow
+

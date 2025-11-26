@@ -8,7 +8,17 @@
 
 ## 🔄 File Update Protocol
 
-**CRITICAL RULE**: Whenever you complete a task or provide a reply, **you MUST update all relevant markdown files accordingly**.
+**CRITICAL RULE**: Whenever you complete a task or provide a reply, **you MUST update all related markdown files accordingly**.
+
+## 📋 Log Validation Protocol
+
+**SPECIAL RULE**: When user pastes log output for a test file, automatically:
+1. **Validate with validation MD files** - Compare actual vs expected results
+2. **Note down other bugs/fixes** - Identify all issues from logs
+3. **Fix all of them robustly** - Fix bugs in priority order
+4. **Follow AGENT_INSTRUCTIONS** - Update all relevant markdown files
+
+**See**: `LOG_VALIDATION_PROTOCOL.md` for complete workflow.
 
 ### What This Means
 

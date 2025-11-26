@@ -552,3 +552,13 @@ After validating each item:
 - Update `working_overview` if architecture changes
 - See `AGENT_INSTRUCTIONS.md` for complete protocol
 
+## 📋 Log Validation Protocol
+
+**When user pastes log output for a test file**, automatically:
+1. **Validate with validation MD files** - Compare actual vs expected results
+2. **Note down other bugs/fixes** - Identify all issues from logs
+3. **Fix all of them robustly** - Fix bugs in priority order (Critical → High → Moderate → Low)
+4. **Follow AGENT_INSTRUCTIONS** - Update all relevant markdown files
+
+**See**: `LOG_VALIDATION_PROTOCOL.md` for complete automated workflow.
+

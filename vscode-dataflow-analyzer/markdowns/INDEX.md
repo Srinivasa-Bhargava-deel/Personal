@@ -27,6 +27,7 @@ Validation-related documentation:
 
 ### Agent Instructions
 - **AGENT_INSTRUCTIONS.md** - **File update protocol for AI agents** - Instructions for updating markdown files after completing tasks
+- **LOG_VALIDATION_PROTOCOL.md** - **Log validation protocol** - Automated workflow for handling log outputs from test files
 
 ### Core Validation Files
 - **FINAL_VALIDATION_INSTRUCTIONS.md** - Complete merged validation instructions (START HERE)
