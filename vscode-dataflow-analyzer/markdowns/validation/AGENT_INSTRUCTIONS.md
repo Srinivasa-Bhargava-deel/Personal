@@ -1,6 +1,7 @@
 # Agent Instructions - File Update Protocol
 
 **Created**: 2025-01-XX  
+**Last Updated**: 2025-01-XX (v1.9.5.1)  
 **Purpose**: Instructions for AI agents working on this codebase
 
 ---

@@ -954,7 +954,7 @@ Use `markdowns/validation/VALIDATION_INSTRUCTIONS.md` for detailed step-by-step 
 
 ---
 
-**Last Updated**: Merged with LOGICAL_BUGS.md - 2025-01-XX  
+**Last Updated**: Merged with LOGICAL_BUGS.md - 2025-01-XX (v1.9.5.1)  
 **Status**: Ready for validation  
 **Next Step**: Fix critical bugs (BUG-001 through BUG-004) before proceeding with feature validation
 

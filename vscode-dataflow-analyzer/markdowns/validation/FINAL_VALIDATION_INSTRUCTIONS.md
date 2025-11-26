@@ -537,7 +537,7 @@ After validating each item:
 
 ---
 
-**Last Updated**: 2025-01-XX  
+**Last Updated**: 2025-01-XX (v1.9.5.1)  
 **Version**: 1.0  
 **Status**: Ready for Use
 

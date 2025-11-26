@@ -1084,4 +1084,4 @@ This tool is designed for:
 **Built with trust for security researchers and developers**
 
 **Version**: 1.5.1  
-**Last Updated**: November 2025
+**Last Updated**: January 2025 (v1.9.5.1)
