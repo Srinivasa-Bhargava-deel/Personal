@@ -209,14 +209,22 @@ export class DataflowAnalyzer {
     const analysisStartTime = Date.now();
     const workspacePath = this.currentState!.workspacePath;
     
+    LoggingConfig.section('DataflowAnalyzer', '🎯 MAJOR EVENT: Starting Workspace Analysis');
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ========== WORKSPACE ANALYSIS START ==========`);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Workspace path: ${workspacePath}`);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Current sensitivity: ${this.config.taintSensitivity || 'precise'}`);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Analysis config: liveness=${this.config.enableLiveness}, rd=${this.config.enableReachingDefinitions}, taint=${this.config.enableTaintAnalysis}, ipa=${this.config.enableInterProcedural}`);
+    
     // Optimization: If there's an active C/C++ editor, analyze only that file
     // This avoids pulling in library headers which clutter the analysis
     try {
       const active = vscode.window.activeTextEditor;
       if (active && (active.document.languageId === 'cpp' || active.document.languageId === 'c')) {
+        LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Active C/C++ editor detected, analyzing single file: ${active.document.uri.fsPath}`);
         return await this.analyzeSpecificFiles([active.document.uri.fsPath]);
       }
-    } catch {
+    } catch (error) {
+      LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Single-file analysis failed, falling back to workspace analysis: ${error}`);
       // Fall through to workspace analysis if single-file analysis fails
     }
     
@@ -227,34 +235,54 @@ export class DataflowAnalyzer {
       blocks: new Map(),          // All basic blocks in workspace
       functions: new Map()        // All function CFGs: funcName -> FunctionCFG
     };
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Initialized global CFG structure`);
 
     // Track analysis state for each file in workspace
     const fileStates = new Map<string, FileAnalysisState>();
 
     // STEP 1: Find all C++ files in workspace
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] STEP 1: Finding C++ files in workspace...`);
     const cppFiles = await this.findCppFiles(workspacePath);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Found ${cppFiles.length} C++ files: ${cppFiles.slice(0, 5).join(', ')}${cppFiles.length > 5 ? '...' : ''}`);
     
     // STEP 2: Parse each file and extract CFGs
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] STEP 2: Parsing files and extracting CFGs...`);
+    let parsedFiles = 0;
+    let failedFiles = 0;
     for (const filePath of cppFiles) {
       try {
+        LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Parsing file ${parsedFiles + 1}/${cppFiles.length}: ${filePath}`);
         const fileState = await this.analyzeFile(filePath, cfg);
         fileStates.set(filePath, fileState);
+        parsedFiles++;
+        LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ✅ Parsed ${filePath}: ${fileState.functions.length} functions`);
       } catch (error) {
+        failedFiles++;
+        LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ❌ ERROR analyzing ${filePath}: ${error}`);
         console.error(`Error analyzing ${filePath}:`, error);
       }
     }
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Parsing complete: ${parsedFiles} succeeded, ${failedFiles} failed`);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Total functions extracted: ${cfg.functions.size}`);
 
     // STEP 3: Initialize analysis result maps
     // Each analysis computes results for each block in each function
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] STEP 3: Running intra-procedural analyses...`);
     const liveness = new Map();                    // Block liveness: IN/OUT sets
     const reachingDefinitions = new Map();         // Definition propagation: IN/OUT sets
     const taintAnalysis = new Map();               // Taint propagation results
     const vulnerabilities = new Map();             // Detected security vulnerabilities
 
+    let funcIndex = 0;
     cfg.functions.forEach((funcCFG, funcName) => {
+      funcIndex++;
+      LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Analyzing function ${funcIndex}/${cfg.functions.size}: ${funcName} (${funcCFG.blocks.size} blocks)`);
+      
       if (this.config.enableLiveness) {
+        LoggingConfig.raw(`[DataflowAnalyzer] [LIVENESS] Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         console.log(`Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcLiveness = this.livenessAnalyzer.analyze(funcCFG);
+        LoggingConfig.raw(`[DataflowAnalyzer] [LIVENESS] ✅ Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
         console.log(`Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
         funcLiveness.forEach((info, blockId) => {
           const key = `${funcName}_${blockId}`;
@@ -264,8 +292,10 @@ export class DataflowAnalyzer {
       }
 
       if (this.config.enableReachingDefinitions) {
+        LoggingConfig.raw(`[DataflowAnalyzer] [RD] Running reaching definitions analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         console.log(`Running reaching definitions analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcRD = this.reachingDefinitionsAnalyzer.analyze(funcCFG);
+        LoggingConfig.raw(`[DataflowAnalyzer] [RD] ✅ Reaching definitions analysis for ${funcName} produced ${funcRD.size} entries`);
         console.log(`Reaching definitions analysis for ${funcName} produced ${funcRD.size} entries`);
         funcRD.forEach((info, blockId) => {
           const key = `${funcName}_${blockId}`;
@@ -300,17 +330,32 @@ export class DataflowAnalyzer {
       }
 
       if (this.config.enableTaintAnalysis) {
+        LoggingConfig.raw(`[DataflowAnalyzer] [TAINT] Running taint analysis for ${funcName} with sensitivity: ${this.config.taintSensitivity || 'precise'}`);
         // CRITICAL FIX (Issue #3): Use correct key format matching the storage format
         const entryBlockId = funcCFG.entry || 'entry';
-        const funcRD = reachingDefinitions.get(`${funcName}_${entryBlockId}`) || 
-                      new Map<string, ReachingDefinitionsInfo>();
+        // Collect ALL reaching definitions for function, not just entry block
+        const funcRD = new Map<string, ReachingDefinitionsInfo>();
+        funcCFG.blocks.forEach((block, blockId) => {
+          const rdKey = `${funcName}_${blockId}`;
+          const rdInfo = reachingDefinitions.get(rdKey);
+          if (rdInfo) {
+            funcRD.set(blockId, rdInfo);
+          }
+        });
+        LoggingConfig.raw(`[DataflowAnalyzer] [TAINT] Collected RD info for ${funcRD.size} blocks in ${funcName}`);
+        
         const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
-        taintAnalysis.set(funcName, Array.from(taintResult.taintMap.values()).flat());
+        const totalTaints = Array.from(taintResult.taintMap.values()).flat();
+        const controlDependentTaints = totalTaints.filter((t: TaintInfo) => t.labels?.includes(TaintLabel.CONTROL_DEPENDENT));
+        const dataFlowTaints = totalTaints.filter((t: TaintInfo) => !t.labels?.includes(TaintLabel.CONTROL_DEPENDENT));
+        LoggingConfig.raw(`[DataflowAnalyzer] [TAINT] ✅ Taint analysis for ${funcName}: ${totalTaints.length} total taints (${dataFlowTaints.length} data-flow, ${controlDependentTaints.length} control-dependent)`);
+        taintAnalysis.set(funcName, totalTaints);
         
         // Add taint vulnerabilities to vulnerabilities map
         if (taintResult.vulnerabilities.length > 0) {
           const existingVulns = vulnerabilities.get(funcName) || [];
           vulnerabilities.set(funcName, [...existingVulns, ...taintResult.vulnerabilities]);
+          LoggingConfig.raw(`[DataflowAnalyzer] [TAINT] ⚠️ Found ${taintResult.vulnerabilities.length} taint vulnerabilities in ${funcName}`);
         }
         
         // Run security analysis
@@ -322,9 +367,11 @@ export class DataflowAnalyzer {
         if (funcVulns.length > 0) {
           const existingVulns = vulnerabilities.get(funcName) || [];
           vulnerabilities.set(funcName, [...existingVulns, ...funcVulns]);
+          LoggingConfig.raw(`[DataflowAnalyzer] [SECURITY] ⚠️ Found ${funcVulns.length} security vulnerabilities in ${funcName}`);
         }
       }
     });
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ✅ Intra-procedural analyses complete: ${cfg.functions.size} functions analyzed`);
 
     // STEP 4: Run Inter-Procedural Analysis (IPA) - Phases 1-4
     let callGraph: any = undefined;
@@ -334,56 +381,56 @@ export class DataflowAnalyzer {
 
     if (this.config.enableInterProcedural !== false && cfg.functions.size > 0) {
       try {
-        console.log('[IPA] Starting inter-procedural analysis...');
+        LoggingConfig.raw('[IPA] Starting inter-procedural analysis...');
         
         // Phase 1 & 2: Build call graph
         const cgAnalyzer = new CallGraphAnalyzer(cfg.functions);
         callGraph = cgAnalyzer.buildCallGraph();
-        console.log(`[IPA] Call graph built: ${callGraph.functions.size} functions, ${callGraph.calls.length} calls`);
+        LoggingConfig.raw(`[IPA] Call graph built: ${callGraph.functions.size} functions, ${callGraph.calls.length} calls`);
 
         // PHASE 1.3: Detailed call graph logging for blue edge debugging
-        console.log('[IPA] ========== PHASE 1.3: Detailed Call Graph Analysis ==========');
-        console.log('[IPA] Call graph object keys:', Object.keys(callGraph));
-        console.log('[IPA] callsFrom map exists:', !!callGraph.callsFrom);
-        console.log('[IPA] callsFrom map type:', callGraph.callsFrom ? typeof callGraph.callsFrom : 'N/A');
-        console.log('[IPA] callsFrom map size:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? callGraph.callsFrom.size : Object.keys(callGraph.callsFrom).length) : 'N/A');
-        console.log('[IPA] callsFrom map keys:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? Array.from(callGraph.callsFrom.keys()) : Object.keys(callGraph.callsFrom)) : 'N/A');
-        console.log('[IPA] callsTo map exists:', !!callGraph.callsTo);
-        console.log('[IPA] callsTo map size:', callGraph.callsTo ? (callGraph.callsTo instanceof Map ? callGraph.callsTo.size : Object.keys(callGraph.callsTo).length) : 'N/A');
-        console.log('[IPA] functions map exists:', !!callGraph.functions);
-        console.log('[IPA] functions map size:', callGraph.functions ? (callGraph.functions instanceof Map ? callGraph.functions.size : Object.keys(callGraph.functions).length) : 'N/A');
-        console.log('[IPA] calls array exists:', !!callGraph.calls);
-        console.log('[IPA] calls array length:', callGraph.calls ? callGraph.calls.length : 'N/A');
+        LoggingConfig.raw('[IPA] ========== PHASE 1.3: Detailed Call Graph Analysis ==========');
+        LoggingConfig.raw('[IPA] Call graph object keys:', Object.keys(callGraph));
+        LoggingConfig.raw('[IPA] callsFrom map exists:', !!callGraph.callsFrom);
+        LoggingConfig.raw('[IPA] callsFrom map type:', callGraph.callsFrom ? typeof callGraph.callsFrom : 'N/A');
+        LoggingConfig.raw('[IPA] callsFrom map size:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? callGraph.callsFrom.size : Object.keys(callGraph.callsFrom).length) : 'N/A');
+        LoggingConfig.raw('[IPA] callsFrom map keys:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? Array.from(callGraph.callsFrom.keys()) : Object.keys(callGraph.callsFrom)) : 'N/A');
+        LoggingConfig.raw('[IPA] callsTo map exists:', !!callGraph.callsTo);
+        LoggingConfig.raw('[IPA] callsTo map size:', callGraph.callsTo ? (callGraph.callsTo instanceof Map ? callGraph.callsTo.size : Object.keys(callGraph.callsTo).length) : 'N/A');
+        LoggingConfig.raw('[IPA] functions map exists:', !!callGraph.functions);
+        LoggingConfig.raw('[IPA] functions map size:', callGraph.functions ? (callGraph.functions instanceof Map ? callGraph.functions.size : Object.keys(callGraph.functions).length) : 'N/A');
+        LoggingConfig.raw('[IPA] calls array exists:', !!callGraph.calls);
+        LoggingConfig.raw('[IPA] calls array length:', callGraph.calls ? callGraph.calls.length : 'N/A');
 
         if (callGraph.callsFrom) {
-          console.log('[IPA] callsFrom entries:');
+          LoggingConfig.raw('[IPA] callsFrom entries:');
           const callsFromIter = callGraph.callsFrom instanceof Map ? callGraph.callsFrom : Object.entries(callGraph.callsFrom);
           if (callGraph.callsFrom instanceof Map) {
             callGraph.callsFrom.forEach((calls: any[], caller: string) => {
-              console.log(`[IPA]   ${caller} calls: ${calls.length} functions`);
+              LoggingConfig.raw(`[IPA]   ${caller} calls: ${calls.length} functions`);
               calls.forEach((call: any, idx: number) => {
-                console.log(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
+                LoggingConfig.raw(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
               });
             });
           } else {
             Object.entries(callGraph.callsFrom).forEach(([caller, calls]: [string, any]) => {
-              console.log(`[IPA]   ${caller} calls: ${Array.isArray(calls) ? calls.length : 'N/A'} functions`);
+              LoggingConfig.raw(`[IPA]   ${caller} calls: ${Array.isArray(calls) ? calls.length : 'N/A'} functions`);
               if (Array.isArray(calls)) {
                 calls.forEach((call: any, idx: number) => {
-                  console.log(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
+                  LoggingConfig.raw(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
                 });
               }
             });
           }
         }
 
-        console.log('[IPA] Sample call objects:');
+        LoggingConfig.raw('[IPA] Sample call objects:');
         if (callGraph.calls && Array.isArray(callGraph.calls) && callGraph.calls.length > 0) {
           callGraph.calls.slice(0, 3).forEach((call: any, idx: number) => {
-            console.log(`[IPA] Call ${idx}:`, JSON.stringify(call, null, 2));
+            LoggingConfig.raw(`[IPA] Call ${idx}:`, JSON.stringify(call, null, 2));
           });
         }
-        console.log('[IPA] ========== END PHASE 1.3 ==========');
+        LoggingConfig.raw('[IPA] ========== END PHASE 1.3 ==========');
 
         // Phase 3: Inter-procedural reaching definitions
         if (this.config.enableReachingDefinitions && reachingDefinitions.size > 0) {
@@ -399,7 +446,7 @@ export class DataflowAnalyzer {
 
           const ipaAnalyzer = new InterProceduralReachingDefinitions(callGraph, intraRD);
           interProceduralRD = ipaAnalyzer.analyze();
-          console.log(`[IPA] Inter-procedural reaching definitions complete`);
+          LoggingConfig.raw(`[IPA] Inter-procedural reaching definitions complete`);
         }
 
         // Phase 4: Parameter and return value analysis
@@ -863,7 +910,14 @@ export class DataflowAnalyzer {
     // Update state
     // CRITICAL FIX: Ensure taintSensitivity is set from config
     const currentSensitivity = this.config.taintSensitivity || TaintSensitivity.PRECISE;
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Creating new state with sensitivity: ${currentSensitivity}`);
     console.log(`[DataflowAnalyzer] [DEBUG] Creating new state (analyzeWorkspace) with sensitivity: ${currentSensitivity}`);
+    
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Assembling analysis state...`);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Functions: ${cfg.functions.size}, Files: ${fileStates.size}`);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Liveness entries: ${liveness.size}, RD entries: ${reachingDefinitions.size}`);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Taint entries: ${taintAnalysis.size}, Vulnerabilities: ${Array.from(vulnerabilities.values()).flat().length}`);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Call graph: ${callGraph ? `${callGraph.functions.size} functions, ${callGraph.calls.length} calls` : 'none'}`);
     
     this.currentState = {
       workspacePath,
@@ -884,20 +938,28 @@ export class DataflowAnalyzer {
     };
 
     // Prepare all visualization data in backend (before saving state)
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Preparing visualization data...`);
     console.log('[DataflowAnalyzer] Preparing all visualization data in backend...');
     try {
       const visualizationData = await CFGVisualizer.prepareAllVisualizationData(this.currentState);
       this.currentState.visualizationData = visualizationData;
+      LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ✅ Visualization data prepared successfully`);
       console.log('[DataflowAnalyzer] Visualization data prepared successfully');
     } catch (error) {
+      LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ❌ ERROR preparing visualization data: ${error}`);
       console.error('[DataflowAnalyzer] Error preparing visualization data:', error);
       // Continue without visualization data if preparation fails
     }
 
     // Save state
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Saving state to disk...`);
     this.stateManager.saveState(this.currentState);
     
     const analysisTimeMs = Date.now() - analysisStartTime;
+    LoggingConfig.section('DataflowAnalyzer', '========== WORKSPACE ANALYSIS COMPLETE ==========');
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ✅ Analysis completed in ${analysisTimeMs}ms`);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Final state: ${cfg.functions.size} functions, ${Array.from(vulnerabilities.values()).flat().length} vulnerabilities`);
+    LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Sensitivity: ${currentSensitivity}`);
     console.log(`[DataflowAnalyzer] Analysis completed in ${analysisTimeMs}ms`);
     (this.currentState as any).analysisTimeMs = analysisTimeMs;
 
@@ -997,56 +1059,56 @@ export class DataflowAnalyzer {
 
     if (this.config.enableInterProcedural !== false && cfg.functions.size > 0) {
       try {
-        console.log('[IPA] Starting inter-procedural analysis...');
+        LoggingConfig.raw('[IPA] Starting inter-procedural analysis...');
         
         // Phase 1 & 2: Build call graph
         const cgAnalyzer = new CallGraphAnalyzer(cfg.functions);
         callGraph = cgAnalyzer.buildCallGraph();
-        console.log(`[IPA] Call graph built: ${callGraph.functions.size} functions, ${callGraph.calls.length} calls`);
+        LoggingConfig.raw(`[IPA] Call graph built: ${callGraph.functions.size} functions, ${callGraph.calls.length} calls`);
 
         // PHASE 1.3: Detailed call graph logging for blue edge debugging
-        console.log('[IPA] ========== PHASE 1.3: Detailed Call Graph Analysis ==========');
-        console.log('[IPA] Call graph object keys:', Object.keys(callGraph));
-        console.log('[IPA] callsFrom map exists:', !!callGraph.callsFrom);
-        console.log('[IPA] callsFrom map type:', callGraph.callsFrom ? typeof callGraph.callsFrom : 'N/A');
-        console.log('[IPA] callsFrom map size:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? callGraph.callsFrom.size : Object.keys(callGraph.callsFrom).length) : 'N/A');
-        console.log('[IPA] callsFrom map keys:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? Array.from(callGraph.callsFrom.keys()) : Object.keys(callGraph.callsFrom)) : 'N/A');
-        console.log('[IPA] callsTo map exists:', !!callGraph.callsTo);
-        console.log('[IPA] callsTo map size:', callGraph.callsTo ? (callGraph.callsTo instanceof Map ? callGraph.callsTo.size : Object.keys(callGraph.callsTo).length) : 'N/A');
-        console.log('[IPA] functions map exists:', !!callGraph.functions);
-        console.log('[IPA] functions map size:', callGraph.functions ? (callGraph.functions instanceof Map ? callGraph.functions.size : Object.keys(callGraph.functions).length) : 'N/A');
-        console.log('[IPA] calls array exists:', !!callGraph.calls);
-        console.log('[IPA] calls array length:', callGraph.calls ? callGraph.calls.length : 'N/A');
+        LoggingConfig.raw('[IPA] ========== PHASE 1.3: Detailed Call Graph Analysis ==========');
+        LoggingConfig.raw('[IPA] Call graph object keys:', Object.keys(callGraph));
+        LoggingConfig.raw('[IPA] callsFrom map exists:', !!callGraph.callsFrom);
+        LoggingConfig.raw('[IPA] callsFrom map type:', callGraph.callsFrom ? typeof callGraph.callsFrom : 'N/A');
+        LoggingConfig.raw('[IPA] callsFrom map size:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? callGraph.callsFrom.size : Object.keys(callGraph.callsFrom).length) : 'N/A');
+        LoggingConfig.raw('[IPA] callsFrom map keys:', callGraph.callsFrom ? (callGraph.callsFrom instanceof Map ? Array.from(callGraph.callsFrom.keys()) : Object.keys(callGraph.callsFrom)) : 'N/A');
+        LoggingConfig.raw('[IPA] callsTo map exists:', !!callGraph.callsTo);
+        LoggingConfig.raw('[IPA] callsTo map size:', callGraph.callsTo ? (callGraph.callsTo instanceof Map ? callGraph.callsTo.size : Object.keys(callGraph.callsTo).length) : 'N/A');
+        LoggingConfig.raw('[IPA] functions map exists:', !!callGraph.functions);
+        LoggingConfig.raw('[IPA] functions map size:', callGraph.functions ? (callGraph.functions instanceof Map ? callGraph.functions.size : Object.keys(callGraph.functions).length) : 'N/A');
+        LoggingConfig.raw('[IPA] calls array exists:', !!callGraph.calls);
+        LoggingConfig.raw('[IPA] calls array length:', callGraph.calls ? callGraph.calls.length : 'N/A');
 
         if (callGraph.callsFrom) {
-          console.log('[IPA] callsFrom entries:');
+          LoggingConfig.raw('[IPA] callsFrom entries:');
           const callsFromIter = callGraph.callsFrom instanceof Map ? callGraph.callsFrom : Object.entries(callGraph.callsFrom);
           if (callGraph.callsFrom instanceof Map) {
             callGraph.callsFrom.forEach((calls: any[], caller: string) => {
-              console.log(`[IPA]   ${caller} calls: ${calls.length} functions`);
+              LoggingConfig.raw(`[IPA]   ${caller} calls: ${calls.length} functions`);
               calls.forEach((call: any, idx: number) => {
-                console.log(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
+                LoggingConfig.raw(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
               });
             });
           } else {
             Object.entries(callGraph.callsFrom).forEach(([caller, calls]: [string, any]) => {
-              console.log(`[IPA]   ${caller} calls: ${Array.isArray(calls) ? calls.length : 'N/A'} functions`);
+              LoggingConfig.raw(`[IPA]   ${caller} calls: ${Array.isArray(calls) ? calls.length : 'N/A'} functions`);
               if (Array.isArray(calls)) {
                 calls.forEach((call: any, idx: number) => {
-                  console.log(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
+                  LoggingConfig.raw(`[IPA]     Call ${idx}: ${caller} -> ${call.calleeId} at block ${call.callSite?.blockId || 'unknown'}`);
                 });
               }
             });
           }
         }
 
-        console.log('[IPA] Sample call objects:');
+        LoggingConfig.raw('[IPA] Sample call objects:');
         if (callGraph.calls && Array.isArray(callGraph.calls) && callGraph.calls.length > 0) {
           callGraph.calls.slice(0, 3).forEach((call: any, idx: number) => {
-            console.log(`[IPA] Call ${idx}:`, JSON.stringify(call, null, 2));
+            LoggingConfig.raw(`[IPA] Call ${idx}:`, JSON.stringify(call, null, 2));
           });
         }
-        console.log('[IPA] ========== END PHASE 1.3 ==========');
+        LoggingConfig.raw('[IPA] ========== END PHASE 1.3 ==========');
 
         // Phase 3: Inter-procedural reaching definitions
         if (this.config.enableReachingDefinitions && reachingDefinitions.size > 0) {
@@ -1062,7 +1124,7 @@ export class DataflowAnalyzer {
 
           const ipaAnalyzer = new InterProceduralReachingDefinitions(callGraph, intraRD);
           interProceduralRD = ipaAnalyzer.analyze();
-          console.log(`[IPA] Inter-procedural reaching definitions complete`);
+          LoggingConfig.raw(`[IPA] Inter-procedural reaching definitions complete`);
         }
 
         // Phase 4: Parameter and return value analysis
@@ -1561,8 +1623,19 @@ export class DataflowAnalyzer {
    * Analyze a single file
    */
   private async analyzeFile(filePath: string, cfg: CFG): Promise<FileAnalysisState> {
+    // ============================================================
+    // COMPREHENSIVE LOGGING: File Analysis Start
+    // ============================================================
+    LoggingConfig.section('DataflowAnalyzer', `ANALYZING FILE: ${path.basename(filePath)}`);
+    LoggingConfig.log('DataflowAnalyzer', `Full Path: ${filePath}`);
+    LoggingConfig.log('DataflowAnalyzer', `Taint Sensitivity: ${this.config.taintSensitivity || 'precise'}`);
+    
+    const analysisStartTime = Date.now();
     const hash = this.stateManager.computeFileHash(filePath);
     const stats = fs.statSync(filePath);
+    
+    LoggingConfig.detail('DataflowAnalyzer', `File Hash: ${hash.substring(0, 16)}...`);
+    LoggingConfig.detail('DataflowAnalyzer', `File Size: ${stats.size} bytes`);
 
     console.log(`Analyzing file: ${filePath}`);
     const normalizedSourcePath = path.resolve(filePath);
@@ -1888,40 +1961,93 @@ export class DataflowAnalyzer {
     // Explicitly exclude header files
     const headerExtensions = ['.h', '.hpp', '.hxx', '.hh'];
 
-    async function walkDir(dir: string): Promise<void> {
-      const entries = fs.readdirSync(dir, { withFileTypes: true });
-      
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        
-        // Skip hidden directories and common build/output directories
-        if (entry.name.startsWith('.') || 
-            entry.name === 'node_modules' || 
-            entry.name === 'build' ||
-            entry.name === 'out' ||
-            entry.name === 'include' ||
-            entry.name === 'lib' ||
-            entry.name === 'libs') {
-          continue;
-        }
+    // System directories to avoid (case-insensitive check)
+    const systemDirs = [
+      '/usr', '/System', '/Applications', '/Library', '/opt',
+      '/bin', '/sbin', '/var', '/private', '/dev', '/etc',
+      '/tmp', '/Volumes', '/Network', '/cores'
+    ];
 
-        if (entry.isDirectory()) {
-          await walkDir(fullPath);
-        } else if (entry.isFile()) {
-          const ext = path.extname(entry.name);
-          // Only include source files, explicitly exclude headers
-          if (sourceExtensions.includes(ext) && !headerExtensions.includes(ext)) {
-            // Double-check: make sure it's not in a system directory
-            if (!fullPath.includes('/usr/') && 
-                !fullPath.includes('/System/') &&
-                !fullPath.includes('/Applications/') &&
-                !fullPath.includes('/Library/') &&
-                !fullPath.includes('/opt/')) {
-              files.push(fullPath);
+    function isSystemDirectory(dirPath: string): boolean {
+      const normalizedPath = path.resolve(dirPath);
+      return systemDirs.some(sysDir => normalizedPath.startsWith(sysDir));
+    }
+
+    async function walkDir(dir: string): Promise<void> {
+      // Skip system directories entirely
+      if (isSystemDirectory(dir)) {
+        console.log(`Skipping system directory: ${dir}`);
+        return;
+      }
+
+      try {
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          
+          // Skip hidden directories and common build/output directories
+          if (entry.name.startsWith('.') || 
+              entry.name === 'node_modules' || 
+              entry.name === 'build' ||
+              entry.name === 'out' ||
+              entry.name === 'include' ||
+              entry.name === 'lib' ||
+              entry.name === 'libs') {
+            continue;
+          }
+
+          // Skip system directories
+          if (isSystemDirectory(fullPath)) {
+            continue;
+          }
+
+          try {
+            if (entry.isDirectory()) {
+              await walkDir(fullPath);
+            } else if (entry.isFile()) {
+              const ext = path.extname(entry.name);
+              // Only include source files, explicitly exclude headers
+              if (sourceExtensions.includes(ext) && !headerExtensions.includes(ext)) {
+                // Double-check: make sure it's not in a system directory
+                if (!isSystemDirectory(fullPath)) {
+                  files.push(fullPath);
+                }
+              }
+            }
+          } catch (entryError: any) {
+            // Skip individual entries that cause errors (permission denied, etc.)
+            if (entryError.code === 'EACCES' || entryError.code === 'EPERM') {
+              console.log(`Permission denied accessing ${fullPath}, skipping...`);
+            } else {
+              console.warn(`Error processing ${fullPath}:`, entryError.message);
             }
           }
         }
+      } catch (dirError: any) {
+        // Handle permission denied and other directory access errors gracefully
+        if (dirError.code === 'EACCES' || dirError.code === 'EPERM') {
+          console.log(`Permission denied accessing directory ${dir}, skipping...`);
+        } else if (dirError.code === 'ENOENT') {
+          console.log(`Directory not found: ${dir}, skipping...`);
+        } else {
+          console.warn(`Error reading directory ${dir}:`, dirError.message);
+        }
+        // Continue processing other directories
+        return;
       }
+    }
+
+    // Validate workspace path before walking
+    if (!workspacePath || !fs.existsSync(workspacePath)) {
+      console.error(`Invalid workspace path: ${workspacePath}`);
+      return files;
+    }
+
+    // Check if workspace path is a system directory
+    if (isSystemDirectory(workspacePath)) {
+      console.error(`Workspace path is a system directory: ${workspacePath}. This is not allowed.`);
+      return files;
     }
 
     await walkDir(workspacePath);

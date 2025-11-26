@@ -352,7 +352,8 @@ export class CallGraphExtensions {
       // STEP 4: Find which callees are recursive
       const callees = callGraph.callsFrom.get(funcId) || [];
       for (const call of callees) {
-        if (depthMap.get(call.calleeId)?.directRecursionDepth! > 0) {
+        const calleeDepth = depthMap.get(call.calleeId)?.directRecursionDepth ?? 0;
+        if (calleeDepth > 0) {
           info.recursiveCallees.push(call.calleeId);
         }
       }

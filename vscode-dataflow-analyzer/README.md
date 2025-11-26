@@ -90,10 +90,12 @@ Perfect for security researchers, developers, and code reviewers who need to und
   - Three edge types: Control Flow (green), Function Calls (blue), Data Flow (orange)
   - **Dynamic block sizing** (v1.9.0): Blocks resize based on content (statements, variables, labels)
   - **Edge type toggles** (v1.9.0): Show/hide specific edge types (Control Flow, Function Calls, Data Flow)
-  - **Taint visualization** (v1.9.0): 
-    - Yellow blocks: Data-flow taint (explicit flow)
-    - Orange blocks with dashed border: Control-dependent taint (implicit flow)
-    - Purple blocks: Mixed taint (both data-flow and control-dependent)
+  - **Taint visualization** (v1.9.0+): 
+    - Yellow (#ffd60a): Data-flow taint only (explicit flow)
+    - Orange (#ffa94d): Control-dependent taint only (implicit flow)
+    - Purple (#9d4edd): Mixed taint (both data-flow and control-dependent)
+    - Magenta (#c77dff): Synthetic taint only (return statements without variables) (v1.9.1+)
+    - Light Blue (#e8f4f8): Normal blocks (no taint)
   - Interactive visualization with click-to-inspect functionality
   - Physics-based layout for natural function grouping
 
@@ -642,6 +644,7 @@ Open VSCode settings (`Ctrl+,` or `Cmd+,`) and search for "Dataflow Analyzer":
 - `dataflowAnalyzer.analyzeWorkspace` - Analyze entire workspace (excludes libraries/headers by default)
 - `dataflowAnalyzer.analyzeActiveFile` - Analyze only the active C/C++ source file
 - `dataflowAnalyzer.clearState` - Clear saved analysis state
+- `dataflowAnalyzer.deleteStateAndReAnalyze` - Delete saved state and perform fresh analysis (v1.9.1+)
 - `dataflowAnalyzer.saveState` - Manually save current analysis state (v1.9.0+)
 - `dataflowAnalyzer.reAnalyze` - Manually trigger re-analysis (v1.9.0+)
 - `dataflowAnalyzer.changeSensitivityAndAnalyze` - Change taint sensitivity and re-analyze (v1.9.0+)
@@ -1034,6 +1037,22 @@ This tool is designed for:
 - Interconnected CFG visualization: Orange (data flow) and blue (function call) edges may not appear correctly in some cases
 
 ## Version History
+
+- **v1.9.2**: Enhanced Logging & Windows Support
+  - Added comprehensive logging for function, node, edge, and legend counts
+  - Fixed Windows path handling for cfg-exporter binary
+  - Improved cross-platform binary detection
+  - Enhanced error messages with platform-specific build instructions
+  - Added synthetic taint visualization (Magenta color for return statements without variables)
+  - Improved state source indicator (yellow for saved state, light blue for current analysis)
+
+- **v1.9.1**: Sensitivity Mismatch Detection & Visualization Fixes
+  - Fixed tab switching sensitivity mismatch detection
+  - Automatic re-analysis trigger when sensitivity changes
+  - Enhanced visualization data regeneration on sensitivity change
+  - Added extensive logging for debugging sensitivity issues
+  - Improved error handling for sensitivity mismatches
+  - Added synthetic taint detection for return statements without variables
 
 - **v1.9.0**: Recursive Control-Dependent Taint Propagation & 5 Configurable Sensitivity Levels
   - Implemented recursive control-dependent taint propagation (implicit flow tracking)

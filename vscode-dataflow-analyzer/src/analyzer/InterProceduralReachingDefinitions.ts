@@ -40,6 +40,7 @@ import {
   FunctionCall,
   FunctionMetadata
 } from './CallGraphAnalyzer';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 /**
  * Context for a call site during inter-procedural analysis.
@@ -126,8 +127,8 @@ export class InterProceduralReachingDefinitions {
    * @returns Updated reaching definitions with inter-procedural information
    */
   analyze(): Map<string, Map<string, ReachingDefinitionsInfo>> {
-    console.log('[IPA] Starting inter-procedural reaching definitions analysis');
-    console.log(`[IPA] Analyzing ${this.callGraph.functions.size} functions`);
+    LoggingConfig.raw('[IPA] Starting inter-procedural reaching definitions analysis');
+    LoggingConfig.raw(`[IPA] Analyzing ${this.callGraph.functions.size} functions`);
 
     // STEP 1: Initialize global variable tracking
     this.initializeGlobalVariables();
@@ -141,7 +142,7 @@ export class InterProceduralReachingDefinitions {
       changed = false;
       this.modifiedFunctions.clear();
 
-      console.log(`[IPA] Iteration ${iteration}`);
+      LoggingConfig.raw(`[IPA] Iteration ${iteration}`);
 
       // STEP 3: Process all functions
       for (const [funcId, metadata] of this.callGraph.functions.entries()) {
@@ -164,13 +165,13 @@ export class InterProceduralReachingDefinitions {
         changed = true;
       }
 
-      console.log(`[IPA] Iteration ${iteration} complete. Changed: ${changed}`);
+      LoggingConfig.raw(`[IPA] Iteration ${iteration} complete. Changed: ${changed}`);
     }
 
     if (iteration >= this.MAX_ITERATIONS) {
       console.warn(`[IPA] Warning: Reached maximum iterations (${this.MAX_ITERATIONS})`);
     } else {
-      console.log(`[IPA] Fixed point reached after ${iteration} iterations`);
+      LoggingConfig.raw(`[IPA] Fixed point reached after ${iteration} iterations`);
     }
 
     return this.intraReachingDefs;
@@ -183,7 +184,7 @@ export class InterProceduralReachingDefinitions {
    * and need special handling during inter-procedural analysis.
    */
   private initializeGlobalVariables(): void {
-    console.log('[IPA] Initializing global variable tracking');
+    LoggingConfig.raw('[IPA] Initializing global variable tracking');
 
     // For now, we'll identify globals heuristically
     // In a full implementation, we'd parse global declarations from AST
@@ -425,7 +426,7 @@ export class InterProceduralReachingDefinitions {
     const calleeRD = this.intraReachingDefs.get(calleeId);
     if (!calleeRD) {
       // Callee might be external (library function)
-      console.log(`[IPA] Callee ${calleeId} has no RD (external function?)`);
+      LoggingConfig.raw(`[IPA] Callee ${calleeId} has no RD (external function?)`);
       return false;
     }
 

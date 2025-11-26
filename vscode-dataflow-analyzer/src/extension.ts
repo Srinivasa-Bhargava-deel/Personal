@@ -55,6 +55,7 @@ import { DataflowAnalyzer } from './analyzer/DataflowAnalyzer';
 import { CFGVisualizer } from './visualizer/CFGVisualizer';
 import { AnalysisConfig, TaintSensitivity } from './types';
 import { StateManager } from './state/StateManager';
+import { LoggingConfig } from './utils/LoggingConfig';
 
 // Global extension state
 let analyzer: DataflowAnalyzer | null = null;  // Main dataflow analyzer instance
@@ -73,6 +74,14 @@ let debounceTimer: NodeJS.Timeout | null = null;  // Timer for debouncing keystr
 let isUpdatingSensitivityProgrammatically = false;
 
 export function activate(context: vscode.ExtensionContext) {
+  // ============================================================
+  // COMPREHENSIVE LOGGING: Extension Activation
+  // ============================================================
+  LoggingConfig.section('Extension', '🚀 MAJOR EVENT: Extension Activation Started');
+  LoggingConfig.raw('[MAJOR EVENT] Extension: Dataflow Analyzer is activating');
+  LoggingConfig.log('Extension', `Extension Version: 1.9.1`);
+  LoggingConfig.log('Extension', `Activation Time: ${new Date().toISOString()}`);
+  
   console.log('Dataflow Analyzer extension is now active');
 
   // Determine workspace path from VS Code workspace folders or active editor
@@ -121,13 +130,110 @@ export function activate(context: vscode.ExtensionContext) {
         console.log('Using file directory as workspace (project root not found):', workspacePath);
       }
     } else {
-      vscode.window.showWarningMessage('No workspace folder open. Please open a workspace or file to use the Dataflow Analyzer.');
-      return;
+      // Final fallback: Use current working directory or try to find project directory
+      // First, try to use process.cwd() which should be the directory where VS Code was launched
+      let cwd = process.cwd();
+      
+      // System directories to avoid
+      const systemDirs = ['/usr', '/System', '/Applications', '/Library', '/opt', '/bin', '/sbin', '/var', '/private'];
+      function isSystemDirectory(dirPath: string): boolean {
+        if (!dirPath) return false;
+        const normalized = path.resolve(dirPath);
+        return systemDirs.some(sysDir => normalized.startsWith(sysDir));
+      }
+      
+      // Initialize workspacePath with cwd as default (if not a system directory)
+      if (cwd && fs.existsSync(cwd) && !isSystemDirectory(cwd)) {
+        workspacePath = cwd;
+      } else {
+        // Use home directory as safe fallback
+        workspacePath = require('os').homedir();
+      }
+      
+      // Check if cwd looks like a project directory (has common project files)
+      if (cwd && fs.existsSync(cwd) && !isSystemDirectory(cwd)) {
+        const hasProjectFiles = fs.existsSync(path.join(cwd, 'package.json')) ||
+                               fs.existsSync(path.join(cwd, 'tsconfig.json')) ||
+                               fs.existsSync(path.join(cwd, '.git')) ||
+                               fs.existsSync(path.join(cwd, 'src')) ||
+                               fs.existsSync(path.join(cwd, 'CMakeLists.txt')) ||
+                               fs.existsSync(path.join(cwd, 'Makefile')) ||
+                               fs.existsSync(path.join(cwd, 'cpp-tools'));
+        
+        if (hasProjectFiles) {
+          workspacePath = cwd;
+          console.log('Using current working directory as workspace (has project files):', workspacePath);
+        } else {
+          // Try extension storage path as fallback
+          const extensionStoragePath = context.globalStoragePath;
+          if (extensionStoragePath) {
+            // Walk up from extension storage to find a reasonable workspace
+            let potentialWorkspace = path.dirname(path.dirname(extensionStoragePath));
+            // Try to find a directory that looks like a project (max 3 levels up)
+            for (let i = 0; i < 3; i++) {
+              if (fs.existsSync(potentialWorkspace) && !isSystemDirectory(potentialWorkspace)) {
+                const hasProjectFiles = fs.existsSync(path.join(potentialWorkspace, 'package.json')) ||
+                                       fs.existsSync(path.join(potentialWorkspace, 'tsconfig.json')) ||
+                                       fs.existsSync(path.join(potentialWorkspace, '.git')) ||
+                                       fs.existsSync(path.join(potentialWorkspace, 'cpp-tools'));
+                if (hasProjectFiles) {
+                  workspacePath = potentialWorkspace;
+                  console.log('Using extension storage parent as workspace:', workspacePath);
+                  break;
+                }
+              }
+              const parent = path.dirname(potentialWorkspace);
+              // Stop if we've reached filesystem root or hit a system directory
+              if (parent === potentialWorkspace || isSystemDirectory(parent)) {
+                break;
+              }
+              potentialWorkspace = parent;
+            }
+          }
+          
+          // Use current working directory anyway (even if it doesn't have project files)
+          // But only if it's not a system directory
+          if (!isSystemDirectory(cwd)) {
+            workspacePath = cwd;
+            console.log('Using current working directory as workspace (fallback):', workspacePath);
+          }
+        }
+      } else if (isSystemDirectory(cwd)) {
+        // Current directory is a system directory - use home directory
+        const homeDir = require('os').homedir();
+        workspacePath = homeDir;
+        console.log('Using home directory as workspace (cwd is system directory):', workspacePath);
+        vscode.window.showWarningMessage(
+          `Dataflow Analyzer: Current directory is a system directory. Using home directory instead. ` +
+          `Please open a workspace folder or C++ file for best results.`
+        );
+      }
+      
+      // Validate workspace path is not a system directory before proceeding
+      if (isSystemDirectory(workspacePath)) {
+        const homeDir = require('os').homedir();
+        workspacePath = homeDir;
+        console.log('Workspace path was system directory, using home directory instead:', workspacePath);
+        vscode.window.showWarningMessage(
+          `Dataflow Analyzer: Workspace path is a system directory. Using home directory instead. ` +
+          `Please open a workspace folder or C++ file for best results.`
+        );
+      }
+      
+      // Show info message - extension will work with this directory
+      vscode.window.showInformationMessage(
+        `Dataflow Analyzer: No workspace folder detected. Using directory: ${path.basename(workspacePath)}. ` +
+        `You can open a workspace folder or C++ file for better integration.`
+      );
     }
   } else {
     // Use first workspace folder
     workspacePath = workspaceFolders[0].uri.fsPath;
   }
+  
+  // Initialize file logging to .vscode/logs.txt
+  LoggingConfig.initializeFileLogging(workspacePath);
+  LoggingConfig.log('Extension', `Workspace path: ${workspacePath}`);
   
   // Initialize visualizer component
   let visualizer = new CFGVisualizer();
@@ -170,15 +276,23 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register VS Code commands
   const showCFGCommand = vscode.commands.registerCommand('dataflowAnalyzer.showCFG', async () => {
+    LoggingConfig.section('Extension', '🎯 MAJOR EVENT: showCFG command triggered');
+    LoggingConfig.raw('[MAJOR EVENT] User clicked: Show CFG Visualization');
     if (visualizer) {
       const active = vscode.window.activeTextEditor;
       const filename = active?.document.fileName || undefined;
+      LoggingConfig.log('Extension', `Active File: ${filename || 'none'}`);
       // Create/show CFG visualization panel
       await visualizer.createOrShow(context, filename, 'Viz/Cfg');
       const state = analyzer?.getState();
       if (state) {
-        await visualizer.updateVisualization(state);
+        LoggingConfig.log('Extension', `State Available: ${state.cfg.functions.size} functions`);
+        // State loaded from analyzer is from saved state (if it exists)
+        const isFromSavedState = !!(state as any).loadTimeMs;
+        await visualizer.updateVisualization(state, undefined, isFromSavedState);
       }
+    } else {
+      LoggingConfig.warn('Extension', 'Visualizer not initialized');
     }
   });
 
@@ -189,7 +303,10 @@ export function activate(context: vscode.ExtensionContext) {
    * Shows progress notification and handles errors gracefully.
    */
   const analyzeWorkspaceCommand = vscode.commands.registerCommand('dataflowAnalyzer.analyzeWorkspace', async () => {
+    LoggingConfig.section('Extension', '🎯 MAJOR EVENT: analyzeWorkspace command triggered');
+    LoggingConfig.raw('[MAJOR EVENT] User clicked: Analyze Workspace');
     if (!analyzer) {
+      LoggingConfig.error('Extension', 'Analyzer not initialized');
       vscode.window.showErrorMessage('Analyzer not initialized');
       return;
     }
@@ -201,6 +318,7 @@ export function activate(context: vscode.ExtensionContext) {
     }, async (progress) => {
       try {
         progress.report({ increment: 0, message: "Parsing C++ files..." });
+        LoggingConfig.log('Extension', 'Starting workspace analysis...');
         console.log('Starting workspace analysis...');
         if (!analyzer) {
           vscode.window.showErrorMessage('Analyzer not initialized');
@@ -209,6 +327,20 @@ export function activate(context: vscode.ExtensionContext) {
         const analysisStartTime = Date.now();
         const state = await analyzer.analyzeWorkspace();
         const analysisTimeMs = Date.now() - analysisStartTime;
+        
+        LoggingConfig.section('Extension', 'ANALYSIS COMPLETE');
+        LoggingConfig.log('Extension', `Analysis Time: ${analysisTimeMs}ms`);
+        LoggingConfig.log('Extension', `Functions Found: ${state.cfg.functions.size}`);
+        LoggingConfig.log('Extension', `Taint Sensitivity: ${state.taintSensitivity}`);
+        
+        // Log summary of all analysis results
+        LoggingConfig.table('Extension', 'Analysis Summary', {
+          'Functions': state.cfg.functions.size,
+          'Liveness Entries': state.liveness.size,
+          'RD Entries': state.reachingDefinitions.size,
+          'Taint Entries': state.taintAnalysis.size,
+          'Vulnerability Functions': state.vulnerabilities.size
+        });
         
         console.log(`Analysis complete. Found ${state.cfg.functions.size} functions:`, 
           Array.from(state.cfg.functions.keys()));
@@ -232,7 +364,8 @@ export function activate(context: vscode.ExtensionContext) {
             console.log('[Extension] [INFO] Panels exist - updating existing visualization panels with re-analysis results');
             console.log('[Extension] [DEBUG] Current sensitivity:', state.taintSensitivity || 'precise');
             console.log('[Extension] [DEBUG] Calling updateVisualization() to update existing panels');
-            await visualizer.updateVisualization(state);
+            // Fresh analysis - not from saved state
+            await visualizer.updateVisualization(state, undefined, false);
             console.log('[Extension] [DEBUG] updateVisualization() completed');
             
             // Update panel titles to reflect current sensitivity
@@ -262,8 +395,8 @@ export function activate(context: vscode.ExtensionContext) {
             console.log('[Extension] [DEBUG] Calling createOrShow() to create new panel');
             await visualizer.createOrShow(context, filename, 'Viz');
             console.log('[Extension] [DEBUG] createOrShow() completed, now updating visualization');
-            // Update it with the analysis results
-            await visualizer.updateVisualization(state);
+            // Update it with the analysis results - fresh analysis, not from saved state
+            await visualizer.updateVisualization(state, undefined, false);
             console.log('[Extension] [DEBUG] updateVisualization() completed for new panel');
           }
         }
@@ -288,6 +421,8 @@ export function activate(context: vscode.ExtensionContext) {
    * Validates that a C/C++ file is open before proceeding.
    */
   const analyzeActiveFileCommand = vscode.commands.registerCommand('dataflowAnalyzer.analyzeActiveFile', async () => {
+    LoggingConfig.section('Extension', '🎯 MAJOR EVENT: analyzeActiveFile command triggered');
+    LoggingConfig.raw('[MAJOR EVENT] User clicked: Analyze Active File');
     if (!analyzer) {
       vscode.window.showErrorMessage('Analyzer not initialized');
       return;
@@ -310,7 +445,8 @@ export function activate(context: vscode.ExtensionContext) {
           // Open/show the visualizer panel with active file name
           await visualizer.createOrShow(context, filePath, 'Viz');
           // Update it with the analysis results
-          await visualizer.updateVisualization(state);
+          // Fresh analysis - not from saved state
+          await visualizer.updateVisualization(state, undefined, false);
         }
         vscode.window.showInformationMessage(`Analysis complete! Found ${functionCount} function(s) in active file.`);
       } catch (error) {
@@ -327,6 +463,8 @@ export function activate(context: vscode.ExtensionContext) {
    * Useful for resetting analysis when code structure changes significantly.
    */
   const clearStateCommand = vscode.commands.registerCommand('dataflowAnalyzer.clearState', () => {
+    LoggingConfig.section('Extension', '🎯 MAJOR EVENT: clearState command triggered');
+    LoggingConfig.raw('[MAJOR EVENT] User clicked: Clear State');
     const stateManager = new StateManager(workspacePath);
     stateManager.clearState();
     if (analyzer) {
@@ -336,17 +474,71 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   /**
+   * Register command: Delete State and Re-Analyze
+   * 
+   * Completely deletes the saved analysis state and forces a fresh full re-analysis.
+   * This is useful when the saved state is corrupted or outdated after code changes.
+   */
+  const deleteStateAndReAnalyzeCommand = vscode.commands.registerCommand('dataflowAnalyzer.deleteStateAndReAnalyze', async () => {
+    LoggingConfig.section('Extension', '🎯 MAJOR EVENT: deleteStateAndReAnalyze command triggered');
+    LoggingConfig.raw('[MAJOR EVENT] User clicked: Delete State and Re-Analyze (Fresh Analysis)');
+    console.log(`[Extension] [INFO] ========== DELETE STATE AND RE-ANALYZE ==========`);
+    
+    // Step 1: Delete the saved state file
+    const stateManager = new StateManager(workspacePath);
+    stateManager.clearState();
+    console.log(`[Extension] [INFO] Cleared saved state file`);
+    
+    // Step 2: Reinitialize analyzer with fresh state
+    analyzer = new DataflowAnalyzer(workspacePath, analysisConfig);
+    console.log(`[Extension] [INFO] Reinitialized analyzer with fresh config`);
+    console.log(`[Extension] [INFO] Taint sensitivity: ${analysisConfig.taintSensitivity}`);
+    
+    // Step 3: Run full workspace analysis
+    await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: 'Dataflow Analyzer',
+      cancellable: false
+    }, async (progress) => {
+      progress.report({ message: 'Deleting state and re-analyzing workspace...' });
+      
+      try {
+        const state = await analyzer!.analyzeWorkspace();
+        
+        // Update visualizer with new state
+        if (visualizer) {
+          // Fresh analysis - not from saved state
+          await visualizer.updateVisualization(state, undefined, false);
+        }
+        
+        const funcCount = state.cfg.functions.size;
+        const vulnCount = state.vulnerabilities.size;
+        
+        console.log(`[Extension] [INFO] Fresh analysis complete: ${funcCount} functions, ${vulnCount} vulnerabilities`);
+        vscode.window.showInformationMessage(
+          `Fresh analysis complete: ${funcCount} functions analyzed, ${vulnCount} vulnerabilities found.`
+        );
+      } catch (error) {
+        console.error(`[Extension] [ERROR] Fresh analysis failed:`, error);
+        vscode.window.showErrorMessage(`Fresh analysis failed: ${error}`);
+      }
+    });
+  });
+
+  /**
    * Register command: Change Sensitivity and Analyze
    * 
    * Updates taint sensitivity and immediately triggers re-analysis.
    * This ensures the analyzer uses the new sensitivity level.
    */
   const changeSensitivityAndAnalyzeCommand = vscode.commands.registerCommand('dataflowAnalyzer.changeSensitivityAndAnalyze', async (sensitivity: string) => {
-    console.log(`[Extension] [INFO] ========== SENSITIVITY CHANGE REQUEST ==========`);
-    console.log(`[Extension] [INFO] changeSensitivityAndAnalyze command called`);
-    console.log(`[Extension] [INFO] Requested sensitivity: ${sensitivity}`);
-    console.log(`[Extension] [INFO] Sensitivity type: ${typeof sensitivity}`);
-    console.log(`[Extension] [INFO] Valid sensitivity values: minimal, conservative, balanced, precise, maximum`);
+    LoggingConfig.section('Extension', '🎯 MAJOR EVENT: changeSensitivityAndAnalyze command triggered');
+    LoggingConfig.raw(`[MAJOR EVENT] User changed: Taint Sensitivity to "${sensitivity}"`);
+    LoggingConfig.raw(`[Extension] [INFO] ========== SENSITIVITY CHANGE REQUEST ==========`);
+    LoggingConfig.raw(`[Extension] [INFO] changeSensitivityAndAnalyze command called`);
+    LoggingConfig.raw(`[Extension] [INFO] Requested sensitivity: ${sensitivity}`);
+    LoggingConfig.raw(`[Extension] [INFO] Sensitivity type: ${typeof sensitivity}`);
+    LoggingConfig.raw(`[Extension] [INFO] Valid sensitivity values: minimal, conservative, balanced, precise, maximum`);
     
     if (!analyzer) {
       console.error(`[Extension] [ERROR] Analyzer not initialized`);
@@ -363,17 +555,23 @@ export function activate(context: vscode.ExtensionContext) {
     }
     
     const normalizedSensitivity = sensitivity.toLowerCase() as TaintSensitivity;
+    LoggingConfig.raw(`[Extension] [INFO] Normalized sensitivity: ${normalizedSensitivity}`);
+    LoggingConfig.raw(`[Extension] [INFO] Changing sensitivity to ${normalizedSensitivity} and re-analyzing...`);
     console.log(`[Extension] [INFO] Normalized sensitivity: ${normalizedSensitivity}`);
     console.log(`[Extension] [INFO] Changing sensitivity to ${normalizedSensitivity} and re-analyzing...`);
     
     // Set flag to prevent config change handler from overriding
     isUpdatingSensitivityProgrammatically = true;
+    LoggingConfig.raw(`[Extension] [DEBUG] Set isUpdatingSensitivityProgrammatically = true (prevents config handler override)`);
     console.log(`[Extension] [DEBUG] Set isUpdatingSensitivityProgrammatically = true`);
     
     try {
       // Update analyzer config with new sensitivity FIRST
       const currentConfig = analyzer.getConfig();
       const oldSensitivity = currentConfig.taintSensitivity;
+      LoggingConfig.raw(`[Extension] [CONFIG] Current analyzer sensitivity: ${oldSensitivity}`);
+      LoggingConfig.raw(`[Extension] [CONFIG] Target sensitivity: ${normalizedSensitivity}`);
+      LoggingConfig.raw(`[Extension] [CONFIG] Sensitivity change: ${oldSensitivity} -> ${normalizedSensitivity}`);
       console.log(`[Extension] [DEBUG] Current analyzer sensitivity: ${oldSensitivity}`);
       console.log(`[Extension] [DEBUG] Target sensitivity: ${normalizedSensitivity}`);
       console.log(`[Extension] [DEBUG] Sensitivity change: ${oldSensitivity} -> ${normalizedSensitivity}`);
@@ -383,16 +581,21 @@ export function activate(context: vscode.ExtensionContext) {
         taintSensitivity: normalizedSensitivity
       };
       
+      LoggingConfig.raw(`[Extension] [CONFIG] Calling analyzer.updateConfig() with new sensitivity: ${normalizedSensitivity}`);
       console.log(`[Extension] [DEBUG] Calling analyzer.updateConfig() with new sensitivity: ${normalizedSensitivity}`);
       analyzer.updateConfig(newConfig);
       
       // Verify the update
       const updatedConfig = analyzer.getConfig();
+      LoggingConfig.raw(`[Extension] [CONFIG] Analyzer config updated`);
+      LoggingConfig.raw(`[Extension] [CONFIG] Updated config sensitivity: ${updatedConfig.taintSensitivity}`);
+      LoggingConfig.raw(`[Extension] [CONFIG] Config update successful: ${updatedConfig.taintSensitivity === normalizedSensitivity}`);
       console.log(`[Extension] [DEBUG] Analyzer config updated`);
       console.log(`[Extension] [DEBUG] Updated config sensitivity: ${updatedConfig.taintSensitivity}`);
       console.log(`[Extension] [DEBUG] Config update successful: ${updatedConfig.taintSensitivity === normalizedSensitivity}`);
       
       if (updatedConfig.taintSensitivity !== normalizedSensitivity) {
+        LoggingConfig.raw(`[Extension] [CONFIG] ❌ ERROR: Config update failed! Expected ${normalizedSensitivity}, got ${updatedConfig.taintSensitivity}`);
         console.error(`[Extension] [ERROR] Config update failed! Expected ${normalizedSensitivity}, got ${updatedConfig.taintSensitivity}`);
         vscode.window.showErrorMessage(`Failed to update sensitivity. Expected ${normalizedSensitivity}, got ${updatedConfig.taintSensitivity}`);
         return;
@@ -402,21 +605,28 @@ export function activate(context: vscode.ExtensionContext) {
       try {
         const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        LoggingConfig.raw(`[Extension] [SETTINGS] Updating VS Code settings...`);
+        LoggingConfig.raw(`[Extension] [SETTINGS] Workspace folder available: ${!!workspaceFolder}`);
         console.log(`[Extension] [DEBUG] Updating VS Code settings...`);
         console.log(`[Extension] [DEBUG] Workspace folder available: ${!!workspaceFolder}`);
         
         if (workspaceFolder) {
           await config.update('taintSensitivity', normalizedSensitivity, vscode.ConfigurationTarget.Workspace);
+          LoggingConfig.raw(`[Extension] [SETTINGS] ✅ VS Code workspace settings updated to ${normalizedSensitivity}`);
           console.log(`[Extension] [DEBUG] VS Code workspace settings updated to ${normalizedSensitivity}`);
         } else {
           await config.update('taintSensitivity', normalizedSensitivity, vscode.ConfigurationTarget.Global);
+          LoggingConfig.raw(`[Extension] [SETTINGS] ✅ VS Code user settings updated to ${normalizedSensitivity}`);
           console.log(`[Extension] [DEBUG] VS Code user settings updated to ${normalizedSensitivity}`);
         }
         
         // Verify settings update
         const settingsValue = config.get<string>('taintSensitivity', 'precise');
+        LoggingConfig.raw(`[Extension] [SETTINGS] VS Code settings value after update: ${settingsValue}`);
         console.log(`[Extension] [DEBUG] VS Code settings value after update: ${settingsValue}`);
       } catch (settingsError) {
+        LoggingConfig.raw(`[Extension] [SETTINGS] ⚠️ WARNING: Failed to update VS Code settings: ${settingsError}`);
+        LoggingConfig.raw(`[Extension] [SETTINGS] Continuing anyway - analyzer config is already updated`);
         console.log(`[Extension] [WARN] Failed to update VS Code settings: ${settingsError}`);
         console.log(`[Extension] [WARN] Continuing anyway - analyzer config is already updated`);
         // Continue anyway - analyzer config is already updated
@@ -427,21 +637,28 @@ export function activate(context: vscode.ExtensionContext) {
       if (analyzer.getState) {
         const currentState = analyzer.getState();
         if (currentState) {
+          LoggingConfig.raw(`[Extension] [RE-ANALYSIS] Clearing old visualization data before re-analysis`);
+          LoggingConfig.raw(`[Extension] [RE-ANALYSIS] Old state sensitivity: ${currentState.taintSensitivity || 'unknown'}`);
+          LoggingConfig.raw(`[Extension] [RE-ANALYSIS] Old visualization data sensitivity: ${(currentState.visualizationData as any)?.taintSensitivity || 'unknown'}`);
           console.log(`[Extension] [DEBUG] Clearing old visualization data before re-analysis`);
           console.log(`[Extension] [DEBUG] Old state sensitivity: ${currentState.taintSensitivity || 'unknown'}`);
           console.log(`[Extension] [DEBUG] Old visualization data sensitivity: ${(currentState.visualizationData as any)?.taintSensitivity || 'unknown'}`);
           currentState.visualizationData = undefined;
           // Ensure state's taintSensitivity matches the new config
           currentState.taintSensitivity = normalizedSensitivity;
+          LoggingConfig.raw(`[Extension] [RE-ANALYSIS] Updated state.taintSensitivity to: ${normalizedSensitivity}`);
           console.log(`[Extension] [DEBUG] Updated state.taintSensitivity to: ${normalizedSensitivity}`);
         }
       }
       
       // Small delay to let settings update propagate
+      LoggingConfig.raw(`[Extension] [RE-ANALYSIS] Waiting 100ms for settings to propagate...`);
       console.log(`[Extension] [DEBUG] Waiting 100ms for settings to propagate...`);
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Now trigger re-analysis - use the command directly to ensure it runs
+      LoggingConfig.raw(`[Extension] [RE-ANALYSIS] Executing analyzeWorkspace command for re-analysis...`);
+      LoggingConfig.raw(`[Extension] [RE-ANALYSIS] Expected sensitivity in analysis: ${normalizedSensitivity}`);
       console.log(`[Extension] [DEBUG] Executing analyzeWorkspace command for re-analysis...`);
       console.log(`[Extension] [DEBUG] Expected sensitivity in analysis: ${normalizedSensitivity}`);
       await vscode.commands.executeCommand('dataflowAnalyzer.analyzeWorkspace');
@@ -449,6 +666,11 @@ export function activate(context: vscode.ExtensionContext) {
       // Verify sensitivity after re-analysis
       const finalConfig = analyzer.getConfig();
       const finalState = analyzer.getState();
+      LoggingConfig.section('Extension', '========== RE-ANALYSIS COMPLETE ==========');
+      LoggingConfig.raw(`[Extension] [RE-ANALYSIS] Final analyzer config sensitivity: ${finalConfig.taintSensitivity}`);
+      LoggingConfig.raw(`[Extension] [RE-ANALYSIS] Final state sensitivity: ${finalState?.taintSensitivity || 'undefined'}`);
+      LoggingConfig.raw(`[Extension] [RE-ANALYSIS] Sensitivity match: ${finalConfig.taintSensitivity === normalizedSensitivity}`);
+      LoggingConfig.raw(`[Extension] [RE-ANALYSIS] State sensitivity match: ${finalState?.taintSensitivity === normalizedSensitivity}`);
       console.log(`[Extension] [INFO] ========== RE-ANALYSIS COMPLETE ==========`);
       console.log(`[Extension] [INFO] Final analyzer config sensitivity: ${finalConfig.taintSensitivity}`);
       console.log(`[Extension] [INFO] Final state sensitivity: ${finalState?.taintSensitivity || 'undefined'}`);
@@ -456,6 +678,7 @@ export function activate(context: vscode.ExtensionContext) {
       console.log(`[Extension] [INFO] State sensitivity match: ${finalState?.taintSensitivity === normalizedSensitivity}`);
       
       if (finalConfig.taintSensitivity !== normalizedSensitivity) {
+        LoggingConfig.raw(`[Extension] [RE-ANALYSIS] ❌ ERROR: Sensitivity mismatch after re-analysis! Expected ${normalizedSensitivity}, got ${finalConfig.taintSensitivity}`);
         console.error(`[Extension] [ERROR] Sensitivity mismatch after re-analysis! Expected ${normalizedSensitivity}, got ${finalConfig.taintSensitivity}`);
       }
       
@@ -480,7 +703,9 @@ export function activate(context: vscode.ExtensionContext) {
    * Manually triggers re-analysis of the workspace with current settings.
    */
   const reAnalyzeCommand = vscode.commands.registerCommand('dataflowAnalyzer.reAnalyze', async () => {
-    console.log(`[Extension] [INFO] reAnalyze command called`);
+    LoggingConfig.section('Extension', '🎯 MAJOR EVENT: reAnalyze command triggered');
+    LoggingConfig.raw('[MAJOR EVENT] User clicked: Re-Analyze Workspace');
+    LoggingConfig.raw(`[Extension] [INFO] reAnalyze command called`);
     
     if (!analyzer) {
       console.error(`[Extension] [ERROR] Analyzer not initialized`);
@@ -550,6 +775,8 @@ export function activate(context: vscode.ExtensionContext) {
    * Saves the current analysis state with a timestamp and updates the save states list.
    */
   const saveStateCommand = vscode.commands.registerCommand('dataflowAnalyzer.saveState', async () => {
+    LoggingConfig.section('Extension', '🎯 MAJOR EVENT: saveState command triggered');
+    LoggingConfig.raw('[MAJOR EVENT] User clicked: Save State');
     if (!analyzer) {
       vscode.window.showErrorMessage('Analyzer not initialized');
       return;
@@ -586,7 +813,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  context.subscriptions.push(showCFGCommand, analyzeWorkspaceCommand, analyzeActiveFileCommand, clearStateCommand, changeSensitivityAndAnalyzeCommand, saveStateCommand, reAnalyzeCommand);
+  context.subscriptions.push(showCFGCommand, analyzeWorkspaceCommand, analyzeActiveFileCommand, clearStateCommand, deleteStateAndReAnalyzeCommand, changeSensitivityAndAnalyzeCommand, saveStateCommand, reAnalyzeCommand);
 
   // Set up file change listeners
   setupFileWatchers(context, analysisConfig);
@@ -787,5 +1014,13 @@ export async function deactivate() {
   if (visualizer) {
     visualizer.dispose();
   }
+  
+  // Log deactivation before closing file logging
+  LoggingConfig.section('Extension', '🛑 MAJOR EVENT: Extension Deactivation');
+  LoggingConfig.raw('[MAJOR EVENT] Extension: Dataflow Analyzer is deactivating');
+  
+  // Close file logging and clear logs on EDH window close
+  await LoggingConfig.closeFileLogging(true);
+  console.log('[Extension] Deactivated - logs cleared');
 }
 

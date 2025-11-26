@@ -294,7 +294,14 @@ export class InterProceduralTaintAnalyzer {
         for (const call of callsFrom) {
           const calleeName = call.calleeId;
           
+          // Log if this was an indirect call (resolved from function pointer)
+          if (call.isIndirect) {
+            LoggingConfig.log('InterProceduralTaint', 
+              `[InterProceduralTaint] Processing indirect call: ${callerName} -> ${calleeName} (via ${call.indirectVariable || 'unknown'})`
+            );
+          } else {
           LoggingConfig.log('InterProceduralTaint', `[InterProceduralTaint] Processing call: ${callerName} -> ${calleeName}`);
+          }
           
           // Skip external functions (handled by taint summaries)
           if (!this.cfgFunctions.has(calleeName)) {

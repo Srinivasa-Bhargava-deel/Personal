@@ -2,7 +2,7 @@
   "name": "vscode-dataflow-analyzer",
   "displayName": "C++ Dataflow Analyzer",
   "description": "Real-time incremental static/dataflow analysis for C++ with CFG visualization",
-  "version": "1.9.3.2",
+  "version": "1.9.5",
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -32,6 +32,10 @@
       {
         "command": "dataflowAnalyzer.clearState",
         "title": "Clear Analysis State"
+      },
+      {
+        "command": "dataflowAnalyzer.deleteStateAndReAnalyze",
+        "title": "Delete State and Re-Analyze (Fresh)"
       }
     ],
     "configuration": {
@@ -98,17 +102,19 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "lint": "eslint src --ext ts --max-warnings 1000",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "devDependencies": {
-    "@types/jest": "^29.0.0",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.80.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.57.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
     "typescript": "^5.0.0"
-  },
-  "dependencies": {}
+  }
 }

@@ -96,6 +96,7 @@ import { TaintSourceRegistry, defaultTaintSourceRegistry } from './TaintSourceRe
 import { TaintSinkRegistry, defaultTaintSinkRegistry } from './TaintSinkRegistry';
 import { SanitizationRegistry, defaultSanitizationRegistry } from './SanitizationRegistry';
 import { FunctionCallExtractor } from './FunctionCallExtractor';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 export class TaintAnalyzer {
   private sourceRegistry: TaintSourceRegistry;
@@ -136,7 +137,24 @@ export class TaintAnalyzer {
   }
   
   /**
+   * Get numeric level for a sensitivity value (for proper comparison)
+   * 
+   * MINIMAL=1, CONSERVATIVE=2, BALANCED=3, PRECISE=4, MAXIMUM=5
+   */
+  private getSensitivityLevel(sensitivity: TaintSensitivity): number {
+    switch (sensitivity) {
+      case TaintSensitivity.MINIMAL: return 1;
+      case TaintSensitivity.CONSERVATIVE: return 2;
+      case TaintSensitivity.BALANCED: return 3;
+      case TaintSensitivity.PRECISE: return 4;
+      case TaintSensitivity.MAXIMUM: return 5;
+      default: return 4; // Default to PRECISE
+    }
+  }
+  
+  /**
    * Check if control-dependent taint propagation should be enabled
+   * Enabled for: CONSERVATIVE, BALANCED, PRECISE, MAXIMUM (Level 2+)
    */
   private shouldEnableControlDependent(): boolean {
     return this.sensitivity !== TaintSensitivity.MINIMAL;
@@ -144,27 +162,31 @@ export class TaintAnalyzer {
 
   /**
    * Check if recursive propagation should be enabled
+   * Enabled for: BALANCED, PRECISE, MAXIMUM (Level 3+)
    */
   private shouldEnableRecursivePropagation(): boolean {
-    return this.sensitivity >= TaintSensitivity.BALANCED;
+    return this.getSensitivityLevel(this.sensitivity) >= this.getSensitivityLevel(TaintSensitivity.BALANCED);
   }
 
   /**
    * Check if path-sensitive analysis should be enabled
+   * Enabled for: PRECISE, MAXIMUM (Level 4+)
    */
   private shouldEnablePathSensitive(): boolean {
-    return this.sensitivity >= TaintSensitivity.PRECISE;
+    return this.getSensitivityLevel(this.sensitivity) >= this.getSensitivityLevel(TaintSensitivity.PRECISE);
   }
 
   /**
    * Check if field-sensitive analysis should be enabled
+   * Enabled for: PRECISE, MAXIMUM (Level 4+)
    */
   private shouldEnableFieldSensitive(): boolean {
-    return this.sensitivity >= TaintSensitivity.PRECISE;
+    return this.getSensitivityLevel(this.sensitivity) >= this.getSensitivityLevel(TaintSensitivity.PRECISE);
   }
 
   /**
    * Check if context-sensitive analysis should be enabled
+   * Enabled for: MAXIMUM only (Level 5)
    */
   private shouldEnableContextSensitive(): boolean {
     return this.sensitivity === TaintSensitivity.MAXIMUM;
@@ -172,6 +194,7 @@ export class TaintAnalyzer {
 
   /**
    * Check if flow-sensitive analysis should be enabled
+   * Enabled for: MAXIMUM only (Level 5)
    */
   private shouldEnableFlowSensitive(): boolean {
     return this.sensitivity === TaintSensitivity.MAXIMUM;
@@ -199,6 +222,27 @@ export class TaintAnalyzer {
     vulnerabilities: TaintVulnerability[];
   } {
     const analysisStartTime = Date.now();
+    
+    // ============================================================
+    // COMPREHENSIVE LOGGING: Taint Analysis Start
+    // ============================================================
+    LoggingConfig.section('TaintAnalysis', `TAINT ANALYSIS: ${functionCFG.name}`);
+    LoggingConfig.log('TaintAnalysis', `Function: ${functionCFG.name}`);
+    LoggingConfig.log('TaintAnalysis', `Blocks: ${functionCFG.blocks.size}`);
+    LoggingConfig.log('TaintAnalysis', `Reaching Definitions Entries: ${reachingDefinitions.size}`);
+    
+    // Log sensitivity settings
+    LoggingConfig.subsection('TaintAnalysis', 'Sensitivity Configuration');
+    LoggingConfig.table('TaintAnalysis', 'Enabled Features', {
+      'Sensitivity Level': this.sensitivity,
+      'Control-Dependent': this.shouldEnableControlDependent(),
+      'Recursive Propagation': this.shouldEnableRecursivePropagation(),
+      'Path-Sensitive': this.shouldEnablePathSensitive(),
+      'Field-Sensitive': this.shouldEnableFieldSensitive(),
+      'Context-Sensitive': this.shouldEnableContextSensitive(),
+      'Flow-Sensitive': this.shouldEnableFlowSensitive()
+    });
+    
     console.log(`[TaintAnalyzer] [INFO] Starting taint analysis for function: ${functionCFG.name}`);
     console.log(`[TaintAnalyzer] [DEBUG] Function has ${functionCFG.blocks.size} blocks, ${reachingDefinitions.size} reaching definition entries`);
     console.log(`[TaintAnalyzer] [DEBUG] Sensitivity level: ${this.sensitivity}, Control-dependent enabled: ${this.shouldEnableControlDependent()}, Recursive: ${this.shouldEnableRecursivePropagation()}`);
@@ -228,6 +272,7 @@ export class TaintAnalyzer {
       sourceFunction?: string;
     }> = [];
     
+    let taintSourceCount = 0;
     functionCFG.blocks.forEach((block, blockId) => {
       block.statements.forEach(stmt => {
         // Check if this is a taint source using enhanced registry
@@ -237,6 +282,8 @@ export class TaintAnalyzer {
           
           if (source) {
             const { variable, taintInfo } = source;
+            taintSourceCount++;
+            LoggingConfig.raw(`[TaintAnalysis] [SOURCE] 🔴 Taint source detected in ${functionCFG.name}: ${variable} <- ${taintInfo.source} (${taintInfo.sourceCategory})`);
             
             // Add taint info to map
             const existingTaints = taintMap.get(variable) || [];
@@ -256,6 +303,7 @@ export class TaintAnalyzer {
                 sourceFunction: taintInfo.sourceFunction
               });
               worklistSet.add(worklistKey);
+              LoggingConfig.raw(`[TaintAnalysis] [PROPAGATION] Added ${variable} to worklist for propagation`);
             }
           }
           
@@ -300,8 +348,14 @@ export class TaintAnalyzer {
       });
     });
     
+    LoggingConfig.raw(`[TaintAnalysis] [SOURCE] Found ${taintSourceCount} taint source(s) in ${functionCFG.name}`);
+    LoggingConfig.raw(`[TaintAnalysis] [PROPAGATION] Starting forward propagation with ${worklist.length} worklist items`);
+    
     // Propagate taint through assignments and detect sanitization
+    let propagationIterations = 0;
+    let propagationCount = 0;
     while (worklist.length > 0) {
+      propagationIterations++;
       const item = worklist.shift()!;
       const { blockId, varName, source, path, category, taintType, sourceFunction } = item;
       // Remove from set when processing
@@ -392,6 +446,8 @@ export class TaintAnalyzer {
                       sourceFunction
                     });
                     worklistSet.add(newWorklistKey);
+                    propagationCount++;
+                    LoggingConfig.raw(`[TaintAnalysis] [PROPAGATION] Propagated taint: ${varName} -> ${targetVar} in block ${bid}`);
                   }
                 }
               });
@@ -401,10 +457,28 @@ export class TaintAnalyzer {
       });
     }
     
+    LoggingConfig.raw(`[TaintAnalysis] [PROPAGATION] ✅ Forward propagation complete: ${propagationIterations} iterations, ${propagationCount} propagations`);
+    const totalTaints = Array.from(taintMap.values()).flat().length;
+    LoggingConfig.raw(`[TaintAnalysis] [PROPAGATION] Total taint entries after propagation: ${totalTaints}`);
+    
     // NEW: Control-dependent taint propagation (implicit flow)
     if (this.shouldEnableControlDependent()) {
+      LoggingConfig.raw(`[TaintAnalysis] 🔄 Starting control-dependent taint propagation for ${functionCFG.name}`);
       const controlDeps = this.buildControlDependencyGraph(functionCFG);
+      LoggingConfig.raw(`[TaintAnalysis] Control dependency graph built: ${controlDeps.size} conditional blocks`);
       this.propagateControlDependentTaint(taintMap, controlDeps, functionCFG);
+      // Count control-dependent labels after propagation
+      let controlDepCount = 0;
+      taintMap.forEach((taintInfos) => {
+        taintInfos.forEach(t => {
+          if (t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)) {
+            controlDepCount++;
+          }
+        });
+      });
+      LoggingConfig.raw(`[TaintAnalysis] ✅ Control-dependent propagation complete: ${controlDepCount} variables with CONTROL_DEPENDENT label`);
+    } else {
+      LoggingConfig.raw(`[TaintAnalysis] ⏭️ Skipping control-dependent propagation (sensitivity: ${this.sensitivity})`);
     }
     
     // After propagation is complete, check for sink vulnerabilities
@@ -428,6 +502,51 @@ export class TaintAnalyzer {
     
     const analysisTimeMs = Date.now() - analysisStartTime;
     const totalTaintedVars = Array.from(taintMap.values()).flat().length;
+    
+    // ============================================================
+    // COMPREHENSIVE LOGGING: Taint Analysis Summary
+    // ============================================================
+    LoggingConfig.section('TaintAnalysis', `TAINT ANALYSIS COMPLETE: ${functionCFG.name}`);
+    LoggingConfig.log('TaintAnalysis', `Analysis Time: ${analysisTimeMs}ms`);
+    LoggingConfig.log('TaintAnalysis', `Total Tainted Variables: ${totalTaintedVars}`);
+    LoggingConfig.log('TaintAnalysis', `Vulnerabilities Detected: ${vulnerabilities.length}`);
+    
+    // Count taints by label
+    const taintLabelCounts: Record<string, number> = {};
+    taintMap.forEach((taints, varName) => {
+      taints.forEach(taint => {
+        if (taint.tainted && taint.labels) {
+          taint.labels.forEach(label => {
+            taintLabelCounts[label] = (taintLabelCounts[label] || 0) + 1;
+          });
+        }
+      });
+    });
+    LoggingConfig.table('TaintPropagation', 'Taint Label Distribution', taintLabelCounts);
+    
+    // Log each tainted variable
+    LoggingConfig.subsection('TaintSources', 'All Tainted Variables');
+    taintMap.forEach((taints, varName) => {
+      const taintedEntries = taints.filter(t => t.tainted);
+      if (taintedEntries.length > 0) {
+        LoggingConfig.detail('TaintSources', `"${varName}": ${taintedEntries.length} taint entries`);
+        taintedEntries.forEach((t, idx) => {
+          LoggingConfig.verbose('TaintSources', `  [${idx}] source="${t.source}", labels=[${t.labels?.join(', ') || 'none'}], path=[${t.propagationPath?.join(' -> ') || 'N/A'}]`);
+        });
+      }
+    });
+    
+    // Log vulnerabilities
+    if (vulnerabilities.length > 0) {
+      LoggingConfig.subsection('VulnerabilityDetection', 'Detected Vulnerabilities');
+      vulnerabilities.forEach((vuln, idx) => {
+        LoggingConfig.log('VulnerabilityDetection', `Vuln[${idx}]: type="${vuln.type}", severity="${vuln.severity}"`);
+        LoggingConfig.detail('VulnerabilityDetection', `  Source: ${JSON.stringify(vuln.source)}, Sink: ${JSON.stringify(vuln.sink)}`);
+        LoggingConfig.detail('VulnerabilityDetection', `  Description: ${vuln.description}`);
+        LoggingConfig.verbose('VulnerabilityDetection', `  Path: [${vuln.propagationPath?.map(p => p.blockId).join(' -> ') || 'N/A'}]`);
+      });
+    }
+    
     console.log(`[TaintAnalyzer] [INFO] Analysis completed for ${functionCFG.name} in ${analysisTimeMs}ms`);
     console.log(`[TaintAnalyzer] [DEBUG] Found ${totalTaintedVars} tainted variables, ${vulnerabilities.length} vulnerabilities`);
     if (vulnerabilities.length > 0) {
@@ -924,32 +1043,55 @@ export class TaintAnalyzer {
    */
   private buildControlDependencyGraph(functionCFG: FunctionCFG): Map<string, Set<string>> {
     console.log(`[TaintAnalyzer] [DEBUG] Building control dependency graph for ${functionCFG.name}`);
+    const isMainFunction = functionCFG.name === 'main';
+    LoggingConfig.raw(`[TaintAnalysis] Building control dependency graph for ${functionCFG.name} (${functionCFG.blocks.size} blocks)`);
     
     const controlDeps = new Map<string, Set<string>>();
+    let conditionalBlocksFound = 0;
+    let blocksWithDependents = 0;
     
     functionCFG.blocks.forEach((block, blockId) => {
       // Check if block is conditional (if/while/for/switch)
-      if (this.isConditionalBlock(block)) {
+      // CRITICAL FIX: Check for branching (multiple successors) which indicates a conditional
+      const isConditional = this.isConditionalBlock(block, functionCFG, blockId);
+      if (isConditional) {
+        conditionalBlocksFound++;
+        LoggingConfig.raw(`[TaintAnalysis] ✅ Found conditional block ${blockId}: ${block.statements.map(s => s.type).join(', ')}`);
         const conditionalVars = this.extractConditionalVariables(block);
+        LoggingConfig.raw(`[TaintAnalysis]   Conditional vars: [${conditionalVars.join(', ')}]`);
         if (conditionalVars.length > 0) {
           const dependentBlocks = this.getControlDependentBlocks(functionCFG, blockId);
+          LoggingConfig.raw(`[TaintAnalysis]   Dependent blocks: [${Array.from(dependentBlocks).join(', ')}]`);
           if (dependentBlocks.size > 0) {
             controlDeps.set(blockId, dependentBlocks);
+            blocksWithDependents++;
             console.log(`[TaintAnalyzer] [ControlDependentTaint] Conditional block ${blockId} has ${dependentBlocks.size} control-dependent blocks`);
+          } else {
+            LoggingConfig.raw(`[TaintAnalysis]   ⚠️ No dependent blocks found for conditional block ${blockId}`);
           }
+        } else {
+          LoggingConfig.raw(`[TaintAnalysis]   ⚠️ No conditional variables found for block ${blockId}`);
         }
+      } else if (isMainFunction && block.statements.length > 0) {
+        // DEBUG: Log first few blocks of main to see what statement types we have
+        const stmtTypes = block.statements.map(s => s.type).join(', ');
+        const stmtTexts = block.statements.map(s => (s.text || s.content || '').substring(0, 40)).join(' | ');
+        LoggingConfig.raw(`[TaintAnalysis] [DEBUG] Block ${blockId} NOT conditional: types=[${stmtTypes}], texts=[${stmtTexts}]`);
       }
     });
     
+    LoggingConfig.raw(`[TaintAnalysis] Control dependency graph: ${conditionalBlocksFound} conditional blocks found, ${blocksWithDependents} with dependents`);
     console.log(`[TaintAnalyzer] [ControlDependentTaint] Control dependency graph built: ${controlDeps.size} conditionals`);
     return controlDeps;
   }
 
   /**
    * Check if a block is a conditional statement
+   * CRITICAL FIX: Also check for branching (multiple successors) which indicates a conditional
    */
-  private isConditionalBlock(block: BasicBlock): boolean {
-    return block.statements.some(stmt => {
+  private isConditionalBlock(block: BasicBlock, functionCFG?: FunctionCFG, blockId?: string): boolean {
+    // Method 1: Check statement types and text patterns (original approach)
+    const hasConditionalStatement = block.statements.some(stmt => {
       const stmtType = stmt.type;
       const stmtText = stmt.text || stmt.content || '';
       
@@ -960,6 +1102,29 @@ export class TaintAnalyzer {
              stmtText.includes('for (') ||
              stmtText.includes('switch (');
     });
+    
+    // Method 2: Check for branching (multiple successors) - CRITICAL FIX for Clang CFG
+    // Clang CFG exports conditional expressions without the full if/while statement,
+    // but blocks with conditions will have multiple successors (true/false branches)
+    let hasBranching = false;
+    if (functionCFG && blockId !== undefined) {
+      const block = functionCFG.blocks.get(blockId);
+      if (block && block.successors.length > 1) {
+        // Check if block text contains comparison operators (>, <, ==, !=, etc.)
+        // This ensures we're detecting actual conditionals, not just join points
+        const hasComparison = block.statements.some(stmt => {
+          const stmtText = stmt.text || stmt.content || '';
+          // Match comparison operators: >, <, >=, <=, ==, !=, &&, ||
+          return /[><=!]=?/.test(stmtText) || 
+                 stmtText.includes('&&') || 
+                 stmtText.includes('||') ||
+                 stmtText.match(/\b(if|while|for|switch)\s*\(/);
+        });
+        hasBranching = hasComparison;
+      }
+    }
+    
+    return hasConditionalStatement || hasBranching;
   }
 
   /**
@@ -1130,6 +1295,7 @@ export class TaintAnalyzer {
       return;
     }
     
+    LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] Starting control-dependent taint propagation`);
     console.log(`[TaintAnalyzer] [ControlDependentTaint] Starting control-dependent taint propagation`);
     
     let changed = true;
@@ -1140,6 +1306,7 @@ export class TaintAnalyzer {
       changed = false;
       iteration++;
       
+      LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] Fixed-point iteration ${iteration}`);
       console.log(`[TaintAnalyzer] [ControlDependentTaint] Fixed-point iteration ${iteration}`);
       
       controlDeps.forEach((dependentBlocks, conditionalBlockId) => {
@@ -1147,6 +1314,7 @@ export class TaintAnalyzer {
         if (!conditionalBlock) return;
         
         const conditionalVars = this.extractConditionalVariables(conditionalBlock);
+        LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] Checking conditional block ${conditionalBlockId}, vars: [${conditionalVars.join(', ')}]`);
         
         // Check if any conditional variable is tainted
         let hasTaintedCondition = false;
@@ -1154,9 +1322,14 @@ export class TaintAnalyzer {
           const taintInfos = taintMap.get(varName) || [];
           if (taintInfos.some(t => t.tainted)) {
             hasTaintedCondition = true;
+            LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] ✅ Found tainted condition: block ${conditionalBlockId} uses tainted variable '${varName}'`);
             console.log(`[TaintAnalyzer] [ControlDependentTaint] Conditional block ${conditionalBlockId} uses tainted variable: ${varName}`);
             break;
           }
+        }
+        
+        if (!hasTaintedCondition) {
+          LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] ⏭️ Skipping block ${conditionalBlockId} - no tainted condition`);
         }
         
         if (hasTaintedCondition) {
@@ -1221,7 +1394,8 @@ export class TaintAnalyzer {
       ? this.getOrderedStatements(block, functionCFG)
       : block.statements;
     
-    // Mark all variables defined in this block as control-dependent tainted
+    // Mark all variables defined OR USED in this block as control-dependent tainted
+    // CRITICAL FIX: Also mark variables used (e.g., in return statements) as control-dependent
     statements.forEach((stmt, stmtIndex) => {
       // Flow-sensitive: check if previous statements affect taint
       if (this.shouldEnableFlowSensitive()) {
@@ -1231,6 +1405,36 @@ export class TaintAnalyzer {
         }
       }
       
+      // CRITICAL FIX: Mark variables USED in control-dependent blocks (e.g., return input;)
+      // This ensures return statements with tainted variables are marked as control-dependent
+      stmt.variables?.used.forEach(varName => {
+        const taintInfos = taintMap.get(varName) || [];
+        // Only mark if variable is already tainted (data-flow taint)
+        const isTainted = taintInfos.some(t => t.tainted);
+        if (isTainted) {
+          // Check if already has CONTROL_DEPENDENT label
+          const hasControlDependent = taintInfos.some(t => 
+            t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)
+          );
+          
+          if (!hasControlDependent) {
+            // Add CONTROL_DEPENDENT label to existing taint
+            const existingTaint = taintInfos.find(t => t.variable === varName && t.tainted);
+            if (existingTaint) {
+              if (!existingTaint.labels) {
+                existingTaint.labels = [];
+              }
+              if (!existingTaint.labels.includes(TaintLabel.CONTROL_DEPENDENT)) {
+                existingTaint.labels.push(TaintLabel.CONTROL_DEPENDENT);
+                LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] ✅ Added CONTROL_DEPENDENT label to used variable '${varName}' in block ${blockId} (return/expression)`);
+                changed = true;
+              }
+            }
+          }
+        }
+      });
+      
+      // Mark variables defined in this block as control-dependent tainted
       stmt.variables?.defined.forEach(varName => {
         // Field-sensitive analysis: track struct fields separately
         if (this.shouldEnableFieldSensitive() && this.isStructFieldAccess(varName)) {
@@ -1267,6 +1471,7 @@ export class TaintAnalyzer {
             }
             if (!existingTaint.labels.includes(TaintLabel.CONTROL_DEPENDENT)) {
               existingTaint.labels.push(TaintLabel.CONTROL_DEPENDENT);
+              LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] ✅ Added CONTROL_DEPENDENT label to existing taint for '${varName}' in block ${blockId}`);
               console.log(`[TaintAnalyzer] [ControlDependentTaint] Added CONTROL_DEPENDENT label to variable '${varName}' in block ${blockId}`);
               changed = true;
             }
@@ -1297,12 +1502,71 @@ export class TaintAnalyzer {
             
             taintInfos.push(newTaintInfo);
             taintMap.set(varName, taintInfos);
+            LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] ✅ Created new CONTROL_DEPENDENT taint for '${varName}' in block ${blockId}`);
             console.log(`[TaintAnalyzer] [ControlDependentTaint] Marked variable '${varName}' in block ${blockId} as control-dependent tainted`);
             changed = true;
           }
         }
       });
     });
+    
+    // CRITICAL FIX: Mark blocks without variables as control-dependent
+    // This handles return statements like "return -1;" that don't define/use variables
+    // Check if block has any statements but no variables were marked
+    const hasStatements = statements.length > 0;
+    const hasReturnStatement = statements.some(stmt => {
+      const stmtText = stmt.text || stmt.content || '';
+      return stmtText.trim().startsWith('return') || stmt.type === StatementType.RETURN;
+    });
+    
+    if (hasStatements && hasReturnStatement) {
+      // Check if any variables in this block were marked
+      let hasMarkedVariables = false;
+      statements.forEach(stmt => {
+        if ((stmt.variables?.defined.length ?? 0) > 0 || (stmt.variables?.used.length ?? 0) > 0) {
+          hasMarkedVariables = true;
+        }
+      });
+      
+      // If block has return statement but no variables were marked, create synthetic taint entry
+      if (!hasMarkedVariables) {
+        const syntheticVarName = `__block_${blockId}__`;
+        const taintInfos = taintMap.get(syntheticVarName) || [];
+        
+        // Check if already marked
+        const alreadyMarked = taintInfos.some(t => 
+          t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)
+        );
+        
+        if (!alreadyMarked) {
+          const blockLabel = this.getBlockLabel(functionCFG, blockId);
+          const conditionalLabel = this.getBlockLabel(functionCFG, conditionalBlockId);
+          const pathEntry = conditionalLabel && blockLabel
+            ? `${functionCFG.name}:${conditionalLabel}`
+            : `${functionCFG.name}:B${conditionalBlockId}`;
+          const blockPathEntry = blockLabel
+            ? `${functionCFG.name}:${blockLabel}`
+            : `${functionCFG.name}:B${blockId}`;
+          
+          const newTaintInfo: TaintInfo = {
+            variable: syntheticVarName,
+            source: `Control-dependent block ${blockId} (return statement without variables)`,
+            tainted: true,
+            propagationPath: [pathEntry, blockPathEntry],
+            labels: [TaintLabel.CONTROL_DEPENDENT]
+          };
+          
+          if (context && this.shouldEnableContextSensitive()) {
+            (newTaintInfo as any).context = context;
+          }
+          
+          taintInfos.push(newTaintInfo);
+          taintMap.set(syntheticVarName, taintInfos);
+          LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] ✅ Created CONTROL_DEPENDENT taint for block ${blockId} (return statement without variables)`);
+          changed = true;
+        }
+      }
+    }
     
     // Recursive propagation (if enabled)
     if (this.shouldEnableRecursivePropagation()) {
@@ -1458,7 +1722,7 @@ export class TaintAnalyzer {
     // Check successors for conditional blocks
     block.successors.forEach(succId => {
       const succBlock = functionCFG.blocks.get(succId);
-      if (succBlock && this.isConditionalBlock(succBlock)) {
+      if (succBlock && this.isConditionalBlock(succBlock, functionCFG, succId)) {
         nested.push(succId);
       }
     });

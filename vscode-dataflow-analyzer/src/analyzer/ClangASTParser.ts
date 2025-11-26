@@ -91,7 +91,7 @@ export enum CXCursorKind {
   RETURN_STMT = 215,
   BREAK_STMT = 214,
   CONTINUE_STMT = 213,
-  GOTO_STMT = 211,
+  GOTO_STMT = 212,
   LABEL_STMT = 204,
   DECL_STMT = 201,
   BINARY_OPERATOR = 114,
@@ -178,6 +178,7 @@ export class ClangASTParser {
     const paths: string[] = [];
     
     try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { execSync } = require('child_process');
       const clangPath = this.clangPath || '/opt/homebrew/opt/llvm/bin/clang';
       
@@ -351,6 +352,7 @@ export class ClangASTParser {
       // Relative path: from src/analyzer -> src -> . (root) -> cpp-tools/cfg-exporter/build/cfg-exporter
       // Windows: build/Release/cfg-exporter.exe
       // Unix: build/cfg-exporter
+      // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-non-null-asserted-optional-chain
       const fs = require('fs');
       const isWindows = process.platform === 'win32';
       
@@ -482,7 +484,9 @@ export class ClangASTParser {
                 end: { line: 0, column: 0 }
               }
             };
-            block.statements!.push(stmt);
+            if (block.statements) {
+              block.statements.push(stmt);
+            }
           }
 
           blocks.push(block);

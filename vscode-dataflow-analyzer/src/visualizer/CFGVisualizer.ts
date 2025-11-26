@@ -78,7 +78,7 @@
  */
 
 import * as vscode from 'vscode';
-import { CFG, FunctionCFG, AnalysisState, FileAnalysisState, LivenessInfo, ReachingDefinitionsInfo, ReachingDefinition, TaintInfo, TaintLabel, TaintSensitivity } from '../types';
+import { CFG, FunctionCFG, BasicBlock, AnalysisState, FileAnalysisState, LivenessInfo, ReachingDefinitionsInfo, ReachingDefinition, TaintInfo, TaintLabel, TaintSensitivity, StatementType } from '../types';
 import { Vulnerability } from '../analyzer/SecurityAnalyzer';
 import { LoggingConfig } from '../utils/LoggingConfig';
 
@@ -100,6 +100,8 @@ export class CFGVisualizer {
   private visNetworkUri: vscode.Uri | null = null;  // URI for vis-network library
   private notifyCommandRegistered: boolean = false;  // Track if notify command is registered (prevents duplicate registration)
   private context: vscode.ExtensionContext | null = null;  // Store extension context for panel recreation
+  // Track pending re-analyses: Map of panel key -> panel reference (for sending success message after visualization updates)
+  private pendingReAnalyses: Map<string, vscode.WebviewPanel> = new Map();
 
   /**
    * Get panel key from filename and viewType
@@ -303,28 +305,39 @@ export class CFGVisualizer {
           this.currentFunction = message.functionName;
           await this.updateWebview(panel);
         } else if (message.type === 'changeSensitivity') {
+          LoggingConfig.section('CFGViz', '🎯 MAJOR EVENT: Sensitivity Change Requested');
+          LoggingConfig.raw(`[MAJOR EVENT] User changed: Taint Sensitivity to "${message.sensitivity}"`);
+          LoggingConfig.raw('[CFGVisualizer] [INFO] changeSensitivity message received from webview');
+          LoggingConfig.raw(`[CFGVisualizer] [INFO] Sensitivity: ${message.sensitivity}, triggerReAnalysis: ${message.triggerReAnalysis}`);
           console.log('[CFGVisualizer] [INFO] changeSensitivity message received');
-          console.log('[CFGVisualizer] [INFO] Sensitivity:', message.sensitivity, 'triggerReAnalysis:', message.triggerReAnalysis);
+          console.log(`[CFGVisualizer] [INFO] Sensitivity: ${message.sensitivity}, triggerReAnalysis: ${message.triggerReAnalysis}`);
           
           // Try to update VS Code settings (workspace or user)
           // If workspace is not available, fall back to user settings or skip
           let settingsUpdated = false;
+          LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] Attempting to update VS Code settings to: ${message.sensitivity}`);
           try {
             const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
             // Try workspace first, fall back to global if workspace not available
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             if (workspaceFolder) {
+              LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] Updating workspace settings (workspace folder: ${workspaceFolder.name})`);
               await config.update('taintSensitivity', message.sensitivity, vscode.ConfigurationTarget.Workspace);
+              LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] ✅ VS Code workspace settings updated successfully`);
               console.log('[CFGVisualizer] [DEBUG] VS Code workspace settings updated');
               settingsUpdated = true;
             } else {
               // No workspace, try user settings
+              LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] No workspace found, updating global user settings`);
               await config.update('taintSensitivity', message.sensitivity, vscode.ConfigurationTarget.Global);
+              LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] ✅ VS Code user settings updated successfully`);
               console.log('[CFGVisualizer] [DEBUG] VS Code user settings updated (no workspace)');
               settingsUpdated = true;
             }
           } catch (error) {
             // Settings update failed, but we can still update analyzer config directly
+            LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] ❌ WARNING: Failed to update VS Code settings: ${error}`);
+            LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] Will update analyzer config directly instead`);
             console.log('[CFGVisualizer] [WARN] Failed to update VS Code settings:', error);
             console.log('[CFGVisualizer] [DEBUG] Will update analyzer config directly instead');
             settingsUpdated = false;
@@ -332,29 +345,38 @@ export class CFGVisualizer {
           
           // Only trigger re-analysis if explicitly requested
           if (message.triggerReAnalysis) {
+            LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] triggerReAnalysis=true, triggering re-analysis with sensitivity: ${message.sensitivity}`);
             console.log('[CFGVisualizer] [INFO] Triggering re-analysis with sensitivity:', message.sensitivity);
             vscode.window.showInformationMessage(`Taint sensitivity changed to ${message.sensitivity.toUpperCase()}. Re-analyzing workspace...`);
             
             // Send a message to extension to update analyzer config, then trigger re-analysis
             // We'll use a custom command that handles both
             try {
+              LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] Executing changeSensitivityAndAnalyze command with sensitivity: ${message.sensitivity}`);
               console.log('[CFGVisualizer] [DEBUG] Executing changeSensitivityAndAnalyze command...');
               await vscode.commands.executeCommand('dataflowAnalyzer.changeSensitivityAndAnalyze', message.sensitivity);
+              LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] ✅ changeSensitivityAndAnalyze command completed successfully`);
               console.log('[CFGVisualizer] [INFO] changeSensitivityAndAnalyze command completed successfully');
               // Send success message back to webview
               panel.webview.postMessage({ type: 'reAnalyzeResult', success: true });
+              LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] ✅ Sent success message back to webview`);
             } catch (error) {
+              LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] ❌ ERROR: Failed to trigger re-analysis: ${error}`);
               console.error('[CFGVisualizer] [ERROR] Failed to trigger re-analysis:', error);
               panel.webview.postMessage({ type: 'reAnalyzeResult', success: false, error: String(error) });
+              LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] ❌ Sent error message back to webview`);
             }
           } else {
+            LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] triggerReAnalysis=false, sensitivity updated but waiting for manual re-analysis trigger`);
             console.log('[CFGVisualizer] [DEBUG] Sensitivity updated, waiting for manual re-analysis trigger');
             // Just update settings, don't trigger re-analysis
             if (settingsUpdated) {
+              LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] Settings updated successfully, showing info message to user`);
               vscode.window.showInformationMessage(`Taint sensitivity set to ${message.sensitivity.toUpperCase()}. Click "Re-analyze" to apply.`);
             } else {
               // Settings update failed, but we can still proceed
               // The analyzer config will be updated when re-analysis is triggered
+              LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] Settings update failed, will update when re-analysis is triggered`);
               vscode.window.showInformationMessage(`Taint sensitivity will be set to ${message.sensitivity.toUpperCase()} when you click "Re-analyze".`);
             }
           }
@@ -372,27 +394,70 @@ export class CFGVisualizer {
             panel.webview.postMessage({ type: 'saveStateResult', success: false, error: String(error) });
           }
         } else if (message.type === 'reAnalyze') {
+          LoggingConfig.raw('[CFGVisualizer] [RE-ANALYSIS] reAnalyze message received from webview');
           console.log('[CFGVisualizer] [INFO] reAnalyze message received');
+          
+          // CRITICAL FIX: Track this panel as having a pending re-analysis
+          // The success message will be sent after updateVisualization completes
+          this.pendingReAnalyses.set(panelKey, panel);
+          LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] Marked panel ${panelKey} as pending re-analysis`);
+          
           try {
             // Trigger re-analysis command (uses current analyzer config)
-            // Note: analyzeWorkspace already updates visualization, but we need to ensure
-            // the webview gets the updated state after re-analysis completes
+            // This will call analyzeWorkspace which calls updateVisualization
+            LoggingConfig.raw('[CFGVisualizer] [RE-ANALYSIS] Executing reAnalyze command...');
             console.log('[CFGVisualizer] [DEBUG] Executing reAnalyze command...');
             await vscode.commands.executeCommand('dataflowAnalyzer.reAnalyze');
+            LoggingConfig.raw('[CFGVisualizer] [RE-ANALYSIS] reAnalyze command completed');
             console.log('[CFGVisualizer] [INFO] reAnalyze command completed successfully');
             
-            // The reAnalyze command calls analyzeWorkspace which already updates visualization
-            // But we need to ensure the webview HTML is refreshed with new data
-            // Since updateVisualization was already called by analyzeWorkspace, the webview
-            // should have the new HTML. However, we may need to force a refresh.
-            console.log('[CFGVisualizer] [DEBUG] Re-analysis complete, visualization should be updated');
-            console.log('[CFGVisualizer] [DEBUG] Note: analyzeWorkspace already calls updateVisualization');
-            
-            // Send success message back to webview
-            panel.webview.postMessage({ type: 'reAnalyzeResult', success: true });
+            // Note: Success message will be sent after updateVisualization completes
+            // See updateVisualization method below
           } catch (error) {
+            LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] ❌ ERROR: Failed to trigger re-analysis: ${error}`);
             console.error('[CFGVisualizer] [ERROR] Failed to trigger re-analysis:', error);
+            // Remove from pending on error
+            this.pendingReAnalyses.delete(panelKey);
             panel.webview.postMessage({ type: 'reAnalyzeResult', success: false, error: String(error) });
+          }
+        } else if (message.type === 'openFileAtLine') {
+          // Handle double-click on CFG block: open file at the block's starting line
+          LoggingConfig.section('CFGViz', '🎯 MAJOR EVENT: CFG Block Double-Clicked');
+          LoggingConfig.raw(`[MAJOR EVENT] User double-clicked: CFG Block to open file at line`);
+          LoggingConfig.raw('[CFGVisualizer] [INFO] openFileAtLine message received');
+          LoggingConfig.raw(`[CFGVisualizer] [DEBUG] File: ${message.filePath}, Line: ${message.line}`);
+          
+          try {
+            if (message.filePath) {
+              const uri = vscode.Uri.file(message.filePath);
+              const lineNumber = message.line ? Math.max(0, message.line - 1) : 0; // VS Code lines are 0-indexed
+              
+              // Open the document
+              const document = await vscode.workspace.openTextDocument(uri);
+              
+              // Show the document and navigate to the line
+              const editor = await vscode.window.showTextDocument(document, {
+                preview: false,
+                selection: new vscode.Selection(
+                  new vscode.Position(lineNumber, 0),
+                  new vscode.Position(lineNumber, 0)
+                )
+              });
+              
+              // Reveal the line in the center of the editor
+              editor.revealRange(
+                new vscode.Range(lineNumber, 0, lineNumber, 0),
+                vscode.TextEditorRevealType.InCenter
+              );
+              
+              console.log('[CFGVisualizer] [INFO] Opened file at line', message.line);
+            } else {
+              console.log('[CFGVisualizer] [WARN] No file path provided for openFileAtLine');
+              vscode.window.showWarningMessage('No file path available for this block');
+            }
+          } catch (error) {
+            console.error('[CFGVisualizer] [ERROR] Failed to open file:', error);
+            vscode.window.showErrorMessage(`Failed to open file: ${error instanceof Error ? error.message : String(error)}`);
           }
         } else {
           console.log('[CFGVisualizer] [WARN] Unknown message type:', message.type);
@@ -466,8 +531,14 @@ export class CFGVisualizer {
    * @param state - Complete analysis state with CFG and all analysis results
    * @param functionName - Optional function name to display (defaults to current or first function)
    */
-  async updateVisualization(state: AnalysisState, functionName?: string): Promise<void> {
+  async updateVisualization(state: AnalysisState, functionName?: string, isFromSavedState: boolean = false): Promise<void> {
+    LoggingConfig.section('CFGViz', '🔄 updateVisualization CALLED');
+    LoggingConfig.raw(`[CFGViz] updateVisualization called with ${state.cfg.functions.size} functions`);
+    LoggingConfig.raw(`[CFGViz] State sensitivity: ${state.taintSensitivity || 'not set'}`);
+    LoggingConfig.raw(`[CFGViz] State source: ${isFromSavedState ? 'Saved State' : 'Current Analysis'}`);
     console.log('[CFGVisualizer] updateVisualization called');
+    // Store state source for UI display
+    (state as any).isFromSavedState = isFromSavedState;
     console.log('[CFGVisualizer] State analysis summary:', {
       functionsCount: state.cfg.functions.size,
       functionNames: Array.from(state.cfg.functions.keys()),
@@ -488,11 +559,13 @@ export class CFGVisualizer {
     // CRITICAL FIX: Update currentState BEFORE checking panels
     // This ensures panel titles and other state-dependent operations use the correct state
     this.currentState = state;
+    LoggingConfig.raw(`[CFGViz] State stored. Panels count: ${this.panels.size}`);
     console.log('[CFGVisualizer] State stored, checking panels...');
     console.log(`[CFGVisualizer] [DEBUG] Current state sensitivity: ${state.taintSensitivity || 'precise'}`);
 
     // Update all existing panels instead of creating new ones
     if (this.panels.size > 0) {
+      LoggingConfig.raw(`[CFGViz] Updating ${this.panels.size} existing panel(s)`);
       console.log(`[CFGVisualizer] [INFO] Updating ${this.panels.size} existing panel(s) with new analysis results`);
       // Update all panels
       for (const [panelKey, panel] of this.panels.entries()) {
@@ -550,9 +623,11 @@ export class CFGVisualizer {
    * @param panel Optional panel to update (defaults to current panel)
    */
   private async updateWebview(panel?: vscode.WebviewPanel): Promise<void> {
+    LoggingConfig.raw(`[CFGViz] updateWebview called`);
     console.log('[CFGVisualizer] updateWebview called');
     const targetPanel = panel || this.panel;
     if (!targetPanel) {
+      LoggingConfig.raw(`[CFGViz] ERROR: No panel found, cannot update webview`);
       console.log('[CFGVisualizer] No panel, returning');
       return;
     }
@@ -640,14 +715,20 @@ export class CFGVisualizer {
     // If sensitivity changed, the visualization data might be stale
     const currentSensitivity = state.taintSensitivity || 'precise';
     const dataSensitivity = (state.visualizationData as any)?.taintSensitivity;
-    const needsRegeneration = state.visualizationData && dataSensitivity && dataSensitivity !== currentSensitivity;
+    const hasVisualizationData = !!state.visualizationData;
+    const needsRegeneration = hasVisualizationData && (!dataSensitivity || dataSensitivity !== currentSensitivity);
+    
+    LoggingConfig.raw(`[CFGViz] Checking visualization data: hasData=${hasVisualizationData}, dataSensitivity=${dataSensitivity || 'none'}, currentSensitivity=${currentSensitivity}, needsRegen=${needsRegeneration}`);
     
     if (needsRegeneration) {
-      console.log(`[CFGVisualizer] [DEBUG] Visualization data sensitivity mismatch: ${dataSensitivity} vs ${currentSensitivity}`);
+      LoggingConfig.raw(`[CFGViz] ⚠️ CLEARING STALE VISUALIZATION DATA: ${dataSensitivity || 'none'} -> ${currentSensitivity}`);
+      console.log(`[CFGVisualizer] [DEBUG] Visualization data sensitivity mismatch: ${dataSensitivity || 'none'} vs ${currentSensitivity}`);
       console.log(`[CFGVisualizer] [DEBUG] Regenerating visualization data with new sensitivity`);
       // CRITICAL FIX: Clear old visualization data AND regenerate it immediately
       state.visualizationData = undefined;
       console.log(`[CFGVisualizer] [DEBUG] Cleared old visualization data, will regenerate on-demand`);
+    } else if (hasVisualizationData) {
+      LoggingConfig.raw(`[CFGViz] ✅ Using cached visualization data (sensitivity matches: ${dataSensitivity})`);
     }
     
     if (state.visualizationData && !needsRegeneration) {
@@ -678,8 +759,12 @@ export class CFGVisualizer {
         interProceduralTaintData = this.prepareInterProceduralTaintData(state, funcCFG.name);
       }
       if (!interconnectedData) {
+        LoggingConfig.raw(`[CFGViz] ⚠️ Pre-prepared interconnectedData missing, preparing on-demand with sensitivity: ${state.taintSensitivity}`);
         console.log('[CFGVisualizer] Pre-prepared interconnectedData missing, preparing on-demand');
         interconnectedData = this.prepareInterconnectedCFGData(state);
+        LoggingConfig.raw(`[CFGViz] ✅ Interconnected data prepared: ${interconnectedData.nodes?.length || 0} nodes, ${interconnectedData.edges?.length || 0} edges`);
+      } else {
+        LoggingConfig.raw(`[CFGViz] ✅ Using pre-prepared interconnectedData: ${interconnectedData.nodes?.length || 0} nodes, ${interconnectedData.edges?.length || 0} edges, sensitivity: ${interconnectedData.taintSensitivity || 'none'}`);
       }
       if (!callGraphData && state.callGraph) {
         console.log('[CFGVisualizer] Pre-prepared callGraphData missing, preparing on-demand');
@@ -687,6 +772,7 @@ export class CFGVisualizer {
       }
     } else {
       // Fallback: prepare on-demand (backward compatibility)
+      LoggingConfig.raw(`[CFGViz] ⚠️ No pre-prepared data, preparing ALL data on-demand with sensitivity: ${state.taintSensitivity}`);
       console.log('[CFGVisualizer] No pre-prepared data, preparing on-demand');
       graphData = await this.prepareGraphData(funcCFG, state);
       callGraphData = state.callGraph ? this.prepareCallGraphData(state.callGraph) : null;
@@ -694,6 +780,7 @@ export class CFGVisualizer {
       taintData = this.prepareTaintData(state, funcCFG.name);
       interconnectedData = this.prepareInterconnectedCFGData(state);
       interProceduralTaintData = this.prepareInterProceduralTaintData(state, funcCFG.name);
+      LoggingConfig.raw(`[CFGViz] ✅ On-demand preparation complete: interconnectedData has ${interconnectedData.nodes?.length || 0} nodes`);
     }
     
     // Only log visualization-specific information (not analysis data)
@@ -761,14 +848,37 @@ export class CFGVisualizer {
     } else {
       console.warn(`[CFGVisualizer] [WARNING] Interconnected data missing sensitivity metadata!`);
     }
-    
+
     // Force webview refresh by setting HTML (this should reload the webview completely)
     // Setting webview.html to a new value forces VS Code to reload the webview
+    LoggingConfig.raw(`[CFGViz] ✅ SETTING WEBVIEW HTML - Sensitivity: ${state.taintSensitivity}, Functions: ${state.cfg.functions.size}, HTML Length: ${htmlContent.length}`);
     console.log(`[CFGVisualizer] [DEBUG] Setting webview HTML with interconnected data sensitivity: ${interconnectedData?.taintSensitivity || 'not set'}`);
     targetPanel.webview.html = htmlContent;
+    LoggingConfig.raw(`[CFGViz] ✅ WEBVIEW HTML SET SUCCESSFULLY`);
     console.log('[CFGVisualizer] [DEBUG] Webview HTML set - webview should reload with new data');
     console.log('[CFGVisualizer] Webview HTML set successfully');
     console.log('[CFGVisualizer] Panel visibility state:', targetPanel.visible);
+    
+    // CRITICAL FIX: If there's a pending re-analysis for this panel, send success message now
+    // This ensures "Analysis complete" only appears after visualization is actually updated
+    // Check all pending re-analyses and send success for any that match this panel
+    const pendingKeysToRemove: string[] = [];
+    for (const [pendingPanelKey, pendingPanel] of this.pendingReAnalyses.entries()) {
+      if (pendingPanel === targetPanel) {
+        LoggingConfig.raw(`[CFGViz] [RE-ANALYSIS] ✅ Visualization updated for panel ${pendingPanelKey}, sending success message`);
+        try {
+          pendingPanel.webview.postMessage({ type: 'reAnalyzeResult', success: true });
+          LoggingConfig.raw(`[CFGViz] [RE-ANALYSIS] ✅ Success message sent to panel ${pendingPanelKey}`);
+          pendingKeysToRemove.push(pendingPanelKey);
+        } catch (error) {
+          LoggingConfig.raw(`[CFGViz] [RE-ANALYSIS] ❌ ERROR sending success message: ${error}`);
+          // Panel might be disposed, remove it anyway
+          pendingKeysToRemove.push(pendingPanelKey);
+        }
+      }
+    }
+    // Remove completed pending re-analyses
+    pendingKeysToRemove.forEach(key => this.pendingReAnalyses.delete(key));
     console.log('[CFGVisualizer] Panel active state:', targetPanel.active);
     console.log(`[CFGVisualizer] [DEBUG] Webview reloaded - JavaScript will re-initialize with new data (sensitivity: ${sensitivityInState})`);
   }
@@ -857,8 +967,23 @@ export class CFGVisualizer {
    * @returns Graph data object with nodes and edges arrays
    */
   private async prepareGraphData(funcCFG: FunctionCFG, state: AnalysisState): Promise<any> {
+    // ============================================================
+    // COMPREHENSIVE LOGGING: CFG Tab Data Preparation
+    // ============================================================
+    LoggingConfig.section('CFGViz', `PREPARING CFG DATA: ${funcCFG.name}`);
+    LoggingConfig.log('CFGViz', `Function: ${funcCFG.name}`);
+    LoggingConfig.log('CFGViz', `Total Blocks: ${funcCFG.blocks.size}`);
+    LoggingConfig.log('CFGViz', `Entry Block: ${funcCFG.entry}`);
+    LoggingConfig.log('CFGViz', `Exit Block: ${funcCFG.exit}`);
+    LoggingConfig.log('CFGViz', `Parameters: ${funcCFG.parameters?.join(', ') || 'none'}`);
+    LoggingConfig.log('CFGViz', `Taint Sensitivity: ${state.taintSensitivity || 'precise'}`);
+    
     const nodes: any[] = [];
     const edges: any[] = [];
+
+    // Get the file path for this function (for double-click navigation)
+    const filePath = this.getFilePathForFunction(state, funcCFG.name);
+    LoggingConfig.detail('CFGViz', `File Path: ${filePath || 'unknown'}`);
 
     // Get taint analysis for this function
     // Taint analysis results contain information about which variables are tainted
@@ -868,15 +993,21 @@ export class CFGVisualizer {
     const taintedBlocks = new Set<string>(); // Track blocks that contain tainted variables
     const taintByBlock = new Map<string, Set<string>>(); // blockId -> Set of tainted variables
     
+    LoggingConfig.subsection('VizTaint', 'Taint Analysis Data');
+    LoggingConfig.log('VizTaint', `Total Taint Entries: ${taintInfo.length}`);
+    
     // Process each taint entry to build taint tracking structures
     // This allows us to highlight tainted blocks in the visualization
-    taintInfo.forEach((taint: TaintInfo) => {
+    taintInfo.forEach((taint: TaintInfo, index: number) => {
       if (taint.tainted) {
         taintedVars.add(taint.variable);
+        LoggingConfig.detail('VizTaint', `Taint[${index}]: Variable="${taint.variable}", Labels=[${taint.labels?.join(', ') || 'none'}], Source="${taint.source || 'unknown'}"`);
+        
         // Mark blocks in propagation path as tainted
         // Propagation path format: "functionName:blockId" or "blockId"
         // We extract the blockId to mark blocks that taint flows through
         if (taint.propagationPath && taint.propagationPath.length > 0) {
+          LoggingConfig.verbose('VizTaint', `  Propagation Path: [${taint.propagationPath.join(' -> ')}]`);
           taint.propagationPath.forEach((path: string) => {
             // Extract block ID from path (format: "functionName:blockId" or just "blockId")
             const blockId = path.split(':')[0];
@@ -886,6 +1017,7 @@ export class CFGVisualizer {
         // Also mark the source location block as tainted
         // Source location is where taint was first introduced (e.g., scanf call)
         if (taint.sourceLocation?.blockId) {
+          LoggingConfig.detail('VizTaint', `  Source Location: Block=${taint.sourceLocation.blockId}, Line=${taint.sourceLocation.range?.start?.line || 'unknown'}`);
           taintedBlocks.add(taint.sourceLocation.blockId);
           // Track which variables are tainted in each block
           if (!taintByBlock.has(taint.sourceLocation.blockId)) {
@@ -895,13 +1027,22 @@ export class CFGVisualizer {
         }
       }
     });
+    
+    LoggingConfig.log('VizTaint', `Total Tainted Variables: ${taintedVars.size} [${Array.from(taintedVars).join(', ')}]`);
+    LoggingConfig.log('VizTaint', `Total Tainted Blocks: ${taintedBlocks.size} [${Array.from(taintedBlocks).join(', ')}]`);
 
     // Get vulnerabilities for this function
     const vulnerabilities = state.vulnerabilities.get(funcCFG.name) || [];
     const attackPaths = new Map<string, any>(); // vulnId -> path info
     
-    vulnerabilities.forEach((vuln: Vulnerability) => {
+    LoggingConfig.subsection('VulnerabilityDetection', 'Vulnerabilities');
+    LoggingConfig.log('VulnerabilityDetection', `Total Vulnerabilities: ${vulnerabilities.length}`);
+    
+    vulnerabilities.forEach((vuln: Vulnerability, index: number) => {
+      LoggingConfig.detail('VulnerabilityDetection', `Vuln[${index}]: Type="${vuln.type}", Severity="${vuln.severity}", ID="${vuln.id}"`);
+      LoggingConfig.verbose('VulnerabilityDetection', `  Description: ${vuln.description}`);
       if (vuln.sourceToSinkPath && vuln.sourceToSinkPath.length > 0) {
+        LoggingConfig.detail('VulnerabilityDetection', `  Attack Path: [${vuln.sourceToSinkPath.join(' -> ')}]`);
         const pathBlocks = vuln.sourceToSinkPath.map(p => p.split(':')[0]);
         attackPaths.set(vuln.id, {
           blocks: pathBlocks,
@@ -934,12 +1075,17 @@ export class CFGVisualizer {
       // 1. Being defined from a tainted source (e.g., x = tainted_var)
       // 2. Being used in a tainted context (e.g., printf(tainted_var))
       const blockTaintedVars: string[] = [];
+      const blockTaintInfos: TaintInfo[] = []; // Track full TaintInfo objects for taint type detection
+      
       block.statements.forEach(stmt => {
         // Check variables defined in this statement (left-hand side of assignments)
         // If a variable is assigned from a tainted source, it becomes tainted
         stmt.variables?.defined.forEach(v => {
           if (taintedVars.has(v)) {
             blockTaintedVars.push(v);
+            // Find the TaintInfo for this variable
+            const varTaintInfos = taintInfo.filter((t: TaintInfo) => t.variable === v && t.tainted);
+            blockTaintInfos.push(...varTaintInfos);
           }
         });
         // Check variables used in this statement (right-hand side of assignments, function args)
@@ -947,9 +1093,25 @@ export class CFGVisualizer {
         stmt.variables?.used.forEach(v => {
           if (taintedVars.has(v)) {
             blockTaintedVars.push(v);
+            // Find the TaintInfo for this variable
+            const varTaintInfos = taintInfo.filter((t: TaintInfo) => t.variable === v && t.tainted);
+            blockTaintInfos.push(...varTaintInfos);
           }
         });
       });
+      
+      // CRITICAL FIX: Check for synthetic block variables (__block_{blockId}__)
+      // These represent blocks with return statements but no variables
+      const syntheticVarName = `__block_${blockId}__`;
+      if (taintedVars.has(syntheticVarName)) {
+        const syntheticTaintInfos = taintInfo.filter((t: TaintInfo) => 
+          t.variable === syntheticVarName && t.tainted
+        );
+        if (syntheticTaintInfos.length > 0) {
+          blockTaintedVars.push(syntheticVarName);
+          blockTaintInfos.push(...syntheticTaintInfos);
+        }
+      }
       
       // If block has tainted variables, mark it as tainted
       // This ensures blocks are highlighted in red in the visualization
@@ -968,9 +1130,120 @@ export class CFGVisualizer {
         blockTaintVars.forEach(v => {
           if (!blockTaintedVars.includes(v)) {
             blockTaintedVars.push(v);
+            // Find the TaintInfo for this variable
+            const varTaintInfos = taintInfo.filter((t: TaintInfo) => t.variable === v && t.tainted);
+            blockTaintInfos.push(...varTaintInfos);
           }
         });
       }
+      
+      // Determine taint type for proper coloring
+      // Check for data-flow taint (explicit propagation) and control-dependent taint (implicit flow)
+      let hasDataFlowTaint = blockTaintInfos.some((t: TaintInfo) => 
+        t.labels && t.labels.some(l => l !== TaintLabel.CONTROL_DEPENDENT)
+      );
+      let hasControlDependentTaint = blockTaintInfos.some((t: TaintInfo) => 
+        t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)
+      );
+      
+      // CRITICAL FIX: Detect synthetic taint separately (blocks with return statements but no variables)
+      let hasSyntheticTaint = false;
+      if (blockTaintInfos.some((t: TaintInfo) => t.variable === syntheticVarName)) {
+        hasSyntheticTaint = true;
+        // Synthetic taint is a type of control-dependent taint, but we'll mark it separately for coloring
+        hasControlDependentTaint = true;
+        LoggingConfig.raw(`[VizColors] Block ${blockId} detected as synthetic taint via variable ${syntheticVarName}`);
+      }
+      
+      // CRITICAL FIX: Also check if block is control-dependent by checking predecessors
+      // This handles cases like return statements that don't define/use variables
+      // but are still control-dependent (e.g., return 1; in a branch)
+      if (!hasControlDependentTaint && block.predecessors.length > 0) {
+        // Check if any predecessor is a conditional block with tainted condition
+        for (const predId of block.predecessors) {
+          const predBlock = funcCFG.blocks.get(predId);
+          if (predBlock) {
+            // Check if predecessor is conditional (has multiple successors = branching)
+            const isConditional = predBlock.successors.length > 1;
+            if (isConditional) {
+              // Check if predecessor uses tainted variables in its condition
+              const predHasTaintedCondition = predBlock.statements.some(stmt => {
+                const stmtText = stmt.text || stmt.content || '';
+                // Check if statement contains comparison operators (conditional)
+                const hasComparison = /[><=!]=?/.test(stmtText) || 
+                                     stmtText.includes('&&') || 
+                                     stmtText.includes('||') ||
+                                     stmt.type === StatementType.CONDITIONAL ||
+                                     stmt.type === StatementType.LOOP;
+                if (hasComparison) {
+                  // Check if any variables used in this condition are tainted
+                  return stmt.variables?.used.some(v => taintedVars.has(v)) || false;
+                }
+                return false;
+              });
+              
+              if (predHasTaintedCondition) {
+                // This block is control-dependent!
+                hasControlDependentTaint = true;
+                LoggingConfig.raw(`[VizColors] Block ${blockId} detected as control-dependent via predecessor ${predId}`);
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // COMPREHENSIVE LOGGING: Node Color Decision
+      LoggingConfig.subsection('VizColors', `Block ${blockId} Color Decision`);
+      LoggingConfig.detail('VizColors', `Block ID: ${blockId}`);
+      LoggingConfig.detail('VizColors', `Block Label: ${block.label || 'unnamed'}`);
+      LoggingConfig.detail('VizColors', `Statements: ${block.statements.length}`);
+      LoggingConfig.detail('VizColors', `Tainted Vars in Block: [${blockTaintedVars.join(', ')}]`);
+      LoggingConfig.detail('VizColors', `TaintInfo Count: ${blockTaintInfos.length}`);
+      LoggingConfig.detail('VizColors', `Has Data-Flow Taint: ${hasDataFlowTaint}`);
+      LoggingConfig.detail('VizColors', `Has Control-Dependent Taint: ${hasControlDependentTaint}`);
+      
+      // Determine node color based on taint type
+      // Color scheme: Yellow (data-flow), Orange (control-dependent), Purple (mixed), Magenta (synthetic), Light blue (normal)
+      // CRITICAL FIX: Add synthetic taint color (magenta) for blocks with return statements but no variables
+      let nodeColor: string;
+      let nodeBorder: string;
+      let colorReason: string;
+      
+      // CRITICAL FIX: Check for synthetic taint FIRST (it's a special case of control-dependent)
+      if (hasSyntheticTaint && !hasDataFlowTaint) {
+        // Magenta: Synthetic taint only (return statements without variables)
+        nodeColor = '#c77dff';  // Magenta/Purple-pink
+        nodeBorder = '#9d4edd';  // Dark purple
+        colorReason = 'synthetic (return statement without variables)';
+      } else if (hasDataFlowTaint && hasControlDependentTaint) {
+        // Purple: Mixed taint (both data-flow and control-dependent)
+        nodeColor = '#9d4edd';
+        nodeBorder = '#7b2cbf';
+        colorReason = 'PURPLE (Mixed: Data-flow + Control-dependent)';
+      } else if (hasControlDependentTaint) {
+        // Orange: Control-dependent only (implicit flow)
+        nodeColor = '#ffa94d';
+        nodeBorder = '#ff8800';
+        colorReason = 'ORANGE (Control-dependent only)';
+      } else if (hasDataFlowTaint) {
+        // Yellow: Data-flow only (explicit propagation)
+        nodeColor = '#ffd60a';
+        nodeBorder = '#ffc300';
+        colorReason = 'YELLOW (Data-flow only)';
+      } else {
+        // Normal block (no taint) - ALWAYS use this for blocks without explicit labels
+        // CRITICAL FIX: Removed fallback that assigned yellow to blocks with tainted vars but no labels
+        // This ensures we only have 4 colors total
+        nodeColor = '#e8f4f8';
+        nodeBorder = '#2e7d32';
+        colorReason = 'LIGHT BLUE (Normal - no taint)';
+      }
+      
+      LoggingConfig.log('VizColors', `  -> Color Decision: ${colorReason}`);
+      LoggingConfig.log('VizColors', `  -> Background: ${nodeColor}, Border: ${nodeBorder}`);
+      
+      const isTainted = blockTaintedVars.length > 0 || hasDataFlowTaint || hasControlDependentTaint;
 
       // Check if this block is part of any attack path
       const blockVulnerabilities: Vulnerability[] = [];
@@ -988,10 +1261,37 @@ export class CFGVisualizer {
         }
       });
 
-      // Create node
+      // Generate descriptive block name
+      const descriptiveName = this.generateDescriptiveBlockName(block, blockId);
+      const blockLabel = block.label || (block.isEntry ? 'Entry' : block.isExit ? 'Exit' : `B${blockId}`);
+      // Clean, natural label - just the descriptive name (function/block info in hover)
+      const nodeLabel = descriptiveName;
+      // Context info for hover text
+      const hoverContext = `${funcCFG.name} :: ${blockLabel}`;
+      
+      // Get the start line for this block (for double-click navigation)
+      const startLine = this.getBlockStartLine(block);
+      
+      // Build tooltip with taint type information
+      // CRITICAL FIX: Make tooltip consistent with coloring logic - only show taint type if labels are present
+      let taintTypeText = '';
+      if (hasDataFlowTaint && hasControlDependentTaint) {
+        taintTypeText = '\nTaint Type: Mixed (Data-flow + Control-dependent)';
+      } else if (hasControlDependentTaint) {
+        taintTypeText = '\nTaint Type: Control-dependent (Implicit Flow)';
+      } else if (hasDataFlowTaint) {
+        taintTypeText = '\nTaint Type: Data-flow (Explicit Flow)';
+      }
+      // CRITICAL FIX: Removed fallback that showed "Data-flow" for blocks with tainted vars but no labels
+      // This ensures tooltip matches the coloring (normal blocks show no taint type)
+      
+      // Create node with proper color configuration
       const node = {
         id: blockId,
-        label: block.label,
+        label: nodeLabel,
+        // Include context for hover text display in webview
+        hoverContext: hoverContext,
+        blockLabel: blockLabel,
         statements: block.statements.map(s => ({
           text: s.text,
           type: s.type,
@@ -1006,7 +1306,9 @@ export class CFGVisualizer {
           out: await this.serializeRD(rd.out, state)
         } : null,
         taintInfo: {
-          isTainted: taintedBlocks.has(blockId),
+          isTainted: isTainted,
+          hasDataFlowTaint: hasDataFlowTaint,
+          hasControlDependentTaint: hasControlDependentTaint,
           taintedVariables: Array.from(new Set(blockTaintedVars)),
           allTaintedVars: Array.from(taintedVars)
         },
@@ -1016,7 +1318,22 @@ export class CFGVisualizer {
           isSource: pathIndex === 0,
           isSink: pathIndex === (attackPaths.get(pathId)?.blocks.length || 0) - 1,
           vulnerabilities: blockVulnerabilities
-        } : null
+        } : null,
+        // Navigation info for double-click to open file at block location
+        filePath: filePath,
+        startLine: startLine,
+        functionName: funcCFG.name,
+        // Color configuration based on taint type
+        color: {
+          background: nodeColor,
+          border: nodeBorder,
+          highlight: {
+            background: isTainted ? '#a29bfe' : '#74b9ff',
+            border: isTainted ? '#6c5ce7' : '#0984e3'
+          }
+        },
+        // Hover tooltip with context info and taint type
+        title: `${hoverContext}\n${block.statements.length} statement(s)${blockTaintedVars.length > 0 ? '\n⚠ Tainted: ' + Array.from(new Set(blockTaintedVars)).join(', ') : ''}${taintTypeText}${startLine ? '\nLine ' + startLine : ''}\n\nDouble-click to open in editor`
       };
       nodes.push(node);
 
@@ -1059,7 +1376,50 @@ export class CFGVisualizer {
       });
     }
 
-    console.log(`Prepared graph data: ${nodes.length} nodes, ${edges.length} edges for function ${funcCFG.name}`);
+    // ============================================================
+    // COMPREHENSIVE LOGGING: CFG Tab Data Summary
+    // ============================================================
+    LoggingConfig.section('CFGViz', `CFG DATA SUMMARY: ${funcCFG.name}`);
+    LoggingConfig.log('CFGViz', `Total Nodes Created: ${nodes.length}`);
+    LoggingConfig.log('CFGViz', `Total Edges Created: ${edges.length}`);
+    
+    // Node color statistics
+    const colorStats = {
+      yellow: nodes.filter(n => n.color?.background === '#ffd60a').length,
+      orange: nodes.filter(n => n.color?.background === '#ffa94d').length,
+      purple: nodes.filter(n => n.color?.background === '#9d4edd').length,
+      lightBlue: nodes.filter(n => n.color?.background === '#e8f4f8').length
+    };
+    LoggingConfig.table('VizColors', 'Node Color Distribution', {
+      'Yellow (Data-flow)': colorStats.yellow,
+      'Orange (Control-dependent)': colorStats.orange,
+      'Purple (Mixed)': colorStats.purple,
+      'Light Blue (Normal)': colorStats.lightBlue,
+      'Total Tainted': colorStats.yellow + colorStats.orange + colorStats.purple
+    });
+    
+    // Log each node for test validation
+    LoggingConfig.subsection('VizNodes', 'All Nodes Detail');
+    nodes.forEach((node, idx) => {
+      LoggingConfig.detail('VizNodes', `Node[${idx}]: id="${node.id}", label="${node.label}", color="${node.color?.background}", tainted=${node.taintInfo?.isTainted}`);
+      if (node.taintInfo?.isTainted) {
+        LoggingConfig.verbose('VizNodes', `  Tainted Vars: [${node.taintInfo.taintedVariables?.join(', ')}]`);
+        LoggingConfig.verbose('VizNodes', `  Data-flow: ${node.taintInfo.hasDataFlowTaint}, Control-dep: ${node.taintInfo.hasControlDependentTaint}`);
+      }
+    });
+    
+    // Log each edge for test validation
+    LoggingConfig.subsection('VizEdges', 'All Edges Detail');
+    edges.forEach((edge, idx) => {
+      LoggingConfig.detail('VizEdges', `Edge[${idx}]: ${edge.from} -> ${edge.to}${edge.color ? ', color=' + (edge.color.color || edge.color) : ''}`);
+    });
+    
+    LoggingConfig.log('CFGViz', `Attack Paths: ${attackPaths.size}`);
+    attackPaths.forEach((info, vulnId) => {
+      LoggingConfig.detail('VulnerabilityDetection', `Attack Path "${vulnId}": [${info.blocks.join(' -> ')}]`);
+    });
+    
+    console.log(`[CFGViz] Prepared graph data: ${nodes.length} nodes, ${edges.length} edges for function ${funcCFG.name}`);
 
     return { 
       nodes, 
@@ -1072,6 +1432,40 @@ export class CFGVisualizer {
         edges: info.edges
       }))
     };
+  }
+
+  /**
+   * Get the file path for a given function from the analysis state
+   * 
+   * @param state - Analysis state containing fileStates
+   * @param funcName - Name of the function to look up
+   * @returns File path or undefined if not found
+   */
+  private getFilePathForFunction(state: AnalysisState, funcName: string): string | undefined {
+    for (const [filePath, fileState] of state.fileStates) {
+      if (fileState.functions.includes(funcName)) {
+        return filePath;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Get the starting line number for a block
+   * 
+   * @param block - The basic block
+   * @returns Starting line number or undefined if not available
+   */
+  private getBlockStartLine(block: BasicBlock): number | undefined {
+    // First try block's range
+    if (block.range?.start?.line) {
+      return block.range.start.line;
+    }
+    // Fall back to first statement's range
+    if (block.statements.length > 0 && block.statements[0].range?.start?.line) {
+      return block.statements[0].range.start.line;
+    }
+    return undefined;
   }
 
   /**
@@ -1103,7 +1497,13 @@ export class CFGVisualizer {
    * @returns Graph data object with nodes, edges, functions list, and groups
    */
   private prepareInterconnectedCFGData(state: AnalysisState): any {
-    console.log('[CFGVisualizer] Preparing interconnected CFG data');
+    // ============================================================
+    // COMPREHENSIVE LOGGING: Interconnected CFG Data Preparation
+    // ============================================================
+    LoggingConfig.section('InterCFGViz', 'PREPARING INTERCONNECTED CFG DATA');
+    LoggingConfig.log('InterCFGViz', `Total Functions: ${state.cfg.functions.size}`);
+    LoggingConfig.log('InterCFGViz', `Taint Sensitivity: ${state.taintSensitivity || 'precise'}`);
+    
     const nodes: any[] = [];
     const edges: any[] = [];
     const functionGroups = new Map<string, number>();
@@ -1111,15 +1511,26 @@ export class CFGVisualizer {
 
     // Extract call graph data
     const callGraphData = state.callGraph;
-    console.log('[CFGVisualizer] Call graph available:', !!callGraphData);
+    LoggingConfig.log('InterCFGViz', `Call Graph Available: ${!!callGraphData}`);
+    if (callGraphData) {
+      LoggingConfig.detail('CallGraphViz', `Call Graph Functions: ${callGraphData.functions?.size || 0}`);
+      LoggingConfig.detail('CallGraphViz', `Call Graph Edges: ${callGraphData.callsFrom?.size || 0} source functions`);
+    }
 
     // Create nodes for each basic block in each function
     state.cfg.functions.forEach((funcCFG, funcName) => {
-      console.log(`[CFGVisualizer] Processing function: ${funcName} with ${funcCFG.blocks.size} blocks`);
+      LoggingConfig.subsection('InterCFGViz', `Function: ${funcName}`);
+      LoggingConfig.log('InterCFGViz', `  Blocks: ${funcCFG.blocks.size}, Entry: ${funcCFG.entry}, Exit: ${funcCFG.exit}`);
       functionGroups.set(funcName, groupId++);
+      
+      // Get the file path for this function (for double-click navigation)
+      const filePath = this.getFilePathForFunction(state, funcName);
       
       funcCFG.blocks.forEach((block, blockId) => {
         const nodeId = `${funcName}_${blockId}`;
+        
+        // Generate descriptive block name from statements
+        const descriptiveName = this.generateDescriptiveBlockName(block, blockId);
         
         // Create human-readable block label
         let blockLabel: string;
@@ -1132,11 +1543,11 @@ export class CFGVisualizer {
           blockLabel = 'Exit';
         } else {
           // Fallback: use block ID or generate a descriptive name
-          blockLabel = `Block ${blockId}`;
+          blockLabel = `B${blockId}`;
         }
         
-        // Format: "functionName: BlockLabel" (e.g., "fibonacci: Entry", "power: B1")
-        const nodeLabel = `${funcName}: ${blockLabel}`;
+        // Clean, natural label - just the descriptive name (function/block info in hover text)
+        const nodeLabel = descriptiveName;
         
         // Check if this block has tainted variables
         const funcTaint = state.taintAnalysis.get(funcName) || [];
@@ -1150,19 +1561,94 @@ export class CFGVisualizer {
         });
         
         // Check for data-flow taint and control-dependent taint separately
-        const hasDataFlowTaint = blockTaintedVars.some((t: TaintInfo) => 
+        let hasDataFlowTaint = blockTaintedVars.some((t: TaintInfo) => 
           t.labels && t.labels.some(l => l !== TaintLabel.CONTROL_DEPENDENT)
         );
-        const hasControlDependentTaint = blockTaintedVars.some((t: TaintInfo) => 
+        let hasControlDependentTaint = blockTaintedVars.some((t: TaintInfo) => 
           t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)
         );
+        
+        // CRITICAL FIX: Check for synthetic block variables (__block_{blockId}__)
+        // These are created for return statements without variables
+        const syntheticVarName = `__block_${blockId}__`;
+        let hasSyntheticTaint = false;
+        if (!hasControlDependentTaint) {
+          const syntheticTaintInfos = funcTaint.filter((t: TaintInfo) => 
+            t.variable === syntheticVarName && 
+            t.tainted && 
+            t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)
+          );
+          if (syntheticTaintInfos.length > 0) {
+            hasControlDependentTaint = true;
+            hasSyntheticTaint = true;
+            blockTaintedVars.push(...syntheticTaintInfos);
+            LoggingConfig.raw(`[InterCFGViz] Block ${blockId} (${funcName}) detected as synthetic taint via variable ${syntheticVarName}`);
+          }
+        }
+        
+        // CRITICAL FIX: Also check if block is control-dependent by checking predecessors
+        // This handles cases like return statements that don't define/use variables
+        if (!hasControlDependentTaint && block.predecessors.length > 0) {
+          // Get all tainted variables for this function
+          const allTaintedVars = new Set<string>();
+          funcTaint.forEach((t: TaintInfo) => {
+            if (t.tainted) {
+              allTaintedVars.add(t.variable);
+            }
+          });
+          
+          // Check if any predecessor is a conditional block with tainted condition
+          for (const predId of block.predecessors) {
+            const predBlock = funcCFG.blocks.get(predId);
+            if (predBlock) {
+              // Check if predecessor is conditional (has multiple successors = branching)
+              const isConditional = predBlock.successors.length > 1;
+              if (isConditional) {
+                // Check if predecessor uses tainted variables in its condition
+                const predHasTaintedCondition = predBlock.statements.some(stmt => {
+                  const stmtText = stmt.text || stmt.content || '';
+                  // Check if statement contains comparison operators (conditional)
+                  const hasComparison = /[><=!]=?/.test(stmtText) || 
+                                       stmtText.includes('&&') || 
+                                       stmtText.includes('||') ||
+                                       stmt.type === StatementType.CONDITIONAL ||
+                                       stmt.type === StatementType.LOOP;
+                  if (hasComparison) {
+                    // Check if any variables used in this condition are tainted
+                    return stmt.variables?.used.some(v => allTaintedVars.has(v)) || false;
+                  }
+                  return false;
+                });
+                
+                if (predHasTaintedCondition) {
+                  // This block is control-dependent!
+                  hasControlDependentTaint = true;
+                  LoggingConfig.raw(`[InterCFGViz] Block ${blockId} (${funcName}) detected as control-dependent via predecessor ${predId}`);
+                  break;
+                }
+              }
+            }
+          }
+        }
+        
+        // DEBUG: Log taint detection for this block
+        if (blockTaintedVars.length > 0 || hasControlDependentTaint) {
+          const labelsFound = blockTaintedVars.map(t => t.labels?.join(',') || 'none').join('; ');
+          LoggingConfig.raw(`[InterCFGViz] Block ${blockId} (${funcName}): ${blockTaintedVars.length} tainted vars, labels=[${labelsFound}], hasDataFlow=${hasDataFlowTaint}, hasControlDep=${hasControlDependentTaint}`);
+        }
         
         // Determine node color based on taint type
         let nodeColor: string;
         let nodeBorder: string;
         let nodeBorderStyle: string | undefined;
         
-        if (hasDataFlowTaint && hasControlDependentTaint) {
+        // CRITICAL FIX: Check for synthetic taint FIRST (it's a special case of control-dependent)
+        if (hasSyntheticTaint && !hasDataFlowTaint) {
+          // Magenta: Synthetic taint only (return statements without variables)
+          nodeColor = '#c77dff';  // Magenta/Purple-pink
+          nodeBorder = '#9d4edd';  // Dark purple
+          nodeBorderStyle = 'dashed';  // Dashed border to distinguish from regular control-dependent
+        } else if (hasDataFlowTaint && hasControlDependentTaint) {
           // Purple: Mixed taint
           nodeColor = '#9d4edd';  // Purple
           nodeBorder = '#7b2cbf';  // Dark purple
@@ -1187,7 +1673,8 @@ export class CFGVisualizer {
         const isTainted = hasDataFlowTaint || hasControlDependentTaint;
         
         // Create detailed title with statement info
-        let title = `Function: ${funcName}\nBlock: ${blockLabel} (ID: ${blockId})\nStatements: ${block.statements.length}`;
+        const startLine = this.getBlockStartLine(block);
+        let title = `${funcName} :: ${blockLabel}\nStatements: ${block.statements.length}`;
         if (isTainted) {
           title += `\nTainted Variables: ${[...new Set(blockTaintedVars.map((t: TaintInfo) => t.variable))].join(', ')}`;
           if (hasDataFlowTaint && hasControlDependentTaint) {
@@ -1202,6 +1689,10 @@ export class CFGVisualizer {
           const firstStmt = block.statements[0].text.substring(0, 50);
           title += `\nFirst statement: ${firstStmt}${block.statements[0].text.length > 50 ? '...' : ''}`;
         }
+        if (startLine) {
+          title += `\nLine ${startLine}`;
+        }
+        title += `\n\nDouble-click to open in editor`;
         
         // Calculate dynamic size based on data amount
         // Base size: 100px width, scales with:
@@ -1237,7 +1728,7 @@ export class CFGVisualizer {
           borderWidthSelected: 3,
           font: { 
             color: '#333',  // Always black text for readability
-            size: Math.max(10, Math.min(14 - Math.floor(dynamicWidth / 50), 14)) // Scale font size with width
+            size: Math.max(8, Math.min(11 - Math.floor(dynamicWidth / 50), 11)) // Scale font size with width (reduced for compactness)
           },
           shape: 'box',
           width: dynamicWidth,
@@ -1250,7 +1741,11 @@ export class CFGVisualizer {
             isTainted: isTainted,
             hasDataFlowTaint: hasDataFlowTaint,
             hasControlDependentTaint: hasControlDependentTaint,
-            taintedVariables: [...new Set(blockTaintedVars.map((t: TaintInfo) => t.variable))]
+            hasSyntheticTaint: hasSyntheticTaint,
+            taintedVariables: [...new Set(blockTaintedVars.map((t: TaintInfo) => t.variable))],
+            // Navigation info for double-click to open file at block location
+            filePath: filePath,
+            startLine: this.getBlockStartLine(block)
           }
         };
         
@@ -1495,14 +1990,226 @@ export class CFGVisualizer {
       console.log('[CFGVisualizer] Total orange (data flow) edges created:', orangeEdgeCount);
     }
 
-    console.log(`[CFGVisualizer] Interconnected CFG prepared: ${nodes.length} nodes, ${edges.length} edges`);
+    // ============================================================
+    // COMPREHENSIVE LOGGING: Interconnected CFG Summary
+    // ============================================================
+    LoggingConfig.section('InterCFGViz', 'INTERCONNECTED CFG DATA SUMMARY');
+    LoggingConfig.log('InterCFGViz', `Total Nodes: ${nodes.length}`);
+    LoggingConfig.log('InterCFGViz', `Total Edges: ${edges.length}`);
+    LoggingConfig.log('InterCFGViz', `Functions: ${Array.from(functionGroups.keys()).join(', ')}`);
+    
+    // Edge type statistics
+    const edgeStats = {
+      controlFlow: edges.filter(e => e.metadata?.type === 'control_flow').length,
+      functionCall: edges.filter(e => e.metadata?.type === 'function_call').length,
+      dataFlow: edges.filter(e => e.metadata?.type === 'data_flow').length
+    };
+    LoggingConfig.table('VizEdges', 'Edge Type Distribution', {
+      'Green (Control Flow)': edgeStats.controlFlow,
+      'Blue (Function Calls)': edgeStats.functionCall,
+      'Orange (Data Flow)': edgeStats.dataFlow,
+      'Total': edges.length
+    });
+    
+    // Node color statistics
+    const nodeColorStats = {
+      yellow: nodes.filter(n => n.color?.background === '#ffd60a').length,
+      orange: nodes.filter(n => n.color?.background === '#ffa94d').length,
+      purple: nodes.filter(n => n.color?.background === '#9d4edd').length,
+      magenta: nodes.filter(n => n.color?.background === '#c77dff').length,
+      lightBlue: nodes.filter(n => n.color?.background === '#e8f4f8').length
+    };
+    LoggingConfig.table('VizColors', 'Interconnected CFG Node Colors', {
+      'Yellow (Data-flow)': nodeColorStats.yellow,
+      'Orange (Control-dependent)': nodeColorStats.orange,
+      'Purple (Mixed)': nodeColorStats.purple,
+      'Light Blue (Normal)': nodeColorStats.lightBlue,
+      'Total Tainted': nodeColorStats.yellow + nodeColorStats.orange + nodeColorStats.purple
+    });
+    
+    // Log all nodes for test validation
+    LoggingConfig.subsection('VizNodes', 'Interconnected CFG Nodes Detail');
+    nodes.forEach((node, idx) => {
+      LoggingConfig.detail('VizNodes', `InterNode[${idx}]: id="${node.id}", label="${node.label}", func="${node.metadata?.function}", color="${node.color?.background}"`);
+      if (node.metadata?.isTainted) {
+        LoggingConfig.verbose('VizNodes', `  Tainted: dataFlow=${node.metadata?.hasDataFlowTaint}, controlDep=${node.metadata?.hasControlDependentTaint}`);
+        LoggingConfig.verbose('VizNodes', `  Variables: [${node.metadata?.taintedVariables?.join(', ')}]`);
+      }
+    });
+    
+    // Log all edges for test validation
+    LoggingConfig.subsection('VizEdges', 'Interconnected CFG Edges Detail');
+    edges.forEach((edge, idx) => {
+      const edgeType = edge.metadata?.type || 'unknown';
+      const colorName = edgeType === 'control_flow' ? 'green' : edgeType === 'function_call' ? 'blue' : 'orange';
+      LoggingConfig.detail('VizEdges', `InterEdge[${idx}]: ${edge.from} -> ${edge.to} [${colorName}/${edgeType}]`);
+    });
+    
+    console.log(`[InterCFGViz] Interconnected CFG prepared: ${nodes.length} nodes, ${edges.length} edges`);
 
-    return {
+    const result = {
       nodes,
       edges,
       functions: Array.from(functionGroups.keys()),
-      groups: Object.fromEntries(functionGroups)
+      groups: Object.fromEntries(functionGroups),
+      // CRITICAL FIX: Store sensitivity in interconnected data to detect when it needs regeneration
+      taintSensitivity: state.taintSensitivity || 'precise'
     };
+    
+    LoggingConfig.raw(`[InterCFGViz] ✅ Interconnected CFG data prepared with sensitivity: ${result.taintSensitivity}`);
+    return result;
+  }
+
+  /**
+   * Generate descriptive block name from block statements
+   * 
+   * Analyzes block statements to create a meaningful name like:
+   * - "if_user_input_>_0" for conditional blocks
+   * - "assign_x" for assignment blocks
+   * - "call_printf" for function call blocks
+   * - "return_result" for return blocks
+   * - "while_loop_var_>_0" for loop blocks
+   * 
+   * @param block - Basic block to analyze
+   * @param blockId - Block ID for fallback
+   * @returns Descriptive name string
+   */
+  private generateDescriptiveBlockName(block: BasicBlock, blockId: string): string {
+    // Handle special blocks
+    if (block.isEntry) {
+      return 'Entry';
+    }
+    if (block.isExit) {
+      return 'Exit';
+    }
+    
+    if (!block.statements || block.statements.length === 0) {
+      return `Empty Block`;
+    }
+    
+    // Analyze first significant statement
+    for (const stmt of block.statements) {
+      const text = (stmt.text || stmt.content || '').trim();
+      if (!text || text.length === 0) continue;
+      
+      // Extract meaningful parts - use natural, readable format
+      let name = '';
+      
+      // Check for conditionals (if, else, switch, case)
+      if (text.match(/^\s*if\s*\(/i)) {
+        const condition = text.replace(/^\s*if\s*\(/i, '').replace(/\)\s*\{?\s*$/, '').trim();
+        const cleanCondition = this.sanitizeForNaturalLabel(condition);
+        name = `if (${cleanCondition})`;
+      } else if (text.match(/^\s*else\s+if\s*\(/i)) {
+        const condition = text.replace(/^\s*else\s+if\s*\(/i, '').replace(/\)\s*\{?\s*$/, '').trim();
+        const cleanCondition = this.sanitizeForNaturalLabel(condition);
+        name = `else if (${cleanCondition})`;
+      } else if (text.match(/^\s*else\s*\{?/i)) {
+        name = 'else';
+      } else if (text.match(/^\s*switch\s*\(/i)) {
+        const condition = text.replace(/^\s*switch\s*\(/i, '').replace(/\)\s*\{?\s*$/, '').trim();
+        const cleanCondition = this.sanitizeForNaturalLabel(condition);
+        name = `switch (${cleanCondition})`;
+      } else if (text.match(/^\s*case\s+/i)) {
+        const caseValue = text.replace(/^\s*case\s+/i, '').replace(/:\s*$/, '').trim();
+        name = `case ${caseValue}`;
+      } else if (text.match(/^\s*default\s*:/i)) {
+        name = 'default';
+      }
+      // Check for loops
+      else if (text.match(/^\s*while\s*\(/i)) {
+        const condition = text.replace(/^\s*while\s*\(/i, '').replace(/\)\s*\{?\s*$/, '').trim();
+        const cleanCondition = this.sanitizeForNaturalLabel(condition);
+        name = `while (${cleanCondition})`;
+      } else if (text.match(/^\s*for\s*\(/i)) {
+        const forParts = text.replace(/^\s*for\s*\(/i, '').replace(/\)\s*\{?\s*$/, '').trim();
+        // Extract condition part (middle part of for loop)
+        const parts = forParts.split(';');
+        if (parts.length >= 2) {
+          const cleanCondition = this.sanitizeForNaturalLabel(parts[1].trim());
+          name = `for (${cleanCondition})`;
+        } else {
+          name = `for loop`;
+        }
+      } else if (text.match(/^\s*do\s*\{/i)) {
+        name = 'do-while';
+      }
+      // Check for returns
+      else if (text.match(/^\s*return\s+/i)) {
+        const returnValue = text.replace(/^\s*return\s+/i, '').replace(/;\s*$/, '').trim();
+        if (returnValue && returnValue !== 'void' && returnValue.length > 0) {
+          const cleanReturn = this.sanitizeForNaturalLabel(returnValue);
+          name = `return ${cleanReturn}`;
+        } else {
+          name = 'return';
+        }
+      }
+      // Check for function calls
+      else if (text.match(/^\s*\w+\s*\(/)) {
+        const funcMatch = text.match(/^\s*(\w+)\s*\(/);
+        if (funcMatch) {
+          name = `${funcMatch[1]}()`;
+        }
+      }
+      // Check for assignments
+      else if (text.includes('=') && !text.match(/[<>=!]=/)) {
+        const assignMatch = text.match(/^\s*(\w+)\s*=/);
+        if (assignMatch) {
+          name = `${assignMatch[1]} = ...`;
+        }
+      }
+      // Check for declarations
+      else if (text.match(/^\s*(int|char|float|double|void|bool|auto|const)\s+\w+/)) {
+        const declMatch = text.match(/^\s*(\w+)\s+(\w+)/);
+        if (declMatch) {
+          name = `${declMatch[1]} ${declMatch[2]}`;
+        }
+      }
+      
+      if (name) {
+        return name;
+      }
+    }
+    
+    // Fallback: use first statement text (truncated and cleaned)
+    const firstStmt = block.statements[0]?.text || block.statements[0]?.content || '';
+    if (firstStmt) {
+      const truncated = firstStmt.substring(0, 25).trim();
+      return this.sanitizeForNaturalLabel(truncated) || `Block ${blockId}`;
+    }
+    
+    return `Block ${blockId}`;
+  }
+  
+  /**
+   * Sanitize text for natural, readable labels
+   * Preserves readability while limiting length
+   */
+  private sanitizeForNaturalLabel(text: string): string {
+    if (!text) return '';
+    // Remove excessive whitespace
+    let cleaned = text.replace(/\s+/g, ' ').trim();
+    // Truncate if too long
+    if (cleaned.length > 20) {
+      cleaned = cleaned.substring(0, 18) + '...';
+    }
+    return cleaned;
+  }
+  
+  /**
+   * Sanitize text for use in block labels
+   * Replaces special characters with underscores and limits length
+   */
+  private sanitizeForLabel(text: string): string {
+    if (!text) return '';
+    
+    return text
+      .replace(/[^a-zA-Z0-9_<>=\s]/g, '_')  // Replace special chars with underscore
+      .replace(/\s+/g, '_')                  // Replace spaces with underscore
+      .replace(/_+/g, '_')                    // Collapse multiple underscores
+      .replace(/^_|_$/g, '')                  // Remove leading/trailing underscores
+      .substring(0, 40)                       // Limit length
+      .toLowerCase();
   }
 
   /**
@@ -1578,11 +2285,19 @@ export class CFGVisualizer {
    * Prepare call graph data for visualization
    */
   private prepareCallGraphData(callGraph: any): any {
+    // ============================================================
+    // COMPREHENSIVE LOGGING: Call Graph Data Preparation
+    // ============================================================
+    LoggingConfig.section('CallGraphViz', 'PREPARING CALL GRAPH DATA');
+    LoggingConfig.log('CallGraphViz', `Functions in Call Graph: ${callGraph.functions?.size || 0}`);
+    LoggingConfig.log('CallGraphViz', `Total Calls: ${callGraph.calls?.length || 0}`);
+    
     const nodes: any[] = [];
     const edges: any[] = [];
 
     // Add function nodes
     callGraph.functions.forEach((metadata: any, funcName: string) => {
+      LoggingConfig.detail('CallGraphViz', `Function Node: "${funcName}", external=${metadata.isExternal}, recursive=${metadata.isRecursive}, params=[${metadata.parameters.map((p: any) => p.name).join(', ')}]`);
       nodes.push({
         id: funcName,
         label: funcName,
@@ -1594,7 +2309,7 @@ export class CFGVisualizer {
     });
 
     // Add call edges
-    callGraph.calls.forEach((call: any) => {
+    callGraph.calls.forEach((call: any, idx: number) => {
       // Build label with actual arguments
       const argsLabel = call.arguments.actual && call.arguments.actual.length > 0
         ? call.arguments.actual.slice(0, 3).join(', ') + (call.arguments.actual.length > 3 ? '...' : '')
@@ -1606,6 +2321,8 @@ export class CFGVisualizer {
       // Combine into full label
       const fullLabel = `${argsLabel}\n${returnLabel}`;
       
+      LoggingConfig.detail('CallGraphViz', `Call Edge[${idx}]: ${call.callerId} -> ${call.calleeId}, args=[${call.arguments.actual?.join(', ') || 'none'}], returnUsed=${call.returnValueUsed}`);
+      
       edges.push({
         from: call.callerId,
         to: call.calleeId,
@@ -1616,6 +2333,10 @@ export class CFGVisualizer {
       });
     });
 
+    // Summary logging
+    LoggingConfig.log('CallGraphViz', `Call Graph Summary: ${nodes.length} function nodes, ${edges.length} call edges`);
+    LoggingConfig.verbose('CallGraphViz', 'Call Graph Nodes', nodes.map(n => ({ id: n.id, external: n.isExternal, recursive: n.isRecursive })));
+
     return { nodes, edges };
   }
 
@@ -1623,6 +2344,11 @@ export class CFGVisualizer {
    * Prepare IPA data for display
    */
   private prepareIPAData(state: AnalysisState, functionName: string): any {
+    // ============================================================
+    // COMPREHENSIVE LOGGING: IPA Data Preparation
+    // ============================================================
+    LoggingConfig.section('InterProceduralRD', `PREPARING IPA DATA: ${functionName}`);
+    
     const ipaData: any = {
       parameterAnalysis: null,
       returnValueAnalysis: null,
@@ -1632,16 +2358,100 @@ export class CFGVisualizer {
     // Get parameter analysis for this function
     if (state.parameterAnalysis && state.parameterAnalysis.has(functionName)) {
       ipaData.parameterAnalysis = state.parameterAnalysis.get(functionName);
+      LoggingConfig.log('ParameterAnalysis', `Parameter Analysis Found: ${JSON.stringify(ipaData.parameterAnalysis)}`);
+    } else {
+      LoggingConfig.detail('ParameterAnalysis', `No parameter analysis for ${functionName}`);
     }
 
     // Get return value analysis for this function
     if (state.returnValueAnalysis && state.returnValueAnalysis.has(functionName)) {
-      ipaData.returnValueAnalysis = state.returnValueAnalysis.get(functionName);
+      const returnValues = state.returnValueAnalysis.get(functionName)!;
+      
+      // CRITICAL FIX: Check if return values are tainted (including synthetic taint)
+      // Get taint analysis for this function
+      const taintInfo = state.taintAnalysis.get(functionName) || [];
+      
+      // Enhance return values with taint information
+      const enhancedReturns = returnValues.map((ret: any) => {
+        const retInfo: any = { ...ret };
+        
+        // Check if this return statement is tainted
+        // 1. Check if return value uses tainted variables
+        if (ret.usedVariables && ret.usedVariables.length > 0) {
+          const hasTaintedVar = ret.usedVariables.some((varName: string) => 
+            taintInfo.some((t: TaintInfo) => t.variable === varName && t.tainted)
+          );
+          if (hasTaintedVar) {
+            retInfo.isTainted = true;
+            retInfo.taintType = 'data-flow';
+          }
+        }
+        
+        // 2. Check for synthetic taint (return statements without variables, e.g., return 1;)
+        // Synthetic taint is marked with __block_{blockId}__
+        if (!retInfo.isTainted && ret.type === 'constant') {
+          const syntheticVarName = `__block_${ret.blockId}__`;
+          const hasSyntheticTaint = taintInfo.some((t: TaintInfo) => 
+            t.variable === syntheticVarName && 
+            t.tainted && 
+            t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)
+          );
+          if (hasSyntheticTaint) {
+            retInfo.isTainted = true;
+            retInfo.taintType = 'synthetic';
+          }
+        }
+        
+        // 3. Check if return block is control-dependent (even without explicit variables)
+        if (!retInfo.isTainted) {
+          const funcCFG = state.cfg.functions.get(functionName);
+          if (funcCFG) {
+            const retBlock = funcCFG.blocks.get(ret.blockId);
+            if (retBlock && retBlock.predecessors.length > 0) {
+              // Check if any predecessor is a conditional block with tainted condition
+              for (const predId of retBlock.predecessors) {
+                const predBlock = funcCFG.blocks.get(predId);
+                if (predBlock && predBlock.successors.length > 1) {
+                  // Predecessor is conditional (branching)
+                  const predHasTaintedCondition = predBlock.statements.some(stmt => {
+                    const stmtText = stmt.text || stmt.content || '';
+                    const hasComparison = /[><=!]=?/.test(stmtText) || 
+                                         stmtText.includes('&&') || 
+                                         stmtText.includes('||') ||
+                                         stmt.type === StatementType.CONDITIONAL ||
+                                         stmt.type === StatementType.LOOP;
+                    if (hasComparison) {
+                      return stmt.variables?.used.some(v => 
+                        taintInfo.some((t: TaintInfo) => t.variable === v && t.tainted)
+                      ) || false;
+                    }
+                    return false;
+                  });
+                  
+                  if (predHasTaintedCondition) {
+                    retInfo.isTainted = true;
+                    retInfo.taintType = 'control-dependent';
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        return retInfo;
+      });
+      
+      ipaData.returnValueAnalysis = enhancedReturns;
+      LoggingConfig.log('ReturnValueAnalysis', `Return Value Analysis Found: ${enhancedReturns.length} returns, ${enhancedReturns.filter((r: any) => r.isTainted).length} tainted`);
+    } else {
+      LoggingConfig.detail('ReturnValueAnalysis', `No return value analysis for ${functionName}`);
     }
 
     // Get inter-procedural reaching definitions
     if (state.interProceduralRD && state.interProceduralRD.has(functionName)) {
       const funcRD = state.interProceduralRD.get(functionName);
+      LoggingConfig.log('InterProceduralRD', `Inter-procedural RD Found: ${funcRD?.size || 0} blocks`);
       // CRITICAL FIX (LOGIC.md #12): Add type guard instead of non-null assertion
       if (funcRD) {
         ipaData.interProceduralRD = Array.from(funcRD.entries()).map(([blockId, rdInfo]: [string, any]) => ({
@@ -1673,15 +2483,40 @@ export class CFGVisualizer {
    * Prepare taint analysis data for display
    */
   private prepareTaintData(state: AnalysisState, functionName: string): any {
+    // ============================================================
+    // COMPREHENSIVE LOGGING: Taint Data Preparation
+    // ============================================================
+    LoggingConfig.section('TaintAnalysis', `PREPARING TAINT DATA: ${functionName}`);
+    LoggingConfig.log('TaintAnalysis', `Taint Sensitivity: ${state.taintSensitivity || 'precise'}`);
+    
     const taintInfo = state.taintAnalysis.get(functionName) || [];
     const vulnerabilities = state.vulnerabilities.get(functionName) || [];
     
-    LoggingConfig.log('CFGViz', `[CFGVisualizer] prepareTaintData for ${functionName}:`, {
-      taintInfoCount: taintInfo.length,
-      vulnerabilitiesCount: vulnerabilities.length,
-      taintInfoSample: taintInfo.length > 0 ? taintInfo[0] : null,
-      vulnerabilitiesSample: vulnerabilities.length > 0 ? vulnerabilities[0] : null
+    LoggingConfig.log('TaintAnalysis', `Total Taint Entries: ${taintInfo.length}`);
+    LoggingConfig.log('TaintAnalysis', `Total Vulnerabilities: ${vulnerabilities.length}`);
+    
+    // Detailed taint info logging
+    LoggingConfig.subsection('TaintSources', 'Taint Source Details');
+    taintInfo.forEach((taint: TaintInfo, idx: number) => {
+      if (taint.tainted) {
+        LoggingConfig.detail('TaintSources', `Taint[${idx}]: var="${taint.variable}", source="${taint.source}", labels=[${taint.labels?.join(', ') || 'none'}]`);
+        LoggingConfig.verbose('TaintSources', `  Category: ${taint.sourceCategory || 'unknown'}, SourceFunc: ${taint.sourceFunction || 'N/A'}`);
+        if (taint.propagationPath?.length) {
+          LoggingConfig.verbose('TaintSources', `  PropagationPath: [${taint.propagationPath.join(' -> ')}]`);
+        }
+      }
     });
+    
+    // Count taint by label type
+    const labelStats = {
+      userInput: taintInfo.filter((t: TaintInfo) => t.labels?.includes(TaintLabel.USER_INPUT)).length,
+      derived: taintInfo.filter((t: TaintInfo) => t.labels?.includes(TaintLabel.DERIVED)).length,
+      controlDependent: taintInfo.filter((t: TaintInfo) => t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)).length,
+      fileContent: taintInfo.filter((t: TaintInfo) => t.labels?.includes(TaintLabel.FILE_CONTENT)).length,
+      networkData: taintInfo.filter((t: TaintInfo) => t.labels?.includes(TaintLabel.NETWORK_DATA)).length,
+      database: taintInfo.filter((t: TaintInfo) => t.labels?.includes(TaintLabel.DATABASE)).length
+    };
+    LoggingConfig.table('TaintAnalysis', 'Taint Label Distribution', labelStats);
     
     // Separate TaintVulnerability from other Vulnerability types
     const taintVulnerabilities = vulnerabilities.filter((v: any) => 
@@ -1689,7 +2524,10 @@ export class CFGVisualizer {
                   'buffer_overflow', 'code_injection', 'integer_overflow'].includes(v.type)
     );
     
-    LoggingConfig.log('CFGViz', `[CFGVisualizer] Filtered taint vulnerabilities: ${taintVulnerabilities.length} out of ${vulnerabilities.length}`);
+    LoggingConfig.log('TaintSinks', `Taint-related Vulnerabilities: ${taintVulnerabilities.length} out of ${vulnerabilities.length} total`);
+    taintVulnerabilities.forEach((vuln: any, idx: number) => {
+      LoggingConfig.detail('TaintSinks', `Vuln[${idx}]: type="${vuln.type}", severity="${vuln.severity}", source="${vuln.source}", sink="${vuln.sink}"`);
+    });
     
     // Group taint info by variable
     const taintByVariable = new Map<string, TaintInfo[]>();
@@ -1701,7 +2539,7 @@ export class CFGVisualizer {
       }
     });
     
-    LoggingConfig.log('CFGViz', `[CFGVisualizer] Tainted variables found: ${taintByVariable.size}`);
+    LoggingConfig.log('TaintAnalysis', `Unique Tainted Variables: ${taintByVariable.size}`);
     
     // Prepare taint sources summary
     const sourcesByCategory = new Map<string, number>();
@@ -2066,6 +2904,7 @@ export class CFGVisualizer {
     // Calculate legend counts from interconnectedData
     let dataFlowTaintBlocks = 0;
     let controlDependentTaintBlocks = 0;
+    let syntheticTaintBlocks = 0;
     let mixedTaintBlocks = 0;
     let normalBlocks = 0;
     let controlFlowEdges = 0;
@@ -2079,7 +2918,10 @@ export class CFGVisualizer {
       // Count block types
       nodes.forEach((node: any) => {
         if (node.metadata) {
-          if (node.metadata.hasDataFlowTaint && node.metadata.hasControlDependentTaint) {
+          // CRITICAL FIX: Check for synthetic taint first (it's a special case)
+          if (node.metadata.hasSyntheticTaint && !node.metadata.hasDataFlowTaint) {
+            syntheticTaintBlocks++;
+          } else if (node.metadata.hasDataFlowTaint && node.metadata.hasControlDependentTaint) {
             mixedTaintBlocks++;
           } else if (node.metadata.hasControlDependentTaint) {
             controlDependentTaintBlocks++;
@@ -2163,7 +3005,7 @@ export class CFGVisualizer {
         }
         .liveness-info, .rd-info {
             margin-top: 10px;
-            font-size: 0.9em;
+            font-size: 0.8em;
         }
         .liveness-info span, .rd-info span, .taint-info span {
             display: inline-block;
@@ -2174,14 +3016,14 @@ export class CFGVisualizer {
         }
         .taint-info {
             margin-top: 10px;
-            font-size: 0.9em;
+            font-size: 0.8em;
         }
         .taint-warning {
             color: #ff6b6b;
             font-weight: bold;
         }
         .taint-path {
-            font-size: 0.85em;
+            font-size: 0.75em;
             color: #666666;
             margin-left: 15px;
         }
@@ -2327,6 +3169,13 @@ export class CFGVisualizer {
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
             <div style="flex: 1;">
                 <h2 style="margin: 0;">Dataflow Analysis: ${functionName}</h2>
+                <!-- CRITICAL FIX: Add state source indicator -->
+                <div id="stateSourceIndicator" style="margin-top: 5px; font-size: 0.85em; color: #666666;">
+                    <span style="padding: 3px 8px; background: ${(state as any).isFromSavedState ? '#fff3cd' : '#d1ecf1'}; border-radius: 3px; border: 1px solid ${(state as any).isFromSavedState ? '#ffc107' : '#0c5460'};">
+                        Data Source: ${(state as any).isFromSavedState ? 'Saved State' : 'Current Analysis'}
+                        ${(state as any).isFromSavedState && state.timestamp ? ` (${new Date(state.timestamp).toLocaleString()})` : ''}
+                    </span>
+                </div>
                 <div class="function-selector" style="margin-top: 10px;">
             <label>Function: </label>
             <select id="functionSelect">
@@ -2338,11 +3187,11 @@ export class CFGVisualizer {
             </div>
             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
                 <div style="display: flex; gap: 10px;">
-                    <button id="reAnalyzeBtn" style="padding: 8px 16px; background-color: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 14px; font-weight: bold;">🔄 Re-analyze</button>
-                    <button id="saveStateBtn" style="padding: 8px 16px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 14px; font-weight: bold;">💾 Save State</button>
+                    <button id="reAnalyzeBtn" style="padding: 8px 16px; background-color: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: bold;">🔄 Re-analyze</button>
+                    <button id="saveStateBtn" style="padding: 8px 16px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: bold;">💾 Save State</button>
                 </div>
-                <div id="reAnalyzeStatus" style="font-size: 0.85em; color: #666666; text-align: center; min-height: 18px;"></div>
-                <div id="saveStateStatus" style="font-size: 0.85em; color: #666666; text-align: center; min-height: 18px;"></div>
+                <div id="reAnalyzeStatus" style="font-size: 0.75em; color: #666666; text-align: center; min-height: 18px;"></div>
+                <div id="saveStateStatus" style="font-size: 0.75em; color: #666666; text-align: center; min-height: 18px;"></div>
             </div>
         </div>
         <div class="debug-toggle-container" style="margin-top: 10px;">
@@ -2364,6 +3213,32 @@ export class CFGVisualizer {
     
     <!-- CFG Tab Content -->
     <div class="tab-content active" id="cfg-tab">
+        <!-- Color Legend -->
+        <div style="margin-bottom: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6;">
+            <strong style="color: #1864ab; font-size: 0.85em;">Block Color Legend:</strong>
+            <div style="display: flex; gap: 15px; margin-top: 8px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="width: 18px; height: 18px; background: #ffd60a; border: 2px solid #ffc300; border-radius: 2px;"></div>
+                    <span style="color: #333333; font-size: 0.8em;">Data-flow Taint</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="width: 18px; height: 18px; background: #ffa94d; border: 2px solid #ff8800; border-radius: 2px;"></div>
+                    <span style="color: #333333; font-size: 0.8em;">Control-dependent Taint</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="width: 18px; height: 18px; background: #9d4edd; border: 2px solid #7b2cbf; border-radius: 2px;"></div>
+                    <span style="color: #333333; font-size: 0.8em;">Mixed Taint</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="width: 18px; height: 18px; background: #c77dff; border: 2px dashed #9d4edd; border-radius: 2px;"></div>
+                    <span style="color: #333333; font-size: 0.8em;">Synthetic Taint</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="width: 18px; height: 18px; background: #e8f4f8; border: 2px solid #2e7d32; border-radius: 2px;"></div>
+                    <span style="color: #333333; font-size: 0.8em;">Normal Block</span>
+                </div>
+            </div>
+        </div>
         <div id="network" style="width: 100%; height: 600px; border: 1px solid #ccc;"></div>
         <div id="blockInfo" style="margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; color: #333333;">
             <h3 style="color: #333333;">Block Information</h3>
@@ -2411,10 +3286,14 @@ export class CFGVisualizer {
             <h3 style="color: #333333;">Return Value Analysis</h3>
             <div id="return-analysis">
                 ${ipaData.returnValueAnalysis.map((ret: any) => `
-                    <div style="padding: 10px; margin: 5px 0; background: #e8f4f8; border-radius: 5px; color: #333333;">
-                        <strong style="color: #333333;">Return:</strong> <span style="color: #333333;">${ret.value || '(void)'}</span>
+                    <div style="padding: 10px; margin: 5px 0; background: ${ret.isTainted ? (ret.taintType === 'synthetic' ? '#f3e5f5' : ret.taintType === 'control-dependent' ? '#ffe0b2' : '#ffe0e0') : '#e8f4f8'}; border-radius: 5px; color: #333333; border-left: ${ret.isTainted ? '4px solid' : 'none'} ${ret.isTainted ? (ret.taintType === 'synthetic' ? '#9d4edd' : ret.taintType === 'control-dependent' ? '#ff8800' : '#dc3545') : ''};">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <strong style="color: #333333;">Return:</strong> <span style="color: #333333;">${ret.value || '(void)'}</span>
+                            ${ret.isTainted ? `<span style="padding: 2px 6px; background: ${ret.taintType === 'synthetic' ? '#9d4edd' : ret.taintType === 'control-dependent' ? '#ff8800' : '#dc3545'}; color: white; border-radius: 3px; font-size: 0.75em;">${ret.taintType === 'synthetic' ? 'SYNTHETIC TAINT' : ret.taintType === 'control-dependent' ? 'CONTROL-DEPENDENT TAINT' : 'DATA-FLOW TAINT'}</span>` : ''}
+                        </div>
                         <br><small style="color: #666666;">Type: ${ret.type}, Block: ${ret.blockId}</small>
                         ${ret.usedVariables && ret.usedVariables.length > 0 ? `<br><small style="color: #666666;">Variables: ${ret.usedVariables.join(', ')}</small>` : ''}
+                        ${ret.isTainted && ret.taintType === 'synthetic' ? `<br><small style="color: #666666; font-style: italic;">This return statement is control-dependent (synthetic taint) - no explicit variables but tainted by control flow</small>` : ''}
                     </div>
                 `).join('')}
             </div>
@@ -2438,7 +3317,7 @@ export class CFGVisualizer {
                                 <div style="margin-left: 15px;">
                                     <strong style="color: #333333;">${varInfo.variable}:</strong>
                                     ${varInfo.definitions.map((def: any) => `
-                                        <div style="margin-left: 15px; font-size: 0.9em; color: #666666;">
+                                        <div style="margin-left: 15px; font-size: 0.8em; color: #666666;">
                                             ${def.definitionId} [${def.propagationPath.join(' → ')}]
                                         </div>
                                     `).join('')}
@@ -2462,11 +3341,11 @@ export class CFGVisualizer {
             <div style="display: flex; gap: 30px; flex-wrap: wrap;">
                 <div>
                     <strong style="color: #856404;">Tainted Variables:</strong> 
-                    <span style="color: #333333; font-size: 1.2em; font-weight: bold;">${taintData.totalTaintedVariables}</span>
+                    <span style="color: #333333; font-size: 1.0em; font-weight: bold;">${taintData.totalTaintedVariables}</span>
                 </div>
                 <div>
                     <strong style="color: #856404;">Vulnerabilities:</strong> 
-                    <span style="color: #dc3545; font-size: 1.2em; font-weight: bold;">${taintData.totalVulnerabilities}</span>
+                    <span style="color: #dc3545; font-size: 1.0em; font-weight: bold;">${taintData.totalVulnerabilities}</span>
                 </div>
             </div>
             ${taintData.sourcesByCategory && taintData.sourcesByCategory.length > 0 ? `
@@ -2486,11 +3365,19 @@ export class CFGVisualizer {
         <div style="margin-bottom: 30px;">
             <h3 style="color: #333333;">Tainted Variables</h3>
             <div id="tainted-variables">
-                ${taintData.taintedVariables.map((varInfo: any) => `
+                ${taintData.taintedVariables.map((varInfo: any) => {
+                    // CRITICAL FIX: Detect synthetic block variables (__block_X__) and show "Block:" instead of "Variable:"
+                    const isSynthetic = varInfo.variable && varInfo.variable.startsWith('__block_') && varInfo.variable.endsWith('__');
+                    const blockMatch = varInfo.variable ? varInfo.variable.match(/^__block_(\d+)__$/) : null;
+                    const displayLabel = isSynthetic ? 'Block' : 'Variable';
+                    const displayValue = blockMatch ? blockMatch[1] : varInfo.variable;
+                    
+                    return `
                     <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;">
                         <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                            <strong style="color: #333333; font-size: 1.1em;">Variable: ${varInfo.variable}</strong>
-                            <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.85em;">TAINTED</span>
+                            <strong style="color: #333333; font-size: 0.95em;">${displayLabel}: ${displayValue}</strong>
+                            <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.75em;">TAINTED</span>
+                            ${isSynthetic ? '<span style="margin-left: 10px; padding: 2px 8px; background: #9d4edd; color: white; border-radius: 3px; font-size: 0.75em;">SYNTHETIC</span>' : ''}
                         </div>
                         ${varInfo.sources && varInfo.sources.length > 0 ? `
                         <div style="margin-top: 10px;">
@@ -2501,7 +3388,7 @@ export class CFGVisualizer {
                                         <strong>${source.source}</strong>
                                         ${source.sourceFunction ? `<span style="color: #666666; margin-left: 10px;">(${source.sourceFunction})</span>` : ''}
                                     </div>
-                                    <div style="margin-top: 5px; font-size: 0.9em; color: #666666;">
+                                    <div style="margin-top: 5px; font-size: 0.8em; color: #666666;">
                                         <span style="padding: 2px 6px; background: #e8f4f8; border-radius: 3px; margin-right: 5px;">
                                             Category: ${source.category}
                                         </span>
@@ -2510,7 +3397,7 @@ export class CFGVisualizer {
                                         </span>
                                     </div>
                                     ${source.propagationPath && source.propagationPath.length > 0 ? `
-                                    <div style="margin-top: 5px; font-size: 0.85em; color: #666666;">
+                                    <div style="margin-top: 5px; font-size: 0.75em; color: #666666;">
                                         <strong>Path:</strong> ${source.propagationPath.join(' → ')}
                                     </div>
                                     ` : ''}
@@ -2519,7 +3406,8 @@ export class CFGVisualizer {
                         </div>
                         ` : ''}
                     </div>
-                `).join('')}
+                `;
+                }).join('')}
             </div>
         </div>
         ` : ''}
@@ -2534,14 +3422,14 @@ export class CFGVisualizer {
                         <div style="display: flex; justify-content: space-between; align-items: start;">
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                                    <strong style="color: #333333; font-size: 1.1em;">${formatVulnType(vuln.type)}</strong>
-                                    <span style="margin-left: 10px; padding: 2px 8px; background: ${vuln.severity === 'critical' ? '#dc3545' : vuln.severity === 'high' ? '#ff6b6b' : '#ffa500'}; color: white; border-radius: 3px; font-size: 0.85em; text-transform: uppercase;">
+                                    <strong style="color: #333333; font-size: 0.95em;">${formatVulnType(vuln.type)}</strong>
+                                    <span style="margin-left: 10px; padding: 2px 8px; background: ${vuln.severity === 'critical' ? '#dc3545' : vuln.severity === 'high' ? '#ff6b6b' : '#ffa500'}; color: white; border-radius: 3px; font-size: 0.75em; text-transform: uppercase;">
                                         ${vuln.severity}
                                     </span>
-                                    ${vuln.cweId ? `<span style="margin-left: 10px; padding: 2px 8px; background: #e8f4f8; border-radius: 3px; font-size: 0.85em; color: #333333;">${vuln.cweId}</span>` : ''}
+                                    ${vuln.cweId ? `<span style="margin-left: 10px; padding: 2px 8px; background: #e8f4f8; border-radius: 3px; font-size: 0.75em; color: #333333;">${vuln.cweId}</span>` : ''}
                                 </div>
                                 ${vuln.description ? `<p style="color: #333333; margin: 5px 0;">${vuln.description}</p>` : ''}
-                                <div style="margin-top: 10px; font-size: 0.9em;">
+                                <div style="margin-top: 10px; font-size: 0.8em;">
                                     <div style="color: #333333; margin: 5px 0;">
                                         <strong>Source:</strong> ${vuln.source.variable} in ${vuln.source.function} (${vuln.source.statement})
                                     </div>
@@ -2583,7 +3471,7 @@ export class CFGVisualizer {
             <h3 style="color: #333333; margin-bottom: 15px;">Taint Analysis</h3>
             <div style="padding: 20px; background: #e8f4f8; border-radius: 5px; color: #333333;">
                 <p style="margin-bottom: 10px;">No taint analysis data found for this function.</p>
-                <p style="font-size: 0.9em; color: #666666;">
+                <p style="font-size: 0.8em; color: #666666;">
                     This could mean:
                 </p>
                 <ul style="text-align: left; display: inline-block; margin-top: 10px; color: #666666;">
@@ -2609,19 +3497,19 @@ export class CFGVisualizer {
             <div style="display: flex; gap: 30px; flex-wrap: wrap;">
                 <div>
                     <strong style="color: #856404;">Cross-Function Taint Entries:</strong> 
-                    <span style="color: #333333; font-size: 1.2em; font-weight: bold;">${interProceduralTaintData.totalInterProceduralTaint}</span>
+                    <span style="color: #333333; font-size: 1.0em; font-weight: bold;">${interProceduralTaintData.totalInterProceduralTaint}</span>
                 </div>
                 <div>
                     <strong style="color: #856404;">Parameter Taint:</strong> 
-                    <span style="color: #333333; font-size: 1.2em; font-weight: bold;">${interProceduralTaintData.parameterTaint}</span>
+                    <span style="color: #333333; font-size: 1.0em; font-weight: bold;">${interProceduralTaintData.parameterTaint}</span>
                 </div>
                 <div>
                     <strong style="color: #856404;">Return Value Taint:</strong> 
-                    <span style="color: #333333; font-size: 1.2em; font-weight: bold;">${interProceduralTaintData.returnTaint}</span>
+                    <span style="color: #333333; font-size: 1.0em; font-weight: bold;">${interProceduralTaintData.returnTaint}</span>
                 </div>
                 <div>
                     <strong style="color: #856404;">Library Function Taint:</strong> 
-                    <span style="color: #333333; font-size: 1.2em; font-weight: bold;">${interProceduralTaintData.libraryTaint}</span>
+                    <span style="color: #333333; font-size: 1.0em; font-weight: bold;">${interProceduralTaintData.libraryTaint}</span>
                 </div>
             </div>
         </div>
@@ -2633,16 +3521,24 @@ export class CFGVisualizer {
             ${interProceduralTaintData.taintBySourceFunction.map((funcInfo: any) => `
                 <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;">
                     <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                        <strong style="color: #333333; font-size: 1.1em;">From Function: ${funcInfo.functionName}</strong>
-                        <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.85em;">
+                        <strong style="color: #333333; font-size: 0.95em;">From Function: ${funcInfo.functionName}</strong>
+                        <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.75em;">
                             ${funcInfo.taintCount} taint entries
                         </span>
                     </div>
                     <div style="margin-top: 10px;">
-                        ${funcInfo.taints.map((taint: any) => `
+                        ${funcInfo.taints.map((taint: any) => {
+                            // CRITICAL FIX: Detect synthetic block variables (__block_X__) and show "Block:" instead of "Variable:"
+                            const isSynthetic = taint.variable && taint.variable.startsWith('__block_') && taint.variable.endsWith('__');
+                            const blockMatch = taint.variable ? taint.variable.match(/^__block_(\d+)__$/) : null;
+                            const displayLabel = isSynthetic ? 'Block' : 'Variable';
+                            const displayValue = blockMatch ? blockMatch[1] : taint.variable;
+                            
+                            return `
                             <div style="margin-left: 15px; margin-top: 8px; padding: 8px; background: #fff; border-radius: 3px;">
                                 <div style="color: #333333;">
-                                    <strong>Variable:</strong> ${taint.variable}
+                                    <strong>${displayLabel}:</strong> ${displayValue}
+                                    ${isSynthetic ? '<span style="margin-left: 10px; padding: 2px 6px; background: #9d4edd; color: white; border-radius: 3px; font-size: 0.75em;">SYNTHETIC</span>' : ''}
                                 </div>
                                 <div style="margin-top: 5px; font-size: 0.9em; color: #666666;">
                                     <strong>Source:</strong> ${taint.source}
@@ -2653,7 +3549,8 @@ export class CFGVisualizer {
                                 </div>
                                 ` : ''}
                             </div>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
                 </div>
             `).join('')}
@@ -2666,7 +3563,7 @@ export class CFGVisualizer {
             <h3 style="color: #333333; margin-bottom: 15px;">Inter-Procedural Taint Analysis</h3>
             <div style="padding: 20px; background: #e8f4f8; border-radius: 5px; color: #333333;">
                 <p style="margin-bottom: 10px;">No inter-procedural taint detected for this function.</p>
-                <p style="font-size: 0.9em; color: #666666;">
+                <p style="font-size: 0.8em; color: #666666;">
                     This could mean:
                 </p>
                 <ul style="text-align: left; display: inline-block; margin-top: 10px; color: #666666;">
@@ -2689,15 +3586,15 @@ export class CFGVisualizer {
             ${interProceduralTaintData.interProceduralTaint.map((taint: any, index: number) => `
                 <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;">
                     <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                        <strong style="color: #333333; font-size: 1.1em;">Entry ${index + 1}: ${taint.variable}</strong>
-                        <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.85em;">
+                        <strong style="color: #333333; font-size: 0.95em;">Entry ${index + 1}: ${taint.variable}</strong>
+                        <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.75em;">
                             TAINTED
                         </span>
-                        ${taint.source?.startsWith('parameter:') ? '<span style="margin-left: 5px; padding: 2px 6px; background: #ffc107; color: #333; border-radius: 3px; font-size: 0.75em;">PARAMETER</span>' : ''}
-                        ${taint.source?.startsWith('return_value:') ? '<span style="margin-left: 5px; padding: 2px 6px; background: #28a745; color: white; border-radius: 3px; font-size: 0.75em;">RETURN</span>' : ''}
-                        ${taint.source?.startsWith('library_function:') || taint.source?.startsWith('file_io:') || taint.source?.startsWith('user_input:') ? '<span style="margin-left: 5px; padding: 2px 6px; background: #17a2b8; color: white; border-radius: 3px; font-size: 0.75em;">LIBRARY</span>' : ''}
+                        ${taint.source?.startsWith('parameter:') ? '<span style="margin-left: 5px; padding: 2px 6px; background: #ffc107; color: #333; border-radius: 3px; font-size: 0.7em;">PARAMETER</span>' : ''}
+                        ${taint.source?.startsWith('return_value:') ? '<span style="margin-left: 5px; padding: 2px 6px; background: #28a745; color: white; border-radius: 3px; font-size: 0.7em;">RETURN</span>' : ''}
+                        ${taint.source?.startsWith('library_function:') || taint.source?.startsWith('file_io:') || taint.source?.startsWith('user_input:') ? '<span style="margin-left: 5px; padding: 2px 6px; background: #17a2b8; color: white; border-radius: 3px; font-size: 0.7em;">LIBRARY</span>' : ''}
                     </div>
-                    <div style="margin-top: 10px; font-size: 0.9em; color: #333333;">
+                    <div style="margin-top: 10px; font-size: 0.8em; color: #333333;">
                         <div style="margin: 5px 0;">
                             <strong>Source:</strong> ${taint.source}
                             ${taint.sourceFunction ? `<span style="color: #666666; margin-left: 10px;">(${taint.sourceFunction})</span>` : ''}
@@ -2726,7 +3623,7 @@ export class CFGVisualizer {
                         <div style="margin-top: 8px;">
                             <strong>Labels:</strong>
                             ${taint.labels.map((label: string) => `
-                                <span style="margin-left: 5px; padding: 2px 6px; background: #e8f4f8; border-radius: 3px; font-size: 0.85em;">
+                                <span style="margin-left: 5px; padding: 2px 6px; background: #e8f4f8; border-radius: 3px; font-size: 0.75em;">
                                     ${label}
                                 </span>
                             `).join('')}
@@ -2754,17 +3651,17 @@ export class CFGVisualizer {
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 400px;">
                         <label for="sensitivitySelect" style="color: #1864ab; font-weight: bold; margin-right: 10px;">Taint Analysis Sensitivity:</label>
-                        <select id="sensitivitySelect" style="padding: 6px 12px; background-color: var(--vscode-dropdown-background); color: #ffffff; border: 1px solid var(--vscode-dropdown-border); border-radius: 3px; cursor: pointer; font-size: 14px;">
+                        <select id="sensitivitySelect" style="padding: 6px 12px; background-color: var(--vscode-dropdown-background); color: #ffffff; border: 1px solid var(--vscode-dropdown-border); border-radius: 3px; cursor: pointer; font-size: 12px;">
                             <option value="minimal" ${state.taintSensitivity === 'minimal' ? 'selected' : ''}>MINIMAL - Only explicit data-flow (fastest, no control-dependent)</option>
                             <option value="conservative" ${state.taintSensitivity === 'conservative' ? 'selected' : ''}>CONSERVATIVE - Basic control-dependent (direct branches only)</option>
                             <option value="balanced" ${state.taintSensitivity === 'balanced' ? 'selected' : ''}>BALANCED - Full recursive control-dependent + inter-procedural</option>
                             <option value="precise" ${state.taintSensitivity === 'precise' ? 'selected' : (!state.taintSensitivity ? 'selected' : '')}>PRECISE - Path-sensitive + field-sensitive (reduces false positives)</option>
                             <option value="maximum" ${state.taintSensitivity === 'maximum' ? 'selected' : ''}>MAXIMUM - Context-sensitive + flow-sensitive (most precise, slowest)</option>
                         </select>
-                        <span id="sensitivityNote" style="margin-left: 10px; color: #666666; font-size: 0.9em; font-style: italic;">Current: ${(state.taintSensitivity || 'precise').toUpperCase()}</span>
+                        <span id="sensitivityNote" style="margin-left: 10px; color: #666666; font-size: 0.8em; font-style: italic;">Current: ${(state.taintSensitivity || 'precise').toUpperCase()}</span>
                     </div>
                 </div>
-                <div id="sensitivityFeatures" style="margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 3px; font-size: 0.85em;">
+                <div id="sensitivityFeatures" style="margin-top: 10px; padding: 8px; background: #f0f0f0; border-radius: 3px; font-size: 0.75em;">
                     <strong style="color: #1864ab;">Active Features:</strong>
                     <span id="sensitivityFeaturesList" style="color: #333333;">
                         ${this.getSensitivityFeaturesText(state.taintSensitivity || 'precise')}
@@ -2777,17 +3674,17 @@ export class CFGVisualizer {
                 <strong style="color: #1864ab; display: block; margin-bottom: 10px;">Toggle Edge Types:</strong>
                 <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center;">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <button id="toggleControlFlow" class="edge-toggle-btn active" style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px;">ON</button>
+                        <button id="toggleControlFlow" class="edge-toggle-btn active" style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">ON</button>
                         <div style="width: 30px; height: 3px; background: #51cf66;"></div>
                         <span style="color: #333333;">Control Flow</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <button id="toggleFunctionCalls" class="edge-toggle-btn active" style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px;">ON</button>
+                        <button id="toggleFunctionCalls" class="edge-toggle-btn active" style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">ON</button>
                         <div style="width: 30px; height: 3px; background: #4dabf7; border-top: 2px dashed #4dabf7;"></div>
                         <span style="color: #333333;">Function Calls</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <button id="toggleDataFlow" class="edge-toggle-btn active" style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 13px;">ON</button>
+                        <button id="toggleDataFlow" class="edge-toggle-btn active" style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">ON</button>
                         <div style="width: 30px; height: 3px; background: #ffa94d; border-top: 2px dashed #ffa94d;"></div>
                         <span style="color: #333333;">Data Flow</span>
                     </div>
@@ -2813,47 +3710,52 @@ export class CFGVisualizer {
                 ${interconnectedData && interconnectedData.nodes && interconnectedData.edges ? `
                     <div style="margin-top: 12px;">
                         <div style="margin-bottom: 12px;">
-                            <strong style="color: #1864ab; font-size: 0.95em;">Block Types:</strong>
+                            <strong style="color: #1864ab; font-size: 0.85em;">Block Types:</strong>
                             <div style="display: flex; gap: 15px; margin-top: 8px; flex-wrap: wrap;">
                                 <div style="display: flex; align-items: center; gap: 6px;">
                                     <div style="width: 20px; height: 20px; background: #ffd60a; border: 2px solid #ffc300; border-radius: 2px;"></div>
-                                    <span style="color: #333333; font-size: 0.9em;">Data-flow Taint</span>
-                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${dataFlowTaintBlocks})</span>
+                                    <span style="color: #333333; font-size: 0.8em;">Data-flow Taint</span>
+                                    <span style="color: #666666; font-size: 0.75em; margin-left: 4px;">(${dataFlowTaintBlocks})</span>
                     </div>
                                 <div style="display: flex; align-items: center; gap: 6px;">
                                     <div style="width: 20px; height: 20px; background: #ffa94d; border: 2px dashed #ff8800; border-radius: 2px;"></div>
-                                    <span style="color: #333333; font-size: 0.9em;">Control-dependent Taint</span>
-                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${controlDependentTaintBlocks})</span>
+                                    <span style="color: #333333; font-size: 0.8em;">Control-dependent Taint</span>
+                                    <span style="color: #666666; font-size: 0.75em; margin-left: 4px;">(${controlDependentTaintBlocks})</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 6px;">
                                     <div style="width: 20px; height: 20px; background: #9d4edd; border: 2px solid #7b2cbf; border-radius: 2px;"></div>
-                                    <span style="color: #333333; font-size: 0.9em;">Mixed Taint</span>
-                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${mixedTaintBlocks})</span>
+                                    <span style="color: #333333; font-size: 0.8em;">Mixed Taint</span>
+                                    <span style="color: #666666; font-size: 0.75em; margin-left: 4px;">(${mixedTaintBlocks})</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="width: 20px; height: 20px; background: #c77dff; border: 2px dashed #9d4edd; border-radius: 2px;"></div>
+                                    <span style="color: #333333; font-size: 0.8em;">Synthetic Taint</span>
+                                    <span style="color: #666666; font-size: 0.75em; margin-left: 4px;">(${syntheticTaintBlocks})</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 6px;">
                                     <div style="width: 20px; height: 20px; background: #e8f4f8; border: 2px solid #2e7d32; border-radius: 2px;"></div>
-                                    <span style="color: #333333; font-size: 0.9em;">Normal Blocks</span>
-                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${normalBlocks})</span>
+                                    <span style="color: #333333; font-size: 0.8em;">Normal Blocks</span>
+                                    <span style="color: #666666; font-size: 0.75em; margin-left: 4px;">(${normalBlocks})</span>
                                 </div>
                             </div>
                         </div>
                         <div>
-                            <strong style="color: #1864ab; font-size: 0.95em;">Edge Types:</strong>
+                            <strong style="color: #1864ab; font-size: 0.85em;">Edge Types:</strong>
                             <div style="display: flex; gap: 15px; margin-top: 8px; flex-wrap: wrap;">
                                 <div style="display: flex; align-items: center; gap: 6px;">
                         <div style="width: 30px; height: 3px; background: #51cf66;"></div>
-                                    <span style="color: #333333; font-size: 0.9em;">Control Flow</span>
-                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${controlFlowEdges})</span>
+                                    <span style="color: #333333; font-size: 0.8em;">Control Flow</span>
+                                    <span style="color: #666666; font-size: 0.75em; margin-left: 4px;">(${controlFlowEdges})</span>
                     </div>
                                 <div style="display: flex; align-items: center; gap: 6px;">
                         <div style="width: 30px; height: 3px; background: #4dabf7; border-top: 2px dashed #4dabf7;"></div>
-                                    <span style="color: #333333; font-size: 0.9em;">Function Calls</span>
-                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${functionCallEdges})</span>
+                                    <span style="color: #333333; font-size: 0.8em;">Function Calls</span>
+                                    <span style="color: #666666; font-size: 0.75em; margin-left: 4px;">(${functionCallEdges})</span>
                     </div>
                                 <div style="display: flex; align-items: center; gap: 6px;">
                         <div style="width: 30px; height: 3px; background: #ffa94d; border-top: 2px dashed #ffa94d;"></div>
-                                    <span style="color: #333333; font-size: 0.9em;">Data Flow</span>
-                                    <span style="color: #666666; font-size: 0.85em; margin-left: 4px;">(${dataFlowEdges})</span>
+                                    <span style="color: #333333; font-size: 0.8em;">Data Flow</span>
+                                    <span style="color: #666666; font-size: 0.75em; margin-left: 4px;">(${dataFlowEdges})</span>
                     </div>
                 </div>
                         </div>
@@ -2874,7 +3776,7 @@ export class CFGVisualizer {
     <!-- Debug Panel (initially visible, can be toggled) -->
     <div id="debug-panel" style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px;">
         <h3 style="color: #856404;">Debug Information</h3>
-        <div id="debug-logs" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; background: white; padding: 10px; border-radius: 3px;">
+        <div id="debug-logs" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 10px; background: white; padding: 10px; border-radius: 3px;">
             <div style="color: #007bff;">✓ HTML loaded</div>
             <div style="color: #28a745;">✓ vis-network loading from CDN...</div>
         </div>
@@ -2932,7 +3834,11 @@ ${interconnectedData ? JSON.stringify(interconnectedData, (key, value) => {
     </script>
     
     <script type="application/json" id="state-data-json">
-${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key, value) => {
+${JSON.stringify({ 
+        taintSensitivity: state.taintSensitivity || 'precise',
+        isFromSavedState: (state as any).isFromSavedState || false,
+        timestamp: state.timestamp || Date.now()
+    }, (key, value) => {
         // Replace null/undefined with empty values to prevent "null" in HTML
         if (value === null || value === undefined) {
             return '';
@@ -2947,7 +3853,7 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
             var debugDiv = document.getElementById('debug-logs');
             if (debugDiv) {
                 var timestamp = new Date().toLocaleTimeString();
-                debugDiv.innerHTML += '<div style="color: #007bff; margin: 2px 0; font-size: 11px;">[' + timestamp + '] ' + message + '</div>';
+                debugDiv.innerHTML += '<div style="color: #007bff; margin: 2px 0; font-size: 9px;">[' + timestamp + '] ' + message + '</div>';
                 debugDiv.scrollTop = debugDiv.scrollHeight;
             }
         }
@@ -3031,22 +3937,35 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                         label += '\\n' + statements.join('\\n');
             }
             
+            // Use pre-computed colors from backend (based on taint type: data-flow, control-dependent, mixed)
+            // Color coding:
+            // - Yellow (#ffd60a): Data-flow taint only (explicit propagation)
+            // - Orange (#ffa94d): Control-dependent taint only (implicit flow)
+            // - Purple (#9d4edd): Mixed taint (both data-flow and control-dependent)
+            // - Light blue (#e8f4f8): Normal (no taint)
+            const nodeColor = node.color || {
+                background: '#e8f4f8',
+                border: '#2e7d32',
+                highlight: { background: '#74b9ff', border: '#0984e3' }
+            };
+            
+            // Determine font color based on taint status
+            const isTainted = node.taintInfo && node.taintInfo.isTainted;
+            const fontColor = isTainted ? '#333' : '#333';  // Always use dark text for readability
+            
             return {
                 id: node.id,
                         label: label,
                 shape: 'box',
-                color: {
-                            background: node.taintInfo && node.taintInfo.isTainted ? '#ffe0e0' : '#e8f4f8',
-                            border: node.taintInfo && node.taintInfo.isTainted ? '#dc3545' : '#2e7d32',
-                            highlight: { background: node.taintInfo && node.taintInfo.isTainted ? '#ff6b6b' : '#74b9ff', border: node.taintInfo && node.taintInfo.isTainted ? '#dc3545' : '#0984e3' }
-                },
+                color: nodeColor,
                 font: {
-                            color: node.taintInfo && node.taintInfo.isTainted ? '#dc3545' : '#333',
-                            size: 11,
+                    color: fontColor,
+                            size: 9,
                             face: 'Monaco, Menlo, "Ubuntu Mono", monospace'
                         },
                         margin: 10,
-                        widthConstraint: { minimum: 120, maximum: 200 }
+                widthConstraint: { minimum: 120, maximum: 200 },
+                title: node.title  // Tooltip with taint type info
             };
         }));
         
@@ -3063,8 +3982,8 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
         const options = {
             nodes: {
                 shape: 'box',
-                        font: { size: 11, face: 'Monaco, Menlo, "Ubuntu Mono", monospace' },
-                margin: 10,
+                        font: { size: 9, face: 'Monaco, Menlo, "Ubuntu Mono", monospace' },
+                margin: 8,
                         widthConstraint: { minimum: 120, maximum: 200 },
                         heightConstraint: { minimum: 40 }
             },
@@ -3073,7 +3992,7 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                         smooth: { type: 'cubicBezier', forceDirection: 'vertical' },
                         color: { color: '#666', highlight: '#0984e3' },
                         width: 2,
-                        font: { size: 10, align: 'top' }
+                        font: { size: 8, align: 'top' }
             },
             layout: {
                 hierarchical: {
@@ -3128,35 +4047,32 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                 logDebug('[FUNCTION-SELECT] WARNING: functionSelect element not found (this is OK if no functions available)');
             }
             
-            // Handle re-analyze button (in header, available in all tabs except Interconnected CFG)
+            // Handle re-analyze button (in header, available in ALL tabs)
             const reAnalyzeBtn = document.getElementById('reAnalyzeBtn');
             const reAnalyzeStatus = document.getElementById('reAnalyzeStatus');
             if (reAnalyzeBtn) {
-                // Check if we're in the Interconnected CFG tab - if so, hide the button
-                const interconnectedTab = document.getElementById('interconnected-tab');
-                const isInterconnectedTab = interconnectedTab && interconnectedTab.classList.contains('active');
+                // CRITICAL FIX: Show button on ALL tabs (including Interconnected CFG)
+                // The sensitivity dropdown in Interconnected CFG tab can trigger re-analysis,
+                // but users should also be able to manually trigger re-analysis from any tab
+                reAnalyzeBtn.style.display = 'inline-block';
+                if (reAnalyzeStatus) {
+                    reAnalyzeStatus.style.display = 'block';
+                }
+                logDebug('[RE-ANALYZE] Button shown on all tabs (initial load)');
                 
-                if (isInterconnectedTab) {
-                    // Hide the button in Interconnected CFG tab (sensitivity dropdown handles re-analysis there)
-                    reAnalyzeBtn.style.display = 'none';
-                    if (reAnalyzeStatus) {
-                        reAnalyzeStatus.style.display = 'none';
-                    }
-                    logDebug('[RE-ANALYZE] Button hidden in Interconnected CFG tab');
-                } else {
-                    // Show and attach handler for other tabs
-                    reAnalyzeBtn.style.display = 'inline-block';
-                    if (reAnalyzeStatus) {
-                        reAnalyzeStatus.style.display = 'block';
-                    }
-                    
-                    reAnalyzeBtn.addEventListener('click', function() {
-                        logDebug('[RE-ANALYZE] Button clicked (Viz tab)');
+                // Clone button to remove any existing listeners
+                const newBtn = reAnalyzeBtn.cloneNode(true);
+                reAnalyzeBtn.parentNode?.replaceChild(newBtn, reAnalyzeBtn);
+                const btn = document.getElementById('reAnalyzeBtn');
+                
+                if (btn) {
+                    btn.addEventListener('click', function() {
+                        logDebug('[RE-ANALYZE] 🎯 MAJOR EVENT: Re-analyze button clicked');
                         
                         // Update button state
-                        reAnalyzeBtn.textContent = '🔄 Analyzing...';
-                        reAnalyzeBtn.disabled = true;
-                        reAnalyzeBtn.style.backgroundColor = '#6c757d';
+                        btn.textContent = '🔄 Analyzing...';
+                        btn.disabled = true;
+                        btn.style.backgroundColor = '#6c757d';
                         if (reAnalyzeStatus) {
                             reAnalyzeStatus.textContent = 'Re-analysis in progress...';
                             reAnalyzeStatus.style.color = '#ff8800';
@@ -3173,16 +4089,16 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                         } catch (error) {
                             logDebug('[RE-ANALYZE] ERROR: Failed to send message: ' + error);
                             // Reset button state on error
-                            reAnalyzeBtn.textContent = '🔄 Re-analyze';
-                            reAnalyzeBtn.disabled = false;
-                            reAnalyzeBtn.style.backgroundColor = '#007bff';
+                            btn.textContent = '🔄 Re-analyze';
+                            btn.disabled = false;
+                            btn.style.backgroundColor = '#007bff';
                             if (reAnalyzeStatus) {
                                 reAnalyzeStatus.textContent = 'Failed to send message: ' + error;
                                 reAnalyzeStatus.style.color = '#dc3545';
                             }
                         }
                     });
-                    logDebug('[RE-ANALYZE] Event listener attached to reAnalyzeBtn (Viz tab)');
+                    logDebug('[RE-ANALYZE] Event listener attached to reAnalyzeBtn (all tabs)');
                 }
             } else {
                 logDebug('[RE-ANALYZE] WARNING: reAnalyzeBtn element not found');
@@ -3220,6 +4136,121 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
             } else {
                 logDebug('[SAVE-STATE] WARNING: saveStateBtn element not found');
             }
+            
+            // CRITICAL FIX: Global sensitivity dropdown handler (works on ALL tabs)
+            // This must be initialized at startup, not just in the Interconnected CFG tab
+            function initGlobalSensitivityHandler() {
+                const sensitivitySelect = document.getElementById('sensitivitySelect');
+                if (!sensitivitySelect) {
+                    logDebug('[SENSITIVITY-GLOBAL] sensitivitySelect element not found (dropdown may not be present on this view)');
+                    return;
+                }
+                
+                logDebug('[SENSITIVITY-GLOBAL] Initializing global sensitivity handler');
+                
+                // Clone element to remove any existing listeners
+                const newSelect = sensitivitySelect.cloneNode(true);
+                sensitivitySelect.parentNode.replaceChild(newSelect, sensitivitySelect);
+                logDebug('[SENSITIVITY-GLOBAL] Cloned and replaced sensitivity dropdown element to remove existing listeners');
+                
+                // Read current sensitivity from state JSON
+                let currentSensitivity = 'precise';
+                try {
+                    const stateDataElement = document.getElementById('state-data-json');
+                    if (stateDataElement) {
+                        const stateData = JSON.parse(stateDataElement.textContent);
+                        currentSensitivity = stateData.taintSensitivity || 'precise';
+                        logDebug('[SENSITIVITY-GLOBAL] Read sensitivity from state JSON: ' + currentSensitivity);
+                        newSelect.value = currentSensitivity;
+                        logDebug('[SENSITIVITY-GLOBAL] Set dropdown value to: ' + currentSensitivity);
+                    } else {
+                        logDebug('[SENSITIVITY-GLOBAL] state-data-json element not found, using default: precise');
+                    }
+                } catch (error) {
+                    logDebug('[SENSITIVITY-GLOBAL] WARNING: Failed to read state JSON: ' + error);
+                }
+                
+                // Update features list
+                const featuresList = document.getElementById('sensitivityFeaturesList');
+                if (featuresList) {
+                    const featuresText = {
+                        'minimal': 'Data-flow taint only',
+                        'conservative': 'Data-flow + Basic control-dependent (no nested)',
+                        'balanced': 'Data-flow + Full recursive control-dependent + Inter-procedural',
+                        'precise': 'All BALANCED features + Path-sensitive + Field-sensitive',
+                        'maximum': 'All PRECISE features + Context-sensitive + Flow-sensitive'
+                    };
+                    featuresList.textContent = featuresText[currentSensitivity] || featuresText['balanced'];
+                }
+                
+                // Update note
+                const note = document.getElementById('sensitivityNote');
+                if (note) {
+                    note.textContent = 'Current: ' + currentSensitivity.toUpperCase();
+                    note.style.color = '#666666';
+                }
+                
+                // Attach change event listener
+                newSelect.addEventListener('change', function(event) {
+                    const selectedSensitivity = event.target.value;
+                    
+                    // COMPREHENSIVE LOGGING: Sensitivity dropdown change
+                    logDebug('[SENSITIVITY-GLOBAL] 🎯 MAJOR EVENT: Sensitivity Dropdown Changed');
+                    logDebug('[SENSITIVITY-GLOBAL] User selected: Taint Sensitivity "' + selectedSensitivity + '" from dropdown');
+                    logDebug('[SENSITIVITY-GLOBAL] Dropdown changed to: ' + selectedSensitivity);
+                    logDebug('[SENSITIVITY-GLOBAL] Previous value was: ' + currentSensitivity);
+                    
+                    // Skip if no actual change
+                    if (selectedSensitivity === currentSensitivity) {
+                        logDebug('[SENSITIVITY-GLOBAL] No change detected (' + selectedSensitivity + ' === ' + currentSensitivity + '), skipping');
+                        return;
+                    }
+                    
+                    logDebug('[SENSITIVITY-GLOBAL] Sensitivity change confirmed: ' + currentSensitivity + ' -> ' + selectedSensitivity);
+                    currentSensitivity = selectedSensitivity;
+                    
+                    // Update features list
+                    if (featuresList) {
+                        const featuresText = {
+                            'minimal': 'Data-flow taint only',
+                            'conservative': 'Data-flow + Basic control-dependent (no nested)',
+                            'balanced': 'Data-flow + Full recursive control-dependent + Inter-procedural',
+                            'precise': 'All BALANCED features + Path-sensitive + Field-sensitive',
+                            'maximum': 'All PRECISE features + Context-sensitive + Flow-sensitive'
+                        };
+                        const newFeatures = featuresText[selectedSensitivity] || featuresText['balanced'];
+                        featuresList.textContent = newFeatures;
+                        logDebug('[SENSITIVITY-GLOBAL] Updated features list: ' + newFeatures);
+                    }
+                    
+                    // Update note
+                    if (note) {
+                        note.textContent = 'Current: ' + selectedSensitivity.toUpperCase() + ' - Re-analyzing...';
+                        note.style.color = '#ff8800';
+                        logDebug('[SENSITIVITY-GLOBAL] Updated UI note to show: ' + selectedSensitivity.toUpperCase() + ' - Re-analyzing...');
+                    }
+                    
+                    // Send message to trigger re-analysis
+                    try {
+                        logDebug('[SENSITIVITY-GLOBAL] Preparing to send changeSensitivity message with triggerReAnalysis=true');
+                        vscode.postMessage({
+                            type: 'changeSensitivity',
+                            sensitivity: selectedSensitivity,
+                            triggerReAnalysis: true
+                        });
+                        logDebug('[SENSITIVITY-GLOBAL] ✅ changeSensitivity message sent successfully to extension');
+                    } catch (error) {
+                        logDebug('[SENSITIVITY-GLOBAL] ❌ ERROR: Failed to send changeSensitivity message: ' + error);
+                    }
+                });
+                
+                logDebug('[SENSITIVITY-GLOBAL] ✅ Event listener attached successfully to sensitivity dropdown');
+            }
+            
+            // Initialize sensitivity handler immediately
+            logDebug('[SENSITIVITY-GLOBAL] Calling initGlobalSensitivityHandler() to initialize sensitivity dropdown');
+            initGlobalSensitivityHandler();
+            logDebug('[SENSITIVITY-GLOBAL] ✅ initGlobalSensitivityHandler() completed');
             
             // Function to attach edge toggle handlers (can be called multiple times safely)
             // CRITICAL FIX: Make it globally accessible
@@ -3365,7 +4396,13 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                     if (node) {
                         const infoDiv = document.getElementById('blockInfo');
                         if (infoDiv) {
+                            // Show block label with function context
                             let html = '<h4 style="color: #333333;">Block: ' + node.label + '</h4>';
+                            if (node.hoverContext) {
+                                html += '<div style="color: #666666; font-size: 12px; margin-bottom: 8px;"><em>' + node.hoverContext + '</em></div>';
+                            } else if (node.functionName && node.blockLabel) {
+                                html += '<div style="color: #666666; font-size: 12px; margin-bottom: 8px;"><em>' + node.functionName + ' :: ' + node.blockLabel + '</em></div>';
+                            }
                             html += '<div style="color: #333333;"><strong>Statements:</strong><ul style="color: #333333;">';
                             node.statements.forEach(function(stmt) {
                                 const stmtText = typeof stmt === 'string' ? stmt : stmt.text;
@@ -3409,6 +4446,28 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                         logDebug('ERROR: Failed to handle node click: ' + clickError);
                     }
             });
+            
+                // Handle double-click: open file at block location
+                window.network.on('doubleClick', function(params) {
+                    try {
+                        if (params.nodes.length > 0) {
+                            const nodeId = params.nodes[0];
+                            const node = graphData.nodes.find(function(n) { return n.id === nodeId; });
+                            if (node && node.filePath) {
+                                logDebug('Double-click on node: ' + nodeId + ', opening file: ' + node.filePath + ' at line ' + (node.startLine || 1));
+                                vscode.postMessage({
+                                    type: 'openFileAtLine',
+                                    filePath: node.filePath,
+                                    line: node.startLine || 1
+                                });
+                            } else if (node) {
+                                logDebug('Double-click on node ' + nodeId + ' but no file path available');
+                            }
+                        }
+                    } catch (dblClickError) {
+                        logDebug('ERROR: Failed to handle double-click: ' + dblClickError);
+                    }
+            });
             }
             } catch (initError) {
                 logDebug('ERROR: Failed to initialize network: ' + initError);
@@ -3434,6 +4493,18 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                 if (targetContent) {
                     targetContent.classList.add('active');
                     logDebug('Switched to tab: ' + targetTab + ', content element: ' + targetContent.id);
+                    
+                    // CRITICAL FIX: Update re-analyze button visibility when switching tabs
+                    const reAnalyzeBtn = document.getElementById('reAnalyzeBtn');
+                    const reAnalyzeStatus = document.getElementById('reAnalyzeStatus');
+                    if (reAnalyzeBtn) {
+                        // CRITICAL FIX: Show button on ALL tabs (including Interconnected CFG)
+                        reAnalyzeBtn.style.display = 'inline-block';
+                        if (reAnalyzeStatus) {
+                            reAnalyzeStatus.style.display = 'block';
+                        }
+                        logDebug('[TAB-SWITCH] Re-analyze button shown in ' + targetTab + ' tab (all tabs)');
+                    }
                     
                     // Initialize call graph if switching to call graph tab
                     if (targetTab === 'callgraph' && typeof vis !== 'undefined') {
@@ -3515,15 +4586,15 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                             attachEdgeToggleHandlers();
                         }
                         
-                        // Hide re-analyze button in Interconnected CFG tab (sensitivity dropdown handles re-analysis)
+                        // CRITICAL FIX: Show re-analyze button on ALL tabs (including Interconnected CFG)
                         const reAnalyzeBtn = document.getElementById('reAnalyzeBtn');
                         const reAnalyzeStatus = document.getElementById('reAnalyzeStatus');
                         if (reAnalyzeBtn) {
-                            reAnalyzeBtn.style.display = 'none';
-                            logDebug('[RE-ANALYZE] Button hidden in Interconnected CFG tab');
+                            reAnalyzeBtn.style.display = 'inline-block';
+                            logDebug('[RE-ANALYZE] Button shown in ' + targetTab + ' tab (all tabs)');
                         }
                         if (reAnalyzeStatus) {
-                            reAnalyzeStatus.style.display = 'none';
+                            reAnalyzeStatus.style.display = 'block';
                         }
                     } else {
                         // Show re-analyze button in other tabs
@@ -3631,7 +4702,7 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                         highlight: { background: '#a29bfe', border: '#6c5ce7' }
                     },
                     font: {
-                        size: 12,
+                        size: 10,
                         face: 'Monaco, Menlo, "Ubuntu Mono", monospace'
                     },
                     title: 'Function: ' + node.label + '\\nParameters: ' + node.parameters + 
@@ -3654,7 +4725,7 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                     label: edge.label || (edge.argumentCount || 0) + ' args',
                     arrows: { to: { enabled: true } },
                     color: { color: '#666', highlight: '#0984e3' },
-                    font: { align: 'horizontal', size: 9, face: 'Arial' },
+                    font: { align: 'horizontal', size: 8, face: 'Arial' },
                     smooth: { type: 'cubicBezier', forceDirection: 'none', roundness: 0.5 },
                     length: 250,
                     width: 1.5,
@@ -3673,14 +4744,14 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                 const cgOptions = {
                     nodes: {
                         shape: 'ellipse',
-                        font: { size: 12 },
-                        margin: 10
+                        font: { size: 10 },
+                        margin: 8
                     },
                     edges: {
                         arrows: { to: { enabled: true, scaleFactor: 0.8 } },
                         smooth: { type: 'cubicBezier', forceDirection: 'none', roundness: 0.5 },
                         color: { color: '#666' },
-                        font: { align: 'horizontal', size: 9, face: 'Arial' },
+                        font: { align: 'horizontal', size: 8, face: 'Arial' },
                         labelHighlightBold: false,
                         length: 250,
                         width: 1.5,
@@ -3864,27 +4935,13 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                     tooltipDelay: 100
                 },
                 groups: {}
+                // CRITICAL FIX: Do NOT set group colors - we want taint-based colors, not function-based colors
+                // Individual node colors (based on taint type) will be used instead
             };
             
-            // Add group colors for different functions
-            if (interconnectedData.groups) {
-                var colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f7b731', '#5f27cd', '#00d2d3', '#ff9ff3', '#54a0ff'];
-                var groupIndex = 0;
-                for (var funcName in interconnectedData.groups) {
-                    var colorIndex = groupIndex % colors.length;
-                    icOptions.groups[interconnectedData.groups[funcName]] = {
-                        color: {
-                            background: colors[colorIndex],
-                            border: colors[colorIndex],
-                            highlight: {
-                                background: colors[colorIndex],
-                                border: '#000'
-                            }
-                        }
-                    };
-                    groupIndex++;
-                }
-            }
+            // CRITICAL FIX: Removed group color assignment that was overriding individual node colors
+            // Nodes already have explicit colors set based on taint type (yellow/orange/purple/light blue)
+            // Setting group colors was causing extra colors to appear in the visualization
             
             // Store network reference globally for edge toggling
             window.icNetwork = null;
@@ -3931,6 +4988,28 @@ ${JSON.stringify({ taintSensitivity: state.taintSensitivity || 'precise' }, (key
                 }
                     } catch (clickError) {
                         logDebug('ERROR: Failed to handle interconnected network node click: ' + clickError);
+                    }
+                });
+                
+                // Handle double-click: open file at block location
+                icNetwork.on('doubleClick', function(params) {
+                    try {
+                        if (params.nodes.length > 0) {
+                            const nodeId = params.nodes[0];
+                            const node = interconnectedData.nodes.find(function(n) { return n.id === nodeId; });
+                            if (node && node.metadata && node.metadata.filePath) {
+                                logDebug('Double-click on interconnected node: ' + nodeId + ', opening file: ' + node.metadata.filePath + ' at line ' + (node.metadata.startLine || 1));
+                                vscode.postMessage({
+                                    type: 'openFileAtLine',
+                                    filePath: node.metadata.filePath,
+                                    line: node.metadata.startLine || 1
+                                });
+                            } else if (node) {
+                                logDebug('Double-click on interconnected node ' + nodeId + ' but no file path available');
+                            }
+                        }
+                    } catch (dblClickError) {
+                        logDebug('ERROR: Failed to handle interconnected network double-click: ' + dblClickError);
                     }
                 });
                 

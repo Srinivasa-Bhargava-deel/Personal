@@ -2,14 +2,39 @@
 
 All notable changes to the C++ Dataflow Analyzer extension will be documented in this file.
 
-## [1.9.2.1] - 2025-01-XX
+## [1.9.5] - 2025-01-XX
+
+### Added
+- **Comprehensive Test Suite**: Added 30 test files covering all major features
+  - Core analysis tests (CFG, Liveness, Reaching Definitions)
+  - Taint analysis tests (data-flow, control-dependent, synthetic, sensitivity levels)
+  - Advanced taint analysis (path-sensitive, field-sensitive, flow-sensitive, context-sensitive)
+  - Inter-procedural analysis tests (call graphs, global variables, function summaries)
+  - Security tests (vulnerability detection, attack paths)
+  - System feature tests (state management, incremental analysis, visualization)
+- **Test Validation Framework**: Created comprehensive validation documentation
+  - 30 validation files in `markdowns/test_validation/`
+  - Logical validation organization (9 phases)
+  - Step-by-step validation instructions
+- **Documentation Reorganization**: Organized all markdown files into `markdowns/` directory
+  - Active documentation in `markdowns/active/`
+  - Validation documentation in `markdowns/validation/`
+  - Test validation in `markdowns/test_validation/`
+  - Historical documentation in `markdowns/archive/`
 
 ### Fixed
-- **Windows Build Instructions**: Fixed "a subdirectory or a file build already exists" error when creating build directory
-  - Updated instructions to properly handle existing build directories
-  - Added `Remove-Item` command before creating build directory
-  - Added troubleshooting section for this specific issue
-  - Updated both PowerShell and Command Prompt methods
+- **Documentation Synchronization**: Synchronized all non-archived markdown files with codebase
+  - Updated test file counts (27 → 30)
+  - Fixed path references throughout documentation
+  - Updated implementation status in CODE_STRUCTURE.md
+  - Added Magenta color documentation for synthetic taint
+  - Updated version history and feature descriptions
+
+### Changed
+- Enhanced documentation structure for better maintainability
+- Improved validation process documentation
+- Updated all references to reflect current codebase state
+>>>>>>> 236d9a3 (Release v1.9.5: Comprehensive test suite, documentation reorganization, and synchronization)
 
 ## [1.9.2] - 2025-01-XX
 

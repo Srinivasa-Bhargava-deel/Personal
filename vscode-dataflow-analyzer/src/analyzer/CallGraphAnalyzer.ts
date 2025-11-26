@@ -61,6 +61,7 @@
 
 import { FunctionCFG, BasicBlock, Statement } from '../types';
 import { FunctionCallExtractor } from './FunctionCallExtractor';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 /**
  * Represents a single function call in the program.
@@ -90,6 +91,12 @@ export interface FunctionCall {
 
   // Whether the return value is used
   returnValueUsed: boolean;
+
+  // Is this an indirect call (through function pointer)?
+  isIndirect?: boolean;
+
+  // Original variable name if indirect (e.g., "op" when op = add; op(5,3))
+  indirectVariable?: string;
 }
 
 /**
@@ -175,6 +182,12 @@ export class CallGraphAnalyzer {
     'private', 'public', 'protected', 'new', 'delete', 'throw'
   ]);
 
+  // Function pointer tracking: variable name -> Set of possible function targets
+  private functionPointers: Map<string, Set<string>> = new Map();
+
+  // Callback parameter mapping: callerFunc::paramName -> Set of functions passed to it
+  private callbackArguments: Map<string, Set<string>> = new Map();
+
   /**
    * Initialize the analyzer with all functions in the program.
    * 
@@ -203,27 +216,32 @@ export class CallGraphAnalyzer {
    * @returns Complete call graph for the program
    */
   public buildCallGraph(): CallGraph {
-    console.log('[CG] Starting call graph generation');
-    console.log(`[CG] Processing ${this.allFunctions.size} functions`);
+    LoggingConfig.raw('[CG] Starting call graph generation');
+    LoggingConfig.raw(`[CG] Processing ${this.allFunctions.size} functions`);
 
     // STEP 1: Index all functions with metadata
     this.indexFunctions();
 
-    // STEP 2: Extract function calls from each function
+    // STEP 2: Collect function pointer assignments (before extracting calls)
+    // This enables resolution of indirect calls like: op = add; op(5, 3);
+    this.collectFunctionPointerAssignments();
+
+    // STEP 3: Extract function calls from each function
     this.extractFunctionCalls();
 
-    // STEP 3: Build relationship maps for fast lookup
+    // STEP 4: Build relationship maps for fast lookup
     this.buildRelationshipMaps();
 
-    // STEP 4: Analyze recursion patterns
+    // STEP 5: Analyze recursion patterns
     this.analyzeRecursion();
 
-    // STEP 5: Log summary
-    console.log(`[CG] Call graph complete:`);
+    // STEP 6: Log summary
+    LoggingConfig.raw(`[CG] Call graph complete:`);
     console.log(`     Functions: ${this.callGraph.functions.size}`);
     console.log(`     Calls: ${this.callGraph.calls.length}`);
     console.log(`     Callers: ${this.callGraph.callsFrom.size}`);
     console.log(`     Callees: ${this.callGraph.callsTo.size}`);
+    console.log(`     Function pointers tracked: ${this.functionPointers.size}`);
 
     return this.callGraph;
   }
@@ -235,7 +253,7 @@ export class CallGraphAnalyzer {
    * This metadata will be used throughout inter-procedural analysis.
    */
   private indexFunctions(): void {
-    console.log('[CG] Indexing functions...');
+    LoggingConfig.raw('[CG] Indexing functions...');
 
     for (const [funcName, funcCFG] of this.allFunctions.entries()) {
       // Extract parameters from the first block (entry block)
@@ -253,7 +271,7 @@ export class CallGraphAnalyzer {
       };
 
       this.callGraph.functions.set(funcName, metadata);
-      console.log(`[CG]   Indexed function: ${funcName} with ${parameters.length} params`);
+      LoggingConfig.raw(`[CG]   Indexed function: ${funcName} with ${parameters.length} params`);
     }
   }
 
@@ -302,6 +320,100 @@ export class CallGraphAnalyzer {
   }
 
   /**
+   * Collect function pointer assignments from all functions.
+   * 
+   * Identifies patterns like:
+   * - op = add;       (variable assignment to function)
+   * - Operation op = add;  (declaration with function assignment)
+   * - func_ptr = &add;     (address-of function)
+   * 
+   * Also tracks callback arguments passed to function calls.
+   */
+  private collectFunctionPointerAssignments(): void {
+    LoggingConfig.raw('[CG] Collecting function pointer assignments...');
+    
+    // Get all known function names for validation
+    const knownFunctions = new Set(this.allFunctions.keys());
+    
+    for (const [funcName, funcCFG] of this.allFunctions.entries()) {
+      // Debug: Log all statements for test_function_pointer to see actual text
+      if (funcName === 'test_function_pointer') {
+        LoggingConfig.raw(`[CG] [DEBUG] Analyzing function: ${funcName}`);
+        for (const [blockId, block] of funcCFG.blocks.entries()) {
+          for (const stmt of block.statements) {
+            const debugText = stmt.content || stmt.text || '';
+            LoggingConfig.raw(`[CG] [DEBUG]   Block ${blockId} stmt: "${debugText.substring(0, 100)}"`);
+          }
+        }
+      }
+      
+      for (const [blockId, block] of funcCFG.blocks.entries()) {
+        for (const stmt of block.statements) {
+          const stmtText = stmt.content || stmt.text || '';
+          
+          // Pattern 1: Direct assignment: op = add or op = add; (semicolon optional - Clang AST may omit it)
+          const assignmentMatch = stmtText.match(
+            /^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*&?([a-zA-Z_][a-zA-Z0-9_]*)\s*;?\s*$/
+          );
+          if (assignmentMatch) {
+            const varName = assignmentMatch[1];
+            const targetFunc = assignmentMatch[2];
+            
+            // Only track if target is a known function
+            if (knownFunctions.has(targetFunc)) {
+              if (!this.functionPointers.has(varName)) {
+                this.functionPointers.set(varName, new Set());
+              }
+              this.functionPointers.get(varName)!.add(targetFunc);
+              LoggingConfig.raw(`[CG]   Function pointer: ${varName} -> ${targetFunc} (in ${funcName})`);
+            }
+          }
+          
+          // Pattern 2: Declaration with assignment: Type ptr = func; or Type ptr = func (may have newline)
+          // Handles: "Processor proc = double_value;" and "Processor proc = double_value;\n"
+          const declMatch = stmtText.match(
+            /^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*&?([a-zA-Z_][a-zA-Z0-9_]*)\s*;?\s*$/m
+          );
+          if (declMatch) {
+            const varName = declMatch[2];
+            const targetFunc = declMatch[3];
+            
+            if (knownFunctions.has(targetFunc)) {
+              if (!this.functionPointers.has(varName)) {
+                this.functionPointers.set(varName, new Set());
+              }
+              this.functionPointers.get(varName)!.add(targetFunc);
+              LoggingConfig.raw(`[CG]   Function pointer (decl): ${varName} -> ${targetFunc} (in ${funcName})`);
+            }
+          }
+          
+          // Pattern 3: Track callback arguments in function calls
+          // e.g., apply_operation(5, double_value) - "double_value" is passed as callback
+          const extractedCalls = FunctionCallExtractor.extractFunctionCalls(stmt);
+          for (const call of extractedCalls) {
+            // Check each argument
+            for (let i = 0; i < call.arguments.length; i++) {
+              const arg = call.arguments[i].trim();
+              // If the argument is a known function name, track it
+              if (knownFunctions.has(arg)) {
+                const callbackKey = `${call.name}::param_${i}`;
+                if (!this.callbackArguments.has(callbackKey)) {
+                  this.callbackArguments.set(callbackKey, new Set());
+                }
+                this.callbackArguments.get(callbackKey)!.add(arg);
+                LoggingConfig.raw(`[CG]   Callback argument: ${call.name}(param_${i}) -> ${arg} (in ${funcName})`);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    LoggingConfig.raw(`[CG] Found ${this.functionPointers.size} function pointer variables`);
+    LoggingConfig.raw(`[CG] Found ${this.callbackArguments.size} callback argument sites`);
+  }
+
+  /**
    * Extract all function calls from the program.
    * 
    * Iterates through all statements in all functions and identifies
@@ -315,7 +427,7 @@ export class CallGraphAnalyzer {
    * 5. Returns: return foo(args)
    */
   private extractFunctionCalls(): void {
-    console.log('[CG] Extracting function calls...');
+    LoggingConfig.raw('[CG] Extracting function calls...');
 
     let callCount = 0;
 
@@ -346,7 +458,7 @@ export class CallGraphAnalyzer {
       }
     }
 
-    console.log(`[CG] Found ${callCount} function calls total`);
+    LoggingConfig.raw(`[CG] Found ${callCount} function calls total`);
   }
 
   /**
@@ -370,10 +482,10 @@ export class CallGraphAnalyzer {
     const extractedCalls = FunctionCallExtractor.extractFunctionCalls(stmt);
     
     for (const extractedCall of extractedCalls) {
-      const calleeId = extractedCall.name;
+      const extractedName = extractedCall.name;
       
       // Skip if it's a keyword (not a function)
-      if (this.keywords.has(calleeId)) {
+      if (this.keywords.has(extractedName)) {
         continue;
       }
       
@@ -382,15 +494,42 @@ export class CallGraphAnalyzer {
       
       // Check if return value is used - use full statement text, not just call expression
       const stmtText = stmt.text || stmt.content || '';
-      const returnUsed = this.isReturnValueUsed(stmtText, calleeId);
+      const returnUsed = this.isReturnValueUsed(stmtText, extractedName);
       
-      // Create FunctionCall record
+      // Resolve function pointer calls to actual targets
+      const resolvedTargets = this.resolveFunctionPointerCall(extractedName, callerName, args);
+      
+      if (resolvedTargets.length > 0) {
+        // This is a function pointer call - create calls to all possible targets
+        for (const target of resolvedTargets) {
       const call: FunctionCall = {
         callerId: callerName,
-        calleeId,
+            calleeId: target,
         callSite: {
           blockId,
-          statementId: stmt.id || `${blockId}_call_${calleeId}`,
+              statementId: stmt.id || `${blockId}_call_${extractedName}`,
+              line: stmt.range?.start.line ?? 0,
+              column: stmt.range?.start.column ?? 0
+            },
+            arguments: {
+              actual: args,
+              types: this.inferArgumentTypes(args)
+            },
+            returnValueUsed: returnUsed,
+            isIndirect: true,
+            indirectVariable: extractedName
+          };
+          calls.push(call);
+          LoggingConfig.raw(`[CG]     Resolved indirect call: ${extractedName} -> ${target}`);
+        }
+      } else {
+        // Direct function call
+        const call: FunctionCall = {
+          callerId: callerName,
+          calleeId: extractedName,
+          callSite: {
+            blockId,
+            statementId: stmt.id || `${blockId}_call_${extractedName}`,
           line: stmt.range?.start.line ?? 0,
           column: stmt.range?.start.column ?? 0
         },
@@ -400,11 +539,73 @@ export class CallGraphAnalyzer {
         },
         returnValueUsed: returnUsed
       };
-      
       calls.push(call);
+      }
     }
     
     return calls;
+  }
+
+  /**
+   * Resolve a function pointer call to its possible function targets.
+   * 
+   * Handles:
+   * 1. Function pointer variables: op = add; op(5,3) -> resolves to add
+   * 2. Callback parameters: callback(x) where callback is a parameter
+   * 
+   * @param calleeId - The name being called (variable or function name)
+   * @param callerName - The function making the call
+   * @param args - Arguments to the call
+   * @returns Array of resolved function names, or empty if not a function pointer
+   */
+  private resolveFunctionPointerCall(
+    calleeId: string,
+    callerName: string,
+    args: string[]
+  ): string[] {
+    // Check 1: Is this a function pointer variable?
+    if (this.functionPointers.has(calleeId)) {
+      const targets = this.functionPointers.get(calleeId)!;
+      LoggingConfig.raw(`[CG]   Resolving function pointer '${calleeId}': [${Array.from(targets).join(', ')}]`);
+      return Array.from(targets);
+    }
+    
+    // Check 2: Is this a callback parameter?
+    // First, check if the caller has this parameter
+    const callerMetadata = this.callGraph.functions.get(callerName);
+    if (callerMetadata) {
+      const paramIndex = callerMetadata.parameters.findIndex(p => p.name === calleeId);
+      if (paramIndex >= 0) {
+        // This is a parameter being called as a function (callback)
+        // Look up what functions were passed to this parameter at call sites
+        const possibleTargets = this.resolveCallbackParameter(callerName, paramIndex);
+        if (possibleTargets.length > 0) {
+          LoggingConfig.raw(`[CG]   Resolving callback parameter '${calleeId}' (param ${paramIndex}): [${possibleTargets.join(', ')}]`);
+          return possibleTargets;
+        }
+      }
+    }
+    
+    // Not a function pointer or callback - return empty (direct call)
+    return [];
+  }
+
+  /**
+   * Resolve a callback parameter to its possible function targets.
+   * 
+   * Looks at all call sites that call the function with this parameter
+   * and collects the functions that were passed as that argument.
+   * 
+   * @param funcName - Function that has the callback parameter
+   * @param paramIndex - Index of the callback parameter
+   * @returns Array of function names that could be passed as this callback
+   */
+  private resolveCallbackParameter(funcName: string, paramIndex: number): string[] {
+    const callbackKey = `${funcName}::param_${paramIndex}`;
+    if (this.callbackArguments.has(callbackKey)) {
+      return Array.from(this.callbackArguments.get(callbackKey)!);
+    }
+    return [];
   }
 
   /**
@@ -585,7 +786,7 @@ export class CallGraphAnalyzer {
    * Also updates callsCount for each function.
    */
   private buildRelationshipMaps(): void {
-    console.log('[CG] Building relationship maps...');
+    LoggingConfig.raw('[CG] Building relationship maps...');
 
     // STEP 1: Clear existing maps
     this.callGraph.callsFrom.clear();
@@ -615,7 +816,7 @@ export class CallGraphAnalyzer {
       }
     }
 
-    console.log(`[CG] Relationship maps built:`);
+    LoggingConfig.raw(`[CG] Relationship maps built:`);
     console.log(`     Functions calling others: ${this.callGraph.callsFrom.size}`);
     console.log(`     Functions being called: ${this.callGraph.callsTo.size}`);
   }
@@ -629,7 +830,7 @@ export class CallGraphAnalyzer {
    * 3. Tail recursion: recursive call is last operation
    */
   private analyzeRecursion(): void {
-    console.log('[CG] Analyzing recursion patterns...');
+    LoggingConfig.raw('[CG] Analyzing recursion patterns...');
 
     // STEP 1: Detect direct recursion
     this.detectDirectRecursion();
@@ -650,7 +851,7 @@ export class CallGraphAnalyzer {
         const metadata = this.callGraph.functions.get(call.callerId);
         if (metadata) {
           metadata.isRecursive = true;
-          console.log(`[CG] Direct recursion detected: ${call.callerId}()`);
+          LoggingConfig.raw(`[CG] Direct recursion detected: ${call.callerId}()`);
         }
       }
     }
@@ -739,7 +940,7 @@ export class CallGraphAnalyzer {
         const stmtText = lastStmt.content || lastStmt.text;
 
         if (tailRecursionPattern.test(stmtText)) {
-          console.log(`[CG] Tail recursion opportunity: ${funcName}()`);
+          LoggingConfig.raw(`[CG] Tail recursion opportunity: ${funcName}()`);
         }
       }
     }

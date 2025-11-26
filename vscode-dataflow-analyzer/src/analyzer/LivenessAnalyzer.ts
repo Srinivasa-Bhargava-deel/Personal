@@ -62,6 +62,7 @@
  */
 
 import { BasicBlock, CFG, FunctionCFG, LivenessInfo } from '../types';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 /**
  * Performs backward liveness analysis on a function's CFG.
@@ -81,6 +82,16 @@ export class LivenessAnalyzer {
    */
   analyze(functionCFG: FunctionCFG): Map<string, LivenessInfo> {
     const analysisStartTime = Date.now();
+    
+    // ============================================================
+    // COMPREHENSIVE LOGGING: Liveness Analysis Start
+    // ============================================================
+    LoggingConfig.section('LivenessAnalysis', `LIVENESS ANALYSIS: ${functionCFG.name}`);
+    LoggingConfig.log('LivenessAnalysis', `Function: ${functionCFG.name}`);
+    LoggingConfig.log('LivenessAnalysis', `Total Blocks: ${functionCFG.blocks.size}`);
+    LoggingConfig.log('LivenessAnalysis', `Entry Block: ${functionCFG.entry}`);
+    LoggingConfig.log('LivenessAnalysis', `Exit Block: ${functionCFG.exit}`);
+    
     console.log(`[LivenessAnalyzer] [INFO] Starting liveness analysis for function: ${functionCFG.name}`);
     console.log(`[LivenessAnalyzer] [DEBUG] Function has ${functionCFG.blocks.size} blocks`);
     
@@ -94,6 +105,7 @@ export class LivenessAnalyzer {
         out: new Set<string>()      // Variables live at block exit
       });
     });
+    LoggingConfig.detail('LivenessAnalysis', `Initialized ${livenessMap.size} blocks with empty IN/OUT sets`);
     console.log(`[LivenessAnalyzer] [DEBUG] Initialized ${livenessMap.size} blocks with empty IN/OUT sets`);
 
     // STEP 2: Iterative dataflow analysis until reaching fixed point
@@ -177,10 +189,33 @@ export class LivenessAnalyzer {
     if (iteration >= MAX_ITERATIONS) {
       console.warn(`[LivenessAnalyzer] [WARN] Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence for function ${functionCFG.name}!`);
       console.warn(`[LivenessAnalyzer] [WARN] This may indicate a bug in the CFG structure or analysis algorithm.`);
+      LoggingConfig.warn('LivenessAnalysis', `Reached MAX_ITERATIONS without convergence for ${functionCFG.name}`);
     } else {
       console.log(`[LivenessAnalyzer] [INFO] Converged after ${iteration} iterations for function ${functionCFG.name} in ${analysisTimeMs}ms`);
       console.log(`[LivenessAnalyzer] [DEBUG] Analysis completed: ${livenessMap.size} blocks analyzed`);
     }
+    
+    // ============================================================
+    // COMPREHENSIVE LOGGING: Liveness Analysis Summary
+    // ============================================================
+    LoggingConfig.section('LivenessAnalysis', `LIVENESS ANALYSIS COMPLETE: ${functionCFG.name}`);
+    LoggingConfig.log('LivenessAnalysis', `Analysis Time: ${analysisTimeMs}ms`);
+    LoggingConfig.log('LivenessAnalysis', `Iterations: ${iteration}`);
+    LoggingConfig.log('LivenessAnalysis', `Blocks Analyzed: ${livenessMap.size}`);
+    
+    // Collect all live variables
+    const allLiveVars = new Set<string>();
+    livenessMap.forEach((info, blockId) => {
+      info.in.forEach(v => allLiveVars.add(v));
+      info.out.forEach(v => allLiveVars.add(v));
+    });
+    LoggingConfig.log('LivenessAnalysis', `Unique Live Variables: ${allLiveVars.size}`);
+    
+    // Log per-block liveness
+    LoggingConfig.subsection('LivenessAnalysis', 'Per-Block Liveness');
+    livenessMap.forEach((info, blockId) => {
+      LoggingConfig.detail('LivenessAnalysis', `Block ${blockId}: IN=[${Array.from(info.in).join(', ')}], OUT=[${Array.from(info.out).join(', ')}]`);
+    });
     
     return livenessMap;
   }

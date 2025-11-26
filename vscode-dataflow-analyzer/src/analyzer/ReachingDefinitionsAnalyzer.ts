@@ -66,6 +66,7 @@
  */
 
 import { BasicBlock, FunctionCFG, ReachingDefinition, ReachingDefinitionsInfo, Statement } from '../types';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 export class ReachingDefinitionsAnalyzer {
   /**
@@ -82,6 +83,16 @@ export class ReachingDefinitionsAnalyzer {
    */
   analyze(functionCFG: FunctionCFG): Map<string, ReachingDefinitionsInfo> {
     const analysisStartTime = Date.now();
+    
+    // ============================================================
+    // COMPREHENSIVE LOGGING: Reaching Definitions Analysis Start
+    // ============================================================
+    LoggingConfig.section('ReachingDefinitions', `REACHING DEFINITIONS: ${functionCFG.name}`);
+    LoggingConfig.log('ReachingDefinitions', `Function: ${functionCFG.name}`);
+    LoggingConfig.log('ReachingDefinitions', `Total Blocks: ${functionCFG.blocks.size}`);
+    LoggingConfig.log('ReachingDefinitions', `Entry Block: ${functionCFG.entry}`);
+    LoggingConfig.log('ReachingDefinitions', `Exit Block: ${functionCFG.exit}`);
+    
     console.log(`[ReachingDefinitionsAnalyzer] [INFO] Starting reaching definitions analysis for function: ${functionCFG.name}`);
     console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Function has ${functionCFG.blocks.size} blocks`);
     
@@ -89,8 +100,12 @@ export class ReachingDefinitionsAnalyzer {
     
     // Step 1: Collect ALL definitions in the function
     const allDefinitions = this.collectDefinitions(functionCFG);
+    LoggingConfig.log('ReachingDefinitions', `Total Definitions Found: ${allDefinitions.length}`);
     console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Collected ${allDefinitions.length} total definitions in function ${functionCFG.name}`);
+    
+    LoggingConfig.subsection('ReachingDefinitions', 'All Definitions');
     allDefinitions.forEach(def => {
+      LoggingConfig.detail('ReachingDefinitions', `Definition: var="${def.variable}", block=${def.blockId}, id=${def.definitionId}`);
       console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Definition: ${def.variable} in block ${def.blockId} (${def.definitionId})`);
     });
     
@@ -255,10 +270,38 @@ export class ReachingDefinitionsAnalyzer {
     if (iteration >= MAX_ITERATIONS) {
       console.warn(`[ReachingDefinitionsAnalyzer] [WARN] Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence for function ${functionCFG.name}!`);
       console.warn(`[ReachingDefinitionsAnalyzer] [WARN] This may indicate a bug in the CFG structure or analysis algorithm.`);
+      LoggingConfig.warn('ReachingDefinitions', `Reached MAX_ITERATIONS without convergence for ${functionCFG.name}`);
     } else {
       console.log(`[ReachingDefinitionsAnalyzer] [INFO] Converged after ${iteration} iterations for function ${functionCFG.name} in ${analysisTimeMs}ms`);
       console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Analysis completed: ${rdMap.size} blocks analyzed`);
     }
+    
+    // ============================================================
+    // COMPREHENSIVE LOGGING: Reaching Definitions Summary
+    // ============================================================
+    LoggingConfig.section('ReachingDefinitions', `RD ANALYSIS COMPLETE: ${functionCFG.name}`);
+    LoggingConfig.log('ReachingDefinitions', `Analysis Time: ${analysisTimeMs}ms`);
+    LoggingConfig.log('ReachingDefinitions', `Iterations: ${iteration}`);
+    LoggingConfig.log('ReachingDefinitions', `Blocks Analyzed: ${rdMap.size}`);
+    
+    // Count total definitions reaching various points
+    let totalInDefs = 0;
+    let totalOutDefs = 0;
+    rdMap.forEach((info, blockId) => {
+      info.in.forEach((defs, varName) => totalInDefs += defs.length);
+      info.out.forEach((defs, varName) => totalOutDefs += defs.length);
+    });
+    LoggingConfig.log('ReachingDefinitions', `Total Definitions at IN points: ${totalInDefs}`);
+    LoggingConfig.log('ReachingDefinitions', `Total Definitions at OUT points: ${totalOutDefs}`);
+    
+    // Log per-block summary
+    LoggingConfig.subsection('ReachingDefinitions', 'Per-Block RD Summary');
+    rdMap.forEach((info, blockId) => {
+      const inVars = Array.from(info.in.keys());
+      const outVars = Array.from(info.out.keys());
+      LoggingConfig.detail('ReachingDefinitions', `Block ${blockId}: IN vars=[${inVars.join(', ')}], OUT vars=[${outVars.join(', ')}]`);
+    });
+    
     return rdMap;
   }
 

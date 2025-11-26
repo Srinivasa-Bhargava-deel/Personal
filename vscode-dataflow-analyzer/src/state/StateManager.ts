@@ -87,6 +87,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { AnalysisState, FileAnalysisState } from '../types';
 import * as crypto from 'crypto';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 export class StateManager {
   private statePath: string;
@@ -108,26 +109,37 @@ export class StateManager {
    */
   loadState(): { state: AnalysisState | null; loadTimeMs: number } {
     const startTime = Date.now();
+    LoggingConfig.raw(`[StateManager] [LOAD] ========== LOADING STATE ==========`);
+    LoggingConfig.raw(`[StateManager] [LOAD] State path: ${this.statePath}`);
     try {
       if (!fs.existsSync(this.statePath)) {
+        LoggingConfig.raw(`[StateManager] [LOAD] No saved state found at ${this.statePath}`);
         console.log(`[StateManager] [DEBUG] No saved state found at ${this.statePath}`);
         return { state: null, loadTimeMs: Date.now() - startTime };
       }
 
+      LoggingConfig.raw(`[StateManager] [LOAD] Reading state file from disk...`);
       console.log(`[StateManager] [INFO] Loading saved state from ${this.statePath}`);
       const data = fs.readFileSync(this.statePath, 'utf-8');
       const fileSizeKB = (data.length / 1024).toFixed(2);
+      LoggingConfig.raw(`[StateManager] [LOAD] State file size: ${fileSizeKB} KB`);
       console.log(`[StateManager] [DEBUG] State file size: ${fileSizeKB} KB`);
       
+      LoggingConfig.raw(`[StateManager] [LOAD] Parsing JSON...`);
       const state = JSON.parse(data);
       
       // Reconstruct Maps from plain objects
+      LoggingConfig.raw(`[StateManager] [LOAD] Deserializing state (reconstructing Maps/Sets)...`);
       const deserializedState = this.deserializeState(state);
       const loadTimeMs = Date.now() - startTime;
       
+      LoggingConfig.raw(`[StateManager] [LOAD] ✅ State loaded successfully in ${loadTimeMs}ms`);
+      LoggingConfig.raw(`[StateManager] [LOAD] Functions: ${deserializedState.cfg.functions.size}, Files: ${deserializedState.fileStates.size}`);
+      LoggingConfig.raw(`[StateManager] [LOAD] Taint sensitivity: ${deserializedState.taintSensitivity || 'precise'}`);
       console.log(`[StateManager] [INFO] State loaded successfully in ${loadTimeMs}ms (${deserializedState.cfg.functions.size} functions, ${deserializedState.fileStates.size} files)`);
       return { state: deserializedState, loadTimeMs };
     } catch (error) {
+      LoggingConfig.raw(`[StateManager] [LOAD] ❌ ERROR loading state: ${error}`);
       console.error('[StateManager] [ERROR] Error loading state:', error);
       return { state: null, loadTimeMs: Date.now() - startTime };
     }
@@ -147,23 +159,33 @@ export class StateManager {
    * Reference: "Incremental Static Analysis" - Reps et al. (2003)
    */
   saveState(state: AnalysisState): void {
+    LoggingConfig.raw(`[StateManager] [SAVE] ========== SAVING STATE ==========`);
+    LoggingConfig.raw(`[StateManager] [SAVE] State path: ${this.statePath}`);
+    LoggingConfig.raw(`[StateManager] [SAVE] Functions: ${state.cfg.functions.size}, Files: ${state.fileStates.size}`);
+    LoggingConfig.raw(`[StateManager] [SAVE] Taint sensitivity: ${state.taintSensitivity || 'precise'}`);
     try {
       console.log(`[StateManager] [INFO] Saving analysis state to ${this.statePath}`);
       
       // Ensure directory exists
       const dir = path.dirname(this.statePath);
       if (!fs.existsSync(dir)) {
+        LoggingConfig.raw(`[StateManager] [SAVE] Creating directory: ${dir}`);
         fs.mkdirSync(dir, { recursive: true });
         console.log(`[StateManager] [DEBUG] Created directory: ${dir}`);
       }
 
+      LoggingConfig.raw(`[StateManager] [SAVE] Serializing state (converting Maps/Sets to JSON)...`);
       const serialized = this.serializeState(state);
+      LoggingConfig.raw(`[StateManager] [SAVE] Converting to JSON string...`);
       const jsonContent = JSON.stringify(serialized, null, 2);
+      LoggingConfig.raw(`[StateManager] [SAVE] Writing to disk...`);
       fs.writeFileSync(this.statePath, jsonContent, 'utf-8');
       
       const fileSizeKB = (jsonContent.length / 1024).toFixed(2);
+      LoggingConfig.raw(`[StateManager] [SAVE] ✅ State saved successfully (${fileSizeKB} KB)`);
       console.log(`[StateManager] [INFO] State saved successfully (${fileSizeKB} KB, ${state.cfg.functions.size} functions, ${state.fileStates.size} files)`);
     } catch (error) {
+      LoggingConfig.raw(`[StateManager] [SAVE] ❌ ERROR saving state: ${error}`);
       console.error('[StateManager] [ERROR] Error saving state:', error);
       vscode.window.showErrorMessage(`Failed to save analysis state: ${error}`);
     }
@@ -173,11 +195,18 @@ export class StateManager {
    * Clear analysis state
    */
   clearState(): void {
+    LoggingConfig.raw(`[StateManager] [CLEAR] ========== CLEARING STATE ==========`);
+    LoggingConfig.raw(`[StateManager] [CLEAR] State path: ${this.statePath}`);
     try {
       if (fs.existsSync(this.statePath)) {
+        LoggingConfig.raw(`[StateManager] [CLEAR] Deleting state file...`);
         fs.unlinkSync(this.statePath);
+        LoggingConfig.raw(`[StateManager] [CLEAR] ✅ State file deleted successfully`);
+      } else {
+        LoggingConfig.raw(`[StateManager] [CLEAR] State file does not exist, nothing to clear`);
       }
     } catch (error) {
+      LoggingConfig.raw(`[StateManager] [CLEAR] ❌ ERROR clearing state: ${error}`);
       console.error('Error clearing state:', error);
     }
   }

@@ -1,0 +1,55 @@
+Expected Output for WORKSPACE-WIDE Analysis (All Files)
+Note: This includes test_control_dependent_returns.cpp + all other workspace files
+
+Actual Output (Validated):
+Data-flow Taint
+(45)
+
+Control-dependent Taint
+(68)
+
+Mixed Taint
+(22)
+
+Normal Blocks
+(996)
+
+Edge Types:
+
+Control Flow
+(1054)
+
+Function Calls
+(82)
+
+Data Flow
+(1790)
+
+===========================================
+
+Expected Output for SINGLE FILE (test_control_dependent_returns.cpp only):
+Use "Analyze Active File" command to test single file
+
+Data-flow Taint
+(42)
+
+Control-dependent Taint
+(62)
+
+Mixed Taint
+(16)
+
+Normal Blocks
+(980)
+
+Edge Types:
+
+Control Flow
+(1080)
+
+Function Calls
+(26)
+
+Data Flow
+(88)
+

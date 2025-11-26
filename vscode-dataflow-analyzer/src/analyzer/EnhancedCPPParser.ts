@@ -339,6 +339,33 @@ export class EnhancedCPPParser {
     // Remove leading/trailing whitespace
     const trimmed = paramDecl.trim();
     
+    // Debug: Log all parameter declarations to understand formats
+    console.log(`[Parser] [DEBUG] extractParameterName input: "${trimmed}"`);
+    
+    // Handle function pointer syntax: "int (*callback)(int)" -> "callback"
+    // Pattern matches: type (*name)(params)
+    const funcPtrMatch = trimmed.match(/\(\s*\*\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)\s*\([^)]*\)/);
+    if (funcPtrMatch) {
+      console.log(`[Parser] Extracted function pointer parameter: ${funcPtrMatch[1]} from "${trimmed}"`);
+      return funcPtrMatch[1];
+    }
+    
+    // Handle function pointer with return type before: "int (*callback)(int)" from Clang
+    // Sometimes Clang format is slightly different
+    const funcPtrMatch2 = trimmed.match(/\*\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)\s*\(/);
+    if (funcPtrMatch2) {
+      console.log(`[Parser] Extracted function pointer (alt): ${funcPtrMatch2[1]} from "${trimmed}"`);
+      return funcPtrMatch2[1];
+    }
+    
+    // Handle function pointer typedef syntax: "Callback callback" where Callback is a typedef
+    // Also handles array of function pointers: "void (*callbacks[])(int)"
+    const funcPtrArrayMatch = trimmed.match(/\(\s*\*\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\[\]\s*\)\s*\([^)]*\)/);
+    if (funcPtrArrayMatch) {
+      console.log(`[Parser] Extracted function pointer array parameter: ${funcPtrArrayMatch[1]} from "${trimmed}"`);
+      return funcPtrArrayMatch[1];
+    }
+    
     // Split by whitespace and take the last token (parameter name)
     // This handles: "int n", "int* ptr", "const char* str"
     const parts = trimmed.split(/\s+/);
@@ -346,7 +373,13 @@ export class EnhancedCPPParser {
     
     // Remove pointer/reference operators from name
     // Handles: "int* ptr" -> "ptr", "int& ref" -> "ref"
-    const cleanName = name.replace(/[*&\[\]]/g, '');
+    // Also remove leading/trailing parentheses from function pointer names
+    let cleanName = name.replace(/[*&\[\]]/g, '');
+    
+    // Clean up any leading ( from function pointer syntax that wasn't matched
+    cleanName = cleanName.replace(/^\(+/, '').replace(/\)+$/, '');
+    
+    console.log(`[Parser] [DEBUG] extractParameterName result: "${cleanName}" from "${trimmed}"`);
     
     return cleanName;
   }

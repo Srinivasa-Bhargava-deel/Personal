@@ -85,3 +85,36 @@ PHASE 6: FINAL CHECKS & RELEASE
 PENDING - GPT - Run npm run compile and analyzer once more to confirm everything passes
 PENDING - GPT - Prepare git commit and push (v1.1.0) with all code and documentation changes
 COMPLETED - GPT - Successfully pushed v1.0.3 to GitHub with enhanced dataflow analysis
+
+
+VALIDATION PHASE 1: Check sensitivity switching mechanism
+VALIDATION PHASE 1: Verify sensitivity level mapping (getSensitivityLevel)
+VALIDATION PHASE 1: Confirm sensitivity features enable correctly
+BUG FIX PHASE 2: [CG] logs not appearing - console interception timing
+BUG FIX PHASE 2: Verify CallGraphAnalyzer.buildCallGraph() is called
+BUG FIX PHASE 2: Ensure [CG] logs use LoggingConfig methods
+BUG FIX PHASE 3: op treated as external - function pointer resolution
+BUG FIX PHASE 3: callback treated as external - callback resolution
+BUG FIX PHASE 3: Verify collectFunctionPointerAssignments() is called
+BUG FIX PHASE 3: Verify resolveFunctionPointerCall() logic
+BUG FIX PHASE 4: (callback parameter parsing issue
+BUG FIX PHASE 4: Verify extractParameterName() handles func ptrs
+VALIDATE PHASE 5: test_simple_call - direct function calls
+VALIDATE PHASE 5: test_multiple_calls - multiple calls from one func
+VALIDATE PHASE 6: test_call_chain - transitive call relationships
+VALIDATE PHASE 6: test_direct_recursion - direct recursive calls
+VALIDATE PHASE 7: test_indirect_recursion - mutual recursion
+VALIDATE PHASE 7: test_tail_recursion - tail recursion detection
+VALIDATE PHASE 8: test_external_calls - external/library functions
+VALIDATE PHASE 8: test_conditional_calls - conditional branches
+VALIDATE PHASE 9: test_loop_calls - loop-based calls
+VALIDATE PHASE 9: test_function_pointer - function pointer calls
+VALIDATE PHASE 10: test_callback - callback function resolution
+VALIDATE PHASE 10: complex_main - complex call graph
+VALIDATE PHASE 11: test_variadic - variadic function calls
+VALIDATE PHASE 11: CFG block coloring validation
+VALIDATE PHASE 12: Control-dependent taint propagation
+VALIDATE PHASE 12: Data-flow taint propagation
+INTEGRATION PHASE 13: End-to-end test with fresh analysis
+INTEGRATION PHASE 13: Final validation summary report
+BUG FIX: Sensitivity dropdown only worked in Interconnected CFG tab
