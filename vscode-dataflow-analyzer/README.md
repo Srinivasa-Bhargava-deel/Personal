@@ -148,23 +148,88 @@ Perfect for security researchers, developers, and code reviewers who need to und
 
 ## Requirements
 
-### System Requirements
+### Complete Dependency List
 
-- **VSCode**: Version 1.80.0 or higher
-- **Node.js**: Version 20.0.0 or higher (for development)
-- **TypeScript**: Version 5.0.0 or higher (for development)
+This extension requires the following dependencies to be installed on your system:
 
-### Required (for CFG generation)
+#### Core Dependencies (All Platforms)
 
-- **clang/clang++**: Version 21.1.5 or higher (from Homebrew recommended)
-  - macOS: Install via `brew install llvm` or use Xcode Command Line Tools
-  - Linux: Install via package manager (`apt-get install clang` or `yum install clang`)
-  - Windows: Install from [llvm.org](https://llvm.org/)
+1. **Visual Studio Code**
+   - **Version**: 1.80.0 or higher
+   - **Download**: [code.visualstudio.com](https://code.visualstudio.com/)
+   - **Purpose**: Extension host environment
 
-- **CMake**: Version 3.16 or higher (required for building cfg-exporter)
-  - macOS: `brew install cmake`
-  - Linux: `sudo apt-get install cmake` or `sudo yum install cmake`
-  - Windows: Download from [cmake.org](https://cmake.org/)
+2. **Node.js**
+   - **Version**: 20.0.0 or higher (LTS recommended)
+   - **Includes**: npm (Node Package Manager)
+   - **Purpose**: TypeScript compilation, npm package management, extension runtime
+   - **Download**: [nodejs.org](https://nodejs.org/)
+
+3. **TypeScript**
+   - **Version**: 5.0.0 or higher
+   - **Installation**: Automatically installed via `npm install` (listed in `package.json`)
+   - **Purpose**: Compiling TypeScript source code to JavaScript
+
+4. **Git**
+   - **Version**: Any recent version
+   - **Purpose**: Cloning repository, version control
+   - **Download**: [git-scm.com](https://git-scm.com/)
+
+#### C++ Build Dependencies (Required for CFG Exporter)
+
+5. **CMake**
+   - **Version**: 3.13 or higher (CMakeLists.txt requires 3.13+)
+   - **Purpose**: Build system for cfg-exporter C++ tool
+   - **Download**: [cmake.org](https://cmake.org/)
+
+6. **Clang/LLVM**
+   - **Version**: 21.1.5 or higher
+   - **Components Required**:
+     - `clang` and `clang++` compilers
+     - `libclang` (Clang C API library)
+     - LLVM libraries (for `clang::CFG::buildCFG()`)
+     - LLVM CMake configuration files
+   - **Purpose**: CFG generation using official Clang/LLVM libraries
+   - **Download**: Platform-specific (see installation instructions below)
+
+7. **C++ Build Tools** (Platform-specific)
+   - **macOS**: Xcode Command Line Tools (includes `make`, `g++`, etc.)
+   - **Linux**: `build-essential` (Ubuntu/Debian), `gcc-c++` (RHEL/Fedora), `base-devel` (Arch)
+   - **Windows**: Visual Studio Build Tools 2019/2022 (includes MSBuild, C++ compiler)
+
+#### Additional Development Dependencies (Auto-installed via npm)
+
+8. **npm Packages** (Installed via `npm install`)
+   - `@types/node`: Node.js type definitions
+   - `@types/vscode`: VS Code API type definitions
+   - `@typescript-eslint/eslint-plugin`: TypeScript ESLint plugin
+   - `@typescript-eslint/parser`: TypeScript ESLint parser
+   - `eslint`: JavaScript/TypeScript linter
+   - `jest`: Testing framework
+   - `ts-jest`: TypeScript Jest transformer
+   - `@types/jest`: Jest type definitions
+
+#### Runtime Dependencies (Included in Extension)
+
+9. **vis-network** (JavaScript Library)
+   - **Version**: Latest (loaded from CDN)
+   - **Purpose**: Interactive graph visualization
+   - **Source**: CDN (jsdelivr.net/unpkg.com) - no local installation needed
+
+### Platform-Specific Requirements Summary
+
+| Dependency | macOS | Linux | Windows |
+|------------|-------|-------|---------|
+| VS Code | ✅ 1.80.0+ | ✅ 1.80.0+ | ✅ 1.80.0+ |
+| Node.js | ✅ 20.0.0+ | ✅ 20.0.0+ | ✅ 20.0.0+ |
+| npm | ✅ (bundled) | ✅ (bundled) | ✅ (bundled) |
+| TypeScript | ✅ 5.0.0+ (via npm) | ✅ 5.0.0+ (via npm) | ✅ 5.0.0+ (via npm) |
+| Git | ✅ Required | ✅ Required | ✅ Required |
+| CMake | ✅ 3.13+ | ✅ 3.13+ | ✅ 3.13+ |
+| Clang/LLVM | ✅ 21.1.5+ | ✅ 21.1.5+ | ✅ 21.1.5+ |
+| C++ Compiler | ✅ (Xcode CLT) | ✅ (gcc/g++) | ✅ (MSVC via VS Build Tools) |
+| Build Tools | ✅ (make, via Xcode CLT) | ✅ (make, via build-essential) | ✅ (MSBuild, via VS Build Tools) |
+| Package Manager | Homebrew | apt/yum/pacman | N/A (installers) |
 
 ## Installation & Build Instructions
 
@@ -227,175 +292,532 @@ Before starting, ensure you have:
 #### macOS Setup
 
 **Step 1: Install Homebrew** (if not already installed)
+
+Homebrew is the recommended package manager for macOS. Install it if you don't have it:
+
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-**Step 2: Install Required Dependencies**
-```bash
-# Install Node.js, CMake, and LLVM
-brew install node cmake llvm
+Follow the on-screen instructions. After installation, you may need to add Homebrew to your PATH:
 
-# Verify installations
-node --version    # Should be v20.0.0 or higher
-npm --version     # Should be 9.0.0 or higher
-cmake --version   # Should be 3.16 or higher
-clang --version   # Should be 21.1.5 or higher
+```bash
+# For Apple Silicon (M1/M2/M3) Macs
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
+# For Intel Macs (usually already in PATH)
+echo 'eval "$(/usr/local/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/usr/local/bin/brew shellenv)"
 ```
 
-**Step 3: Configure LLVM Path** (for Homebrew LLVM)
+**Step 2: Install Xcode Command Line Tools** (Required for C++ compilation)
 
-For **Apple Silicon (M1/M2/M3)** Macs, add to `~/.zshrc`:
+```bash
+xcode-select --install
+```
+
+This installs:
+- `gcc` and `g++` compilers
+- `make` build tool
+- Other essential development tools
+
+**Step 3: Install Node.js and npm**
+
+```bash
+# Install Node.js (includes npm)
+brew install node
+
+# Verify installation
+node --version    # Should be v20.0.0 or higher
+npm --version     # Should be 9.0.0 or higher (comes with Node.js)
+```
+
+**Alternative**: If you need a specific Node.js version, you can use `nvm` (Node Version Manager):
+```bash
+# Install nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+
+# Install Node.js 20 LTS
+nvm install 20
+nvm use 20
+nvm alias default 20
+```
+
+**Step 4: Install CMake**
+
+```bash
+brew install cmake
+
+# Verify installation
+cmake --version   # Should be 3.13 or higher
+```
+
+**Step 5: Install LLVM/Clang**
+
+```bash
+# Install LLVM (includes clang, clang++, and all required libraries)
+brew install llvm
+
+# Verify installation
+clang --version   # Should be 21.1.5 or higher
+clang++ --version # Should match clang version
+```
+
+**Step 6: Configure LLVM Path** (Critical for CMake to find LLVM)
+
+For **Apple Silicon (M1/M2/M3/M4)** Macs, add to `~/.zshrc` (or `~/.zprofile`):
 ```bash
 export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
 export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+export LLVM_DIR="/opt/homebrew/opt/llvm/lib/cmake/llvm"
 ```
 
-For **Intel Macs**, add to `~/.zshrc`:
+For **Intel Macs**, add to `~/.zshrc` (or `~/.zprofile`):
 ```bash
 export PATH="/usr/local/opt/llvm/bin:$PATH"
 export LDFLAGS="-L/usr/local/opt/llvm/lib"
 export CPPFLAGS="-I/usr/local/opt/llvm/include"
+export LLVM_DIR="/usr/local/opt/llvm/lib/cmake/llvm"
 ```
 
 Then reload your shell:
 ```bash
 source ~/.zshrc
+# OR
+source ~/.zprofile
 ```
 
-**Step 4: Build CFG Exporter**
+**Step 7: Install Git** (if not already installed)
+
+```bash
+brew install git
+
+# Verify installation
+git --version
+```
+
+**Step 8: Clone Repository and Install Extension Dependencies**
+
+```bash
+# Clone the repository (replace with your repository URL)
+git clone <repository-url>
+cd vscode-dataflow-analyzer
+
+# Install all npm dependencies (includes TypeScript, ESLint, Jest, etc.)
+npm install
+
+# Verify TypeScript was installed
+npx tsc --version  # Should be 5.0.0 or higher
+```
+
+**Step 9: Build CFG Exporter (C++ Tool)**
+
 ```bash
 cd cpp-tools/cfg-exporter
 mkdir -p build && cd build
 
-# For Apple Silicon Macs
+# Configure CMake with LLVM path
+# For Apple Silicon Macs:
 cmake .. -DLLVM_DIR=/opt/homebrew/opt/llvm/lib/cmake/llvm
 
-# For Intel Macs
+# For Intel Macs:
 cmake .. -DLLVM_DIR=/usr/local/opt/llvm/lib/cmake/llvm
 
-# Build
+# Build the cfg-exporter binary
 cmake --build .
 
 # Verify binary was created
 ls -la cfg-exporter
+file cfg-exporter  # Should show "Mach-O 64-bit executable"
+
+# Test the binary
+./cfg-exporter --help
 ```
 
-**Step 5: Install Extension Dependencies**
+**Step 10: Compile TypeScript Extension**
+
 ```bash
+# Return to project root
 cd /path/to/vscode-dataflow-analyzer
-npm install
-```
 
-**Step 6: Compile TypeScript**
-```bash
+# Compile TypeScript to JavaScript
 npm run compile
+
+# Verify compilation succeeded
+ls -la out/extension.js  # Should exist
 ```
 
-**Step 7: Run Extension**
+**Step 11: Run Extension**
+
 ```bash
-# Open in VS Code
+# Open project in VS Code
 code .
 
-# Press F5 in VS Code to launch Extension Development Host
-# Or use Command Palette: "Debug: Start Debugging"
+# In VS Code:
+# 1. Press F5 to launch Extension Development Host
+# 2. Or use Command Palette (Cmd+Shift+P): "Debug: Start Debugging"
+# 3. A new VS Code window will open (Extension Development Host)
+# 4. Open a C++ file or workspace
+# 5. Run "Analyze Workspace" command from Command Palette
 ```
 
 **Troubleshooting macOS:**
-- If `cmake` can't find LLVM, specify the path explicitly: `cmake .. -DLLVM_DIR=/opt/homebrew/opt/llvm/lib/cmake/llvm`
-- If you get "command not found" for clang, ensure LLVM is in your PATH
-- For M1/M2 Macs, ensure you're using the ARM64 version of Node.js
+
+- **"cmake: command not found"**
+  - Solution: Ensure CMake is installed: `brew install cmake`
+  - Verify PATH: `which cmake`
+
+- **"CMake can't find LLVM"**
+  - Solution: Specify LLVM path explicitly: `cmake .. -DLLVM_DIR=/opt/homebrew/opt/llvm/lib/cmake/llvm` (Apple Silicon) or `/usr/local/opt/llvm/lib/cmake/llvm` (Intel)
+  - Verify LLVM installation: `brew list llvm`
+
+- **"clang: command not found"**
+  - Solution: Ensure LLVM is in PATH: `export PATH="/opt/homebrew/opt/llvm/bin:$PATH"` (add to `~/.zshrc`)
+  - Reload shell: `source ~/.zshrc`
+
+- **"Node.js version too old"**
+  - Solution: Install Node.js 20+: `brew install node` or use `nvm install 20`
+  - Verify: `node --version`
+
+- **"TypeScript compilation errors"**
+  - Solution: Run `npm install` to ensure all dependencies are installed
+  - Check `package.json` has correct TypeScript version (5.0.0+)
+
+- **"cfg-exporter build fails"**
+  - Solution: Ensure Xcode Command Line Tools are installed: `xcode-select --install`
+  - Check LLVM CMake files exist: `ls /opt/homebrew/opt/llvm/lib/cmake/llvm/` (Apple Silicon)
+
+- **"M1/M2 Mac compatibility issues"**
+  - Solution: Ensure you're using ARM64 versions of all tools
+  - Check Node.js architecture: `node -p "process.arch"` (should be `arm64`)
+  - Use Homebrew's native ARM64 installation: `/opt/homebrew` (not `/usr/local`)
 
 ---
 
 #### Linux Setup
 
-**Step 1: Install Required Dependencies**
+**Step 1: Install Node.js and npm**
 
-**Ubuntu/Debian:**
+**Ubuntu/Debian (using NodeSource repository for Node.js 20+):**
+```bash
+# Update package list
+sudo apt-get update
+
+# Install prerequisites
+sudo apt-get install -y curl gnupg ca-certificates
+
+# Add NodeSource repository for Node.js 20.x
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+
+# Install Node.js (includes npm)
+sudo apt-get install -y nodejs
+
+# Verify installation
+node --version    # Should be v20.0.0 or higher
+npm --version     # Should be 9.0.0 or higher
+```
+
+**Alternative for Ubuntu/Debian (using default repositories - may have older version):**
 ```bash
 sudo apt-get update
-sudo apt-get install -y \
-    nodejs npm \
-    cmake \
-    clang clang++ \
-    llvm llvm-dev \
-    build-essential \
-    git
-
-# Verify installations
-node --version
-npm --version
-cmake --version
-clang --version
+sudo apt-get install -y nodejs npm
+# Note: May need to upgrade if version < 20.0.0
 ```
 
 **RedHat/CentOS/Fedora:**
 ```bash
 # For Fedora
-sudo dnf install -y nodejs npm cmake clang clang-tools-extra llvm llvm-devel gcc gcc-c++ make git
+sudo dnf install -y nodejs npm
 
 # For CentOS/RHEL (may need EPEL repository)
 sudo yum install -y epel-release
-sudo yum install -y nodejs npm cmake clang clang-tools-extra llvm llvm-devel gcc gcc-c++ make git
+sudo yum install -y nodejs npm
 
-# Verify installations
+# Verify installation
 node --version
 npm --version
-cmake --version
-clang --version
+
+# If Node.js version is too old (< 20.0.0), use NodeSource:
+curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+sudo yum install -y nodejs
 ```
 
 **Arch Linux:**
 ```bash
-sudo pacman -S nodejs npm cmake clang llvm base-devel git
+sudo pacman -S nodejs npm
 
-# Verify installations
+# Verify installation
 node --version
 npm --version
-cmake --version
-clang --version
 ```
 
-**Step 2: Build CFG Exporter**
+**Step 2: Install CMake**
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install -y cmake
+
+# Verify installation
+cmake --version   # Should be 3.13 or higher
+```
+
+**RedHat/CentOS/Fedora:**
+```bash
+# Fedora
+sudo dnf install -y cmake
+
+# CentOS/RHEL
+sudo yum install -y cmake
+
+# Verify installation
+cmake --version
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S cmake
+
+# Verify installation
+cmake --version
+```
+
+**Step 3: Install LLVM/Clang**
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+    clang \
+    clang++ \
+    llvm \
+    llvm-dev \
+    libclang-dev \
+    libclang-common-dev
+
+# Verify installation
+clang --version   # Should be 21.1.5 or higher
+clang++ --version # Should match clang version
+llvm-config --version
+```
+
+**RedHat/CentOS/Fedora:**
+```bash
+# Fedora
+sudo dnf install -y \
+    clang \
+    clang-tools-extra \
+    llvm \
+    llvm-devel \
+    llvm-static
+
+# CentOS/RHEL
+sudo yum install -y \
+    clang \
+    clang-tools-extra \
+    llvm \
+    llvm-devel \
+    llvm-static
+
+# Verify installation
+clang --version
+clang++ --version
+llvm-config --version
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S clang llvm
+
+# Verify installation
+clang --version
+clang++ --version
+llvm-config --version
+```
+
+**Step 4: Install C++ Build Tools**
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+    build-essential \
+    gcc \
+    g++ \
+    make \
+    pkg-config
+
+# Verify installation
+gcc --version
+g++ --version
+make --version
+```
+
+**RedHat/CentOS/Fedora:**
+```bash
+# Fedora
+sudo dnf install -y \
+    gcc \
+    gcc-c++ \
+    make \
+    pkgconfig
+
+# CentOS/RHEL
+sudo yum install -y \
+    gcc \
+    gcc-c++ \
+    make \
+    pkgconfig
+
+# Verify installation
+gcc --version
+g++ --version
+make --version
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S base-devel
+
+# base-devel includes: gcc, g++, make, pkg-config, and other build tools
+# Verify installation
+gcc --version
+g++ --version
+make --version
+```
+
+**Step 5: Install Git**
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install -y git
+
+# Verify installation
+git --version
+```
+
+**RedHat/CentOS/Fedora:**
+```bash
+# Fedora
+sudo dnf install -y git
+
+# CentOS/RHEL
+sudo yum install -y git
+
+# Verify installation
+git --version
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S git
+
+# Verify installation
+git --version
+```
+
+**Step 6: Clone Repository and Install Extension Dependencies**
+
+```bash
+# Clone the repository (replace with your repository URL)
+git clone <repository-url>
+cd vscode-dataflow-analyzer
+
+# Install all npm dependencies (includes TypeScript, ESLint, Jest, etc.)
+npm install
+
+# Verify TypeScript was installed
+npx tsc --version  # Should be 5.0.0 or higher
+```
+
+**Step 7: Build CFG Exporter (C++ Tool)**
+
 ```bash
 cd cpp-tools/cfg-exporter
 mkdir -p build && cd build
+
+# Configure CMake
 cmake ..
+
+# If CMake can't find LLVM, specify the path explicitly:
+# cmake .. -DLLVM_DIR=/usr/lib/llvm-21/lib/cmake/llvm
+# (Path may vary by distribution - check with: find /usr -name "LLVMConfig.cmake" 2>/dev/null)
+
+# Build the cfg-exporter binary
 cmake --build .
 
 # Verify binary was created
 ls -la cfg-exporter
+file cfg-exporter  # Should show "ELF 64-bit LSB executable"
+
+# Test the binary
+./cfg-exporter --help
 ```
 
-**Step 3: Install Extension Dependencies**
+**Step 8: Compile TypeScript Extension**
+
 ```bash
+# Return to project root
 cd /path/to/vscode-dataflow-analyzer
-npm install
-```
 
-**Step 4: Compile TypeScript**
-```bash
+# Compile TypeScript to JavaScript
 npm run compile
+
+# Verify compilation succeeded
+ls -la out/extension.js  # Should exist
 ```
 
-**Step 5: Run Extension**
+**Step 9: Run Extension**
+
 ```bash
-# Open in VS Code
+# Open project in VS Code
 code .
 
-# Press F5 in VS Code to launch Extension Development Host
+# In VS Code:
+# 1. Press F5 to launch Extension Development Host
+# 2. Or use Command Palette (Ctrl+Shift+P): "Debug: Start Debugging"
+# 3. A new VS Code window will open (Extension Development Host)
+# 4. Open a C++ file or workspace
+# 5. Run "Analyze Workspace" command from Command Palette
 ```
 
 **Troubleshooting Linux:**
-- If Node.js version is too old, use NodeSource repository:
-  ```bash
-  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-  sudo apt-get install -y nodejs
-  ```
-- If CMake can't find LLVM, install `llvm-dev` package
-- Ensure `clang++` is available: `which clang++`
+
+- **"Node.js version too old"**
+  - Solution: Use NodeSource repository for Node.js 20+:
+    ```bash
+    # Ubuntu/Debian
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+    
+    # RHEL/CentOS/Fedora
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+    sudo yum install -y nodejs
+    ```
+  - Verify: `node --version`
+
+- **"CMake can't find LLVM"**
+  - Solution: Install `llvm-dev` package (Ubuntu/Debian) or `llvm-devel` (RHEL/Fedora)
+  - Find LLVM CMake config: `find /usr -name "LLVMConfig.cmake" 2>/dev/null`
+  - Specify LLVM path: `cmake .. -DLLVM_DIR=/usr/lib/llvm-21/lib/cmake/llvm` (path may vary)
+
+- **"clang++: command not found"**
+  - Solution: Install `clang++` package: `sudo apt-get install clang++` (Ubuntu/Debian)
+  - Verify: `which clang++`
+
+- **"Build fails with missing headers"**
+  - Solution: Install development packages: `sudo apt-get install libclang-dev` (Ubuntu/Debian)
+  - For RHEL/Fedora: `sudo yum install llvm-devel`
+
+- **"Permission denied" when running cfg-exporter**
+  - Solution: Ensure binary is executable: `chmod +x cpp-tools/cfg-exporter/build/cfg-exporter`
+
+- **"Package manager errors"**
+  - Ubuntu/Debian: Update package list: `sudo apt-get update`
+  - RHEL/CentOS: Enable EPEL: `sudo yum install epel-release`
+  - Arch: Update package database: `sudo pacman -Sy`
 
 ---
 
