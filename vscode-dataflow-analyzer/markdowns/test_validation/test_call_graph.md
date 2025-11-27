@@ -55,8 +55,51 @@ Tests function call relationship tracking including direct calls, indirect calls
 - [ ] Call graph visualization shows all relationships
 - [ ] Function call edges appear in interconnected CFG
 
+## Counterexamples Added
+
+### Counterexample 1: Call to Function Through void* Pointer Cast
+- **Purpose**: Tests call graph generation for void* pointer casts
+- **Expected**: Should detect function calls through void* casts
+- **Edge Case**: void* pointer cast calls
+
+### Counterexample 2: Calls Within Macro Definition
+- **Purpose**: Tests call graph generation for macro-expanded calls
+- **Expected**: Should detect calls within macros
+- **Edge Case**: Macro call expansion
+
+### Counterexample 3: Calls to Overloaded Functions (C++ specific)
+- **Purpose**: Tests call graph generation for overloaded functions
+- **Expected**: Should resolve correct overload based on arguments
+- **Edge Case**: Function overloading
+
+### Counterexample 4: Calls to Virtual Functions (C++ specific)
+- **Purpose**: Tests call graph generation for virtual function calls
+- **Expected**: Should track virtual function calls
+- **Edge Case**: Virtual function calls
+
+### Counterexample 5: Calls to Functions in Different Compilation Unit
+- **Purpose**: Tests call graph generation for external linkage functions
+- **Expected**: Should track external function calls
+- **Edge Case**: External linkage calls
+
+## Validation Checklist
+
+- [ ] All direct function calls are captured
+- [ ] Recursive functions are identified correctly
+- [ ] Function pointer calls are resolved to target functions
+- [ ] Callback functions are tracked correctly
+- [ ] External function calls are marked
+- [ ] Call graph visualization shows all relationships
+- [ ] Function call edges appear in interconnected CFG
+- [ ] void* pointer casts are handled
+- [ ] Macro calls are detected
+- [ ] Overloaded functions are resolved
+- [ ] Virtual functions are tracked
+- [ ] External linkage calls are tracked
+
 ## Notes
 - Function pointer resolution requires tracking assignments
 - Callback tracking requires parameter analysis
 - External functions should be marked but not analyzed
+- Counterexamples test edge cases for call graph generation
 

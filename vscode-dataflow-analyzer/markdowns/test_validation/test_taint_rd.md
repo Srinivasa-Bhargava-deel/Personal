@@ -88,4 +88,5 @@ int main() {
 - This is a simple test case to verify basic taint propagation
 - Should work with all sensitivity levels (MINIMAL and above)
 - No control-dependent taint expected (no conditionals)
+- Counterexamples are not applicable for this simple test file
 

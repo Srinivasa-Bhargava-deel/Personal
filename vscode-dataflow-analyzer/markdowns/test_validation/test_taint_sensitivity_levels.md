@@ -81,9 +81,53 @@ Tests all 5 taint analysis sensitivity levels. Each test case shows different be
 - [ ] Re-analysis triggers when sensitivity changes
 - [ ] Visualization updates with new sensitivity
 
+## Counterexamples Added
+
+### Counterexample 1: Sensitivity Levels Through Function Pointer
+- **Purpose**: Tests different sensitivity levels handle function pointers differently
+- **Expected**: Behavior should differ by sensitivity level
+- **Edge Case**: Function pointer sensitivity
+
+### Counterexample 2: Sensitivity Levels Through Global Variable
+- **Purpose**: Tests different sensitivity levels handle global variables differently
+- **Expected**: Behavior should differ by sensitivity level
+- **Edge Case**: Global variable sensitivity
+
+### Counterexample 3: Sensitivity Levels Through Struct Field
+- **Purpose**: Tests different sensitivity levels handle struct fields differently
+- **Expected**: PRECISE/MAXIMUM should track fields separately
+- **Edge Case**: Struct field sensitivity
+
+### Counterexample 4: Sensitivity Levels Through Array Element
+- **Purpose**: Tests different sensitivity levels handle array elements differently
+- **Expected**: Behavior should differ by sensitivity level
+- **Edge Case**: Array element sensitivity
+
+### Counterexample 5: Sensitivity Levels Through Nested Function Calls
+- **Purpose**: Tests different sensitivity levels handle nested calls differently
+- **Expected**: BALANCED+ should handle inter-procedural, MAXIMUM should be context-sensitive
+- **Edge Case**: Nested call sensitivity
+
+## Validation Checklist
+
+- [ ] MINIMAL level only shows data-flow taint (yellow)
+- [ ] CONSERVATIVE level shows control-dependent taint (orange)
+- [ ] BALANCED level shows inter-procedural taint
+- [ ] PRECISE level shows path-sensitive analysis
+- [ ] MAXIMUM level shows all features enabled
+- [ ] Sensitivity dropdown works correctly
+- [ ] Re-analysis triggers when sensitivity changes
+- [ ] Visualization updates with new sensitivity
+- [ ] Function pointer sensitivity differs by level
+- [ ] Global variable sensitivity differs by level
+- [ ] Struct field sensitivity differs by level
+- [ ] Array element sensitivity differs by level
+- [ ] Nested call sensitivity differs by level
+
 ## Notes
 - Test each sensitivity level separately
 - Compare results between levels
 - Verify that higher levels detect more taint
 - Check that sensitivity changes trigger re-analysis
+- Counterexamples test edge cases for sensitivity levels
 

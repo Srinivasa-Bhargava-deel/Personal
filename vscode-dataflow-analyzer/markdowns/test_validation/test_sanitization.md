@@ -29,6 +29,33 @@ Tests sanitization detection and taint stopping. Validates that sanitized variab
 - **Vulnerabilities**: Should NOT show vulnerabilities for sanitized variables
 - **Sanitization Points**: Should show where sanitization occurred
 
+## Counterexamples Added
+
+### Counterexample 1: Sanitization by Custom clean_string Function
+- **Purpose**: Tests sanitization by custom function
+- **Expected**: Custom sanitizer should stop taint propagation
+- **Edge Case**: Custom sanitization function
+
+### Counterexample 2: Sanitization by strtol (String to Long)
+- **Purpose**: Tests sanitization by integer conversion
+- **Expected**: Type conversion should stop taint propagation
+- **Edge Case**: Integer conversion sanitization
+
+### Counterexample 3: Sanitization by snprintf with Fixed Size Buffer
+- **Purpose**: Tests sanitization by size-limited formatting
+- **Expected**: Size-limited formatting should stop taint propagation
+- **Edge Case**: Size-limited sanitization
+
+### Counterexample 4: Sanitization by strncat with Explicit Size Limit
+- **Purpose**: Tests sanitization by size-limited concatenation
+- **Expected**: Size-limited concatenation should stop taint propagation
+- **Edge Case**: Size-limited concatenation sanitization
+
+### Counterexample 5: Sanitization by Custom html_escape Function
+- **Purpose**: Tests sanitization by HTML escaping
+- **Expected**: HTML escaping should stop taint propagation
+- **Edge Case**: HTML escaping sanitization
+
 ## Validation Checklist
 
 - [ ] Input validation stops taint propagation
@@ -39,4 +66,12 @@ Tests sanitization detection and taint stopping. Validates that sanitized variab
 - [ ] Whitelist filtering stops taint propagation
 - [ ] Partial sanitization works correctly
 - [ ] No vulnerabilities detected for sanitized variables
+- [ ] Custom sanitization functions work
+- [ ] Integer conversion sanitization works
+- [ ] Size-limited formatting sanitization works
+- [ ] Size-limited concatenation sanitization works
+- [ ] HTML escaping sanitization works
+
+## Notes
+- Counterexamples test edge cases for sanitization detection
 

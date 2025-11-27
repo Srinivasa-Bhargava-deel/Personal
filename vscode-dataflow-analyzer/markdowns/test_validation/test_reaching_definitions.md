@@ -46,8 +46,50 @@ Tests forward dataflow analysis for definition tracking. Validates GEN/KILL sets
 - [ ] RD analysis completes without errors
 - [ ] UI displays RD information correctly
 
+## Counterexamples Added
+
+### Counterexample 1: Multiple Pointers to Same Variable (Aliasing)
+- **Purpose**: Tests RD analysis with pointer aliasing
+- **Expected**: Should track definitions through aliases
+- **Edge Case**: Pointer aliasing
+
+### Counterexample 2: Definition Through Function Call (Side Effect)
+- **Purpose**: Tests RD analysis with function call side effects
+- **Expected**: Should track definitions through function calls
+- **Edge Case**: Function call side effects
+
+### Counterexample 3: Struct Field Definitions
+- **Purpose**: Tests RD analysis with struct field definitions
+- **Expected**: Should track field-level definitions
+- **Edge Case**: Struct field definitions
+
+### Counterexample 4: Array Element Definitions with Variable Index
+- **Purpose**: Tests RD analysis with array element definitions
+- **Expected**: Should track element-level definitions
+- **Edge Case**: Array element definitions
+
+### Counterexample 5: Definition Through Indirect Assignment Chain
+- **Purpose**: Tests RD analysis with indirect assignment chains
+- **Expected**: Should track definitions through chains
+- **Edge Case**: Indirect assignment chains
+
+## Validation Checklist
+
+- [ ] Definitions reach uses correctly
+- [ ] KILL sets eliminate prior definitions
+- [ ] Multiple definitions from different paths both reach merge points
+- [ ] Loop definitions propagate correctly
+- [ ] RD analysis completes without errors
+- [ ] UI displays RD information correctly
+- [ ] Pointer aliasing is handled
+- [ ] Function call side effects are handled
+- [ ] Struct field definitions are handled
+- [ ] Array element definitions are handled
+- [ ] Indirect assignment chains are handled
+
 ## Notes
 - Reaching Definitions is a forward dataflow analysis
 - Used by taint analysis to track variable definitions
 - Should complete in finite iterations (fixed-point)
+- Counterexamples test edge cases for reaching definitions analysis
 
