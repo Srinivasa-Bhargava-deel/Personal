@@ -36,6 +36,10 @@ This folder contains C++ test files designed to validate all features of the VSC
 | `test_control_dependent_taint.cpp` | Control-Dependent | Control-dependent taint scenarios |
 | `test_liveness_convergence.cpp` | Liveness Convergence | Fixed-point convergence |
 | `test_arithmetic_taint.cpp` | Arithmetic Taint | Taint through arithmetic expressions |
+| `test_parameter_analysis.cpp` | Parameter Analysis | Direct, expression, composite, address, call, array, dereference parameter types |
+| `test_return_value_analysis.cpp` | Return Value Analysis | Variable, expression, call, conditional, constant, void return types |
+| `test_function_call_extractor.cpp` | Function Call Extractor | Nested calls, edge cases, whitespace variations, complex arguments |
+| `test_registry_edge_cases.cpp` | Registry Edge Cases | Multi-category functions, custom entries, argument extraction, pattern matching |
 
 ## Color Coding Validation
 

@@ -427,9 +427,124 @@ int main() {
     // Safe example
     // safe_input_handling();
     
+    // Counterexamples
+    vuln_counterexample_indirect_buffer_overflow();
+    vuln_counterexample_struct_field_overflow();
+    vuln_counterexample_nested_injection();
+    vuln_counterexample_format_string_chain();
+    vuln_counterexample_memory_leak();
+    
     printf("\n=== Tests Complete ===\n");
     
     return 0;
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 1: Indirect Buffer Overflow Through Function Call
+// =============================================================================
+// COUNTEREXAMPLE: Buffer overflow through function call
+// This tests if analyzer detects buffer overflow through function calls
+// EXPECTED: Buffer overflow should be detected even through function calls
+// EDGE CASE: Indirect buffer overflow
+void copy_string(char* dest, char* src) {
+    strcpy(dest, src);  // Buffer overflow if dest is too small
+}
+
+void vuln_counterexample_indirect_buffer_overflow() {
+    char small_buffer[10];
+    char large_input[100];
+    
+    scanf("%s", large_input);  // TAINT SOURCE
+    
+    copy_string(small_buffer, large_input);  // BUFFER OVERFLOW through function call!
+    
+    printf("Buffer: %s\n", small_buffer);
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Buffer Overflow Through Struct Field
+// =============================================================================
+// COUNTEREXAMPLE: Buffer overflow through struct field access
+// This tests if analyzer detects buffer overflow in struct fields
+// EXPECTED: Buffer overflow should be detected in struct fields
+// EDGE CASE: Struct field buffer overflow
+struct BufferStruct {
+    char small_field[10];
+    char large_field[100];
+};
+
+void vuln_counterexample_struct_field_overflow() {
+    struct BufferStruct buf;
+    
+    scanf("%s", buf.large_field);  // TAINT SOURCE
+    
+    strcpy(buf.small_field, buf.large_field);  // BUFFER OVERFLOW in struct field!
+    
+    printf("Field: %s\n", buf.small_field);
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Nested Injection Attack
+// =============================================================================
+// COUNTEREXAMPLE: Injection attack through nested function calls
+// This tests if analyzer detects injection attacks through call chains
+// EXPECTED: Injection should be detected even through nested calls
+// EDGE CASE: Nested injection
+void build_command(char* cmd, char* arg) {
+    sprintf(cmd, "cat %s", arg);  // Building command
+}
+
+void execute_command(char* cmd) {
+    system(cmd);  // Executing command
+}
+
+void vuln_counterexample_nested_injection() {
+    char filename[100];
+    char command[256];
+    
+    scanf("%s", filename);  // TAINT SOURCE
+    
+    build_command(command, filename);  // Build command with tainted input
+    execute_command(command);  // COMMAND INJECTION through nested calls!
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Format String Through Function Chain
+// =============================================================================
+// COUNTEREXAMPLE: Format string vulnerability through function chain
+// This tests if analyzer detects format string vulnerabilities through chains
+// EXPECTED: Format string vulnerability should be detected through chains
+// EDGE CASE: Format string chain
+void process_format(char* format) {
+    printf(format);  // Format string vulnerability
+}
+
+void vuln_counterexample_format_string_chain() {
+    char user_format[100];
+    
+    scanf("%s", user_format);  // TAINT SOURCE
+    
+    process_format(user_format);  // FORMAT STRING VULNERABILITY through function call!
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Memory Leak (Not Use-After-Free)
+// =============================================================================
+// COUNTEREXAMPLE: Memory leak without use-after-free
+// This tests if analyzer distinguishes memory leaks from use-after-free
+// EXPECTED: Memory leak should be detected separately
+// EDGE CASE: Memory leak
+void vuln_counterexample_memory_leak() {
+    char* buffer1 = (char*)malloc(100);
+    char* buffer2 = (char*)malloc(100);
+    
+    strcpy(buffer1, "Hello");
+    strcpy(buffer2, "World");
+    
+    free(buffer1);
+    // MEMORY LEAK: buffer2 is never freed!
+    
+    printf("Memory leaked\n");
 }
 
 

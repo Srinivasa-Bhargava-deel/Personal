@@ -250,6 +250,112 @@ void test_gen_kill(int cond) {
 }
 
 // =============================================================================
+// COUNTEREXAMPLE 1: Multiple Pointers to Same Variable (Aliasing)
+// =============================================================================
+// COUNTEREXAMPLE: Two pointers pointing to same variable
+// This tests if reaching definitions correctly handles pointer aliasing
+// EXPECTED RD:
+// - Both *ptr1 and *ptr2 modify 'x'
+// - Definitions through both pointers should kill previous definitions
+// EDGE CASE: Pointer aliasing
+void test_counterexample_pointer_aliasing() {
+    int x = 5;       // DEF: x (d1)
+    int* ptr1 = &x;  // DEF: ptr1
+    int* ptr2 = &x;  // DEF: ptr2 (aliases ptr1)
+    
+    *ptr1 = 10;      // DEF: x (d2) through ptr1 - KILLS d1
+    *ptr2 = 20;      // DEF: x (d3) through ptr2 - KILLS d2
+    
+    printf("%d\n", x);  // USE: x <- only d3 reaches here
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Definition Through Function Call (Side Effect)
+// =============================================================================
+// COUNTEREXAMPLE: Function that modifies variable through pointer
+// This tests if reaching definitions track definitions through function calls
+// EXPECTED RD:
+// - modify_through_ptr() creates definition for 'x'
+// - Definition should be tracked even though it's in a function call
+// EDGE CASE: Function call side effects
+void modify_through_ptr(int* p) {
+    *p = 100;  // DEF: *p (side effect)
+}
+
+void test_counterexample_function_side_effect() {
+    int x = 5;  // DEF: x (d1)
+    modify_through_ptr(&x);  // Function call modifies x - KILLS d1
+    printf("%d\n", x);  // USE: x <- definition from function call reaches here
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Struct Field Definitions
+// =============================================================================
+// COUNTEREXAMPLE: Definitions through struct field access
+// This tests if reaching definitions track struct field definitions
+// EXPECTED RD:
+// - obj.field = value creates definition for obj.field
+// - Different fields of same struct are independent
+// EDGE CASE: Struct field definitions
+struct TestStruct {
+    int field1;
+    int field2;
+};
+
+void test_counterexample_struct_fields() {
+    struct TestStruct obj;
+    obj.field1 = 10;  // DEF: obj.field1 (d1)
+    obj.field2 = 20;  // DEF: obj.field2 (d2)
+    
+    obj.field1 = 30;  // DEF: obj.field1 (d3) - KILLS d1
+    
+    printf("%d %d\n", obj.field1, obj.field2);  // USE: obj.field1 <- d3, obj.field2 <- d2
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Array Element Definitions with Variable Index
+// =============================================================================
+// COUNTEREXAMPLE: Array definitions with variable index
+// This tests if reaching definitions handle array indexing correctly
+// EXPECTED RD:
+// - arr[i] = value creates definition for arr[i]
+// - Different indices may alias same element
+// EDGE CASE: Variable array indexing
+void test_counterexample_array_variable_index() {
+    int arr[5];
+    int i = 2;
+    
+    arr[i] = 10;     // DEF: arr[2] (d1)
+    arr[i + 1] = 20; // DEF: arr[3] (d2)
+    
+    i = 2;
+    arr[i] = 30;     // DEF: arr[2] (d3) - KILLS d1
+    
+    printf("%d %d\n", arr[2], arr[3]);  // USE: arr[2] <- d3, arr[3] <- d2
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Definition Through Indirect Assignment Chain
+// =============================================================================
+// COUNTEREXAMPLE: Complex assignment chain with intermediate variables
+// This tests if reaching definitions track definitions through chains
+// EXPECTED RD:
+// - Chain: a -> b -> c -> d
+// - Each definition should reach subsequent uses
+// EDGE CASE: Complex assignment chains
+void test_counterexample_indirect_chain() {
+    int a = 1;        // DEF: a (d1)
+    int b = a;        // USE: a; DEF: b (d2)
+    int c = b + 1;    // USE: b; DEF: c (d3)
+    int d = c * 2;    // USE: c; DEF: d (d4)
+    
+    a = 10;           // DEF: a (d5) - KILLS d1
+    b = a;            // USE: a; DEF: b (d6) - KILLS d2
+    
+    printf("%d %d %d %d\n", a, b, c, d);  // USE: a <- d5, b <- d6, c <- d3, d <- d4
+}
+
+// =============================================================================
 // MAIN - Entry Point for Testing
 // =============================================================================
 int main() {
@@ -266,6 +372,13 @@ int main() {
     test_rd_array();
     test_rd_pointer();
     test_gen_kill(1);
+    
+    // Counterexamples
+    test_counterexample_pointer_aliasing();
+    test_counterexample_function_side_effect();
+    test_counterexample_struct_fields();
+    test_counterexample_array_variable_index();
+    test_counterexample_indirect_chain();
     
     return 0;
 }

@@ -62,6 +62,7 @@ import * as util from 'util';
 import * as path from 'path';
 import { Range, Statement, StatementType } from '../types';
 import { FunctionCallExtractor } from './FunctionCallExtractor';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 /**
  * Represents a source code location (file, line, column, offset).
@@ -215,9 +216,9 @@ export class ClangASTParser {
           }
         }
         
-        console.log('Discovered clang include paths:', paths.length > 0 ? paths : 'none found');
+        LoggingConfig.detail('Parser', `Discovered clang include paths: ${paths.length > 0 ? paths.join(', ') : 'none found'}`);
       } catch (verboseError) {
-        console.log('Verbose clang query failed, trying xcrun for SDK path');
+        LoggingConfig.detail('Parser', 'Verbose clang query failed, trying xcrun for SDK path');
         
         // Fallback: use xcrun to get SDK path on macOS
         try {
@@ -239,7 +240,7 @@ export class ClangASTParser {
         paths.push('-isystem/usr/include');
       }
     } catch (err) {
-      console.log('Include path discovery failed completely, using hardcoded fallbacks');
+      LoggingConfig.warn('Parser', 'Include path discovery failed completely, using hardcoded fallbacks');
       // Absolute fallback
       paths.push('-I/opt/homebrew/opt/llvm/include/c++/v1');
       paths.push('-I/opt/homebrew/opt/llvm/lib/clang/21.1.5/include');
@@ -313,9 +314,17 @@ export class ClangASTParser {
    * @throws Error if clang is not available or parsing fails
    */
   async parseFile(filePath: string, args: string[] = []): Promise<ASTNode | null> {
+    LoggingConfig.section('Parser', `ClangASTParser.parseFile: ${filePath}`);
+    LoggingConfig.log('Parser', `File path: ${filePath}`);
+    LoggingConfig.detail('Parser', `Additional args: ${args.length > 0 ? args.join(' ') : 'none'}`);
+    
     if (!this.clangPath) {
+      LoggingConfig.error('Parser', 'Clang is not available');
       throw new Error('Clang is not available');
     }
+
+    LoggingConfig.detail('Parser', `Using clang path: ${this.clangPath}`);
+    const parseStartTime = Date.now();
 
     try {
       // Use clang CFG dump to generate control flow graphs using C++ libraries
@@ -334,10 +343,24 @@ export class ClangASTParser {
         filePath
       ];
 
+      LoggingConfig.detail('Parser', `Clang args: ${clangArgs.join(' ')}`);
+      
       // Use streaming parser for large files
-      return await this.parseFileStreaming(filePath, clangArgs);
+      const result = await this.parseFileStreaming(filePath, clangArgs);
+      const parseTimeMs = Date.now() - parseStartTime;
+      
+      if (result) {
+        const funcCount = result.inner ? (Array.isArray(result.inner) ? result.inner.length : Object.keys(result.inner).length) : 0;
+        LoggingConfig.log('Parser', `Parse successful: ${funcCount} functions found in ${parseTimeMs}ms`);
+      } else {
+        LoggingConfig.warn('Parser', `Parse returned null (no AST generated) after ${parseTimeMs}ms`);
+      }
+      
+      return result;
     } catch (error: any) {
-      console.error('Error parsing with clang:', error.message);
+      const parseTimeMs = Date.now() - parseStartTime;
+      LoggingConfig.error('Parser', `Error parsing with clang: ${error.message}`, error);
+      LoggingConfig.log('Parser', `Parse failed after ${parseTimeMs}ms`);
       throw error;
     }
   }
@@ -420,15 +443,23 @@ export class ClangASTParser {
         }
 
         try {
+          /**
+           * CFG EXPORTER OUTPUT PARSING
+           * 
+           * Parses JSON output from cfg-exporter and converts to AST structure.
+           */
           // Parse JSON output from cfg-exporter
-          console.log('cfg-exporter output length:', output.length);
-          console.log('cfg-exporter output preview:', output.substring(0, 300));
+          LoggingConfig.detail('Parser', `cfg-exporter output length: ${output.length} bytes`);
+          LoggingConfig.verbose('Parser', `cfg-exporter output preview: ${output.substring(0, 300)}`);
           
           const jsonOutput = JSON.parse(output);
+          LoggingConfig.detail('Parser', 'JSON parsing successful, converting to AST structure');
           const cfgData = this.parseCFGExporterJSON(jsonOutput, filePath);
-          console.log('Parsed CFG with', cfgData ? Object.keys(cfgData.inner || {}).length : 0, 'functions');
+          const funcCount = cfgData ? Object.keys(cfgData.inner || {}).length : 0;
+          LoggingConfig.log('Parser', `Parsed CFG with ${funcCount} functions`);
           resolve(cfgData);
         } catch (parseError: any) {
+          LoggingConfig.error('Parser', `Failed to parse cfg-exporter JSON output: ${parseError.message}`, parseError);
           reject(new Error(`Failed to parse cfg-exporter JSON output: ${parseError.message}`));
         }
       });
@@ -502,12 +533,15 @@ export class ClangASTParser {
       }
 
       // Return root node with functions as inner property
+      const funcCount = Object.keys(functions).length;
+      LoggingConfig.detail('Parser', `Created AST node with ${funcCount} functions`);
+      
       return {
         kind: 'TranslationUnit',
         inner: functions
       };
     } catch (error: any) {
-      console.error('Error parsing cfg-exporter JSON:', error.message);
+      LoggingConfig.error('Parser', `Error parsing cfg-exporter JSON: ${error.message}`, error);
       return null;
     }
   }
@@ -548,9 +582,15 @@ export class ClangASTParser {
    * Parse Clang CFG dump output into AST-like structure
    * CFG dump provides control flow graphs generated by Clang's CFG library
    */
+  /**
+   * PARSE CFG OUTPUT FROM CLANG CFG DUMP
+   * 
+   * Parses Clang CFG dump text output into AST-like structure.
+   * This is a fallback method when cfg-exporter JSON is not available.
+   */
   private parseCFGOutput(cfgOutput: string, sourceFilePath: string): ASTNode | null {
-    console.log('CFG Output length:', cfgOutput.length);
-    console.log('CFG Output preview:', cfgOutput.substring(0, 500));
+    LoggingConfig.detail('Parser', `CFG Output length: ${cfgOutput.length}`);
+    LoggingConfig.verbose('Parser', `CFG Output preview: ${cfgOutput.substring(0, 500)}`);
 
     // Actual clang CFG dump output looks like:
     // int main()
@@ -571,9 +611,14 @@ export class ClangASTParser {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
 
+      /**
+       * CFG OUTPUT PARSING
+       * 
+       * Parses Clang CFG dump text format line by line to extract functions and blocks.
+       */
       // DEBUG: Log ALL lines with parentheses to see what's in the output
       if (line.includes('(') && line.includes(')')) {
-        console.log('LINE WITH PARENTHESES:', JSON.stringify(line));
+        LoggingConfig.verbose('Parser', `LINE WITH PARENTHESES: ${JSON.stringify(line)}`);
       }
 
       // Check for function start - function signature on its own line
@@ -581,7 +626,7 @@ export class ClangASTParser {
       // But NOT CFG elements like "Succs (1): B2" or "2: [B4.1] (ImplicitCastExpr..."
       const funcSignatureRegex = /^\s*(?:\w+\s+)+\w+\s*\([^)]*\)\s*$/;
       if (line && funcSignatureRegex.test(line) && !line.startsWith('[') && !line.includes('Succs') && !line.includes('Preds') && !line.includes(':') && !line.includes('B') && line.trim().split(/\s+/).length >= 2) {
-        console.log('ACCEPTED AS FUNCTION:', line);
+        LoggingConfig.verbose('Parser', `ACCEPTED AS FUNCTION: ${line}`);
 
         // Save previous function if exists
         if (currentFunction && currentBlocks.length > 0) {
@@ -591,7 +636,7 @@ export class ClangASTParser {
         currentFunction = line;
         currentBlocks = [];
         currentBlock = null;
-        console.log('Found function:', currentFunction);
+        LoggingConfig.detail('Parser', `Found function: ${currentFunction}`);
         continue;
       }
 
@@ -618,7 +663,7 @@ export class ClangASTParser {
           isExit
         };
 
-        console.log('Found block:', currentBlock.label);
+        LoggingConfig.verbose('Parser', `Found block: ${currentBlock.label}`);
         continue;
       }
 
@@ -657,12 +702,18 @@ export class ClangASTParser {
       }
     }
 
+    /**
+     * CFG PARSING COMPLETE
+     * 
+     * Saves the last function and creates the final AST node.
+     */
     // Save last function
-    console.log('END OF PARSING - currentFunction:', currentFunction, 'blocks:', currentBlocks.length);
+    LoggingConfig.detail('Parser', `END OF PARSING - currentFunction: ${currentFunction}, blocks: ${currentBlocks.length}`);
     if (currentFunction && currentBlocks.length > 0) {
-      console.log('Saving last function:', currentFunction);
+      LoggingConfig.detail('Parser', `Saving last function: ${currentFunction}`);
       functions[currentFunction] = this.createASTNodeFromCFGBlocks(currentBlocks, currentFunction, sourceFilePath);
-      console.log('Saved function with', functions[currentFunction].inner ? Object.keys(functions[currentFunction].inner!).length : 0, 'CFG blocks');
+      const blockCount = functions[currentFunction].inner ? Object.keys(functions[currentFunction].inner!).length : 0;
+      LoggingConfig.detail('Parser', `Saved function with ${blockCount} CFG blocks`);
     }
 
     // Convert to ASTNode format - preserve function names as keys
@@ -675,7 +726,7 @@ export class ClangASTParser {
       inner: functions  // Keep as object with function names as keys
     };
 
-    console.log('Created AST node with', Object.keys(functions).length, 'functions');
+    LoggingConfig.log('Parser', `Created AST node with ${Object.keys(functions).length} functions`);
     return translationUnit;
   }
 
@@ -783,7 +834,7 @@ export class ClangASTParser {
       
       // Has line>0 but NO file and NO includedFrom = from source file - ACCEPT
       if (!filePath) {
-        console.log(`  ✓ isSourceFile: ${node.kind} "${node.name || 'none'}" at line ${loc.line} (no file/includedFrom = source)`);
+        LoggingConfig.verbose('Parser', `✓ isSourceFile: ${node.kind} "${node.name || 'none'}" at line ${loc.line} (no file/includedFrom = source)`);
         return true;
       }
       
@@ -903,34 +954,44 @@ export class ClangASTParser {
       };
     };
     
-    console.log(`Filtering AST for source file: ${sourceFilePath}`);
-    console.log(`Normalized source path: ${normalizedSourcePath}`);
-    console.log(`Source file base: ${sourceFileBase}, dir: ${sourceFileDir}`);
+    /**
+     * AST FILTERING FOR SOURCE FILE
+     * 
+     * Filters AST to only include nodes from the source file, removing system header nodes.
+     */
+    LoggingConfig.detail('Parser', `Filtering AST for source file: ${sourceFilePath}`);
+    LoggingConfig.detail('Parser', `Normalized source path: ${normalizedSourcePath}`);
+    LoggingConfig.detail('Parser', `Source file base: ${sourceFileBase}, dir: ${sourceFileDir}`);
     
     // Debug: Log top-level nodes BEFORE filtering
-    console.log(`BEFORE FILTERING: AST has ${ast.inner?.length || 0} top-level nodes`);
+    LoggingConfig.detail('Parser', `BEFORE FILTERING: AST has ${ast.inner?.length || 0} top-level nodes`);
     if (ast.inner && ast.inner.length > 0) {
       // Find and log function nodes specifically
       const funcNodes = ast.inner.filter(n => n.kind === 'FunctionDecl' || n.kind === 'CXXMethodDecl');
-      console.log(`  Found ${funcNodes.length} function declarations in raw AST`);
+      LoggingConfig.detail('Parser', `  Found ${funcNodes.length} function declarations in raw AST`);
       funcNodes.slice(0, 10).forEach((node, idx) => {
-        console.log(`  Function ${idx}: name=${node.name || 'none'}, loc=${JSON.stringify(node.loc)}`);
+        LoggingConfig.verbose('Parser', `  Function ${idx}: name=${node.name || 'none'}, loc=${JSON.stringify(node.loc)}`);
       });
       
       // Log sample of all nodes
       ast.inner.slice(0, 5).forEach((node, idx) => {
-        console.log(`  Pre-filter node ${idx}: kind=${node.kind}, name=${node.name || 'none'}, loc.file=${node.loc?.file || 'NONE'}, loc.line=${node.loc?.line || 'NONE'}`);
+        LoggingConfig.verbose('Parser', `  Pre-filter node ${idx}: kind=${node.kind}, name=${node.name || 'none'}, loc.file=${node.loc?.file || 'NONE'}, loc.line=${node.loc?.line || 'NONE'}`);
       });
     }
     
     const filtered = filterNode(ast, 0, false);
     
+    /**
+     * FILTERING RESULTS
+     * 
+     * Logs summary of filtering results including function counts.
+     */
     // Debug: count nodes after filtering
     if (filtered && filtered.inner) {
       const functionNodes = filtered.inner.filter(n => 
         n.kind === 'FunctionDecl' || n.kind === 'CXXMethodDecl'
       );
-      console.log(`After filtering: ${filtered.inner.length} top-level nodes, ${functionNodes.length} function declarations`);
+      LoggingConfig.detail('Parser', `After filtering: ${filtered.inner.length} top-level nodes, ${functionNodes.length} function declarations`);
       
       // Count functions from source file vs others
       let sourceFileFunctions = 0;
@@ -938,26 +999,26 @@ export class ClangASTParser {
       functionNodes.forEach(node => {
         if (isSourceFile(node)) {
           sourceFileFunctions++;
-          console.log(`  ✓ Function from source: ${node.name || 'unnamed'} at line ${node.loc?.line}`);
+          LoggingConfig.verbose('Parser', `  ✓ Function from source: ${node.name || 'unnamed'} at line ${node.loc?.line}`);
         } else {
           otherFileFunctions++;
           // Log all functions from other files (no limit)
-          console.log(`  ✗ Function from other file: ${node.name || 'unnamed'} at ${node.loc?.file || 'no location'}:${node.loc?.line || 0}`);
+          LoggingConfig.verbose('Parser', `  ✗ Function from other file: ${node.name || 'unnamed'} at ${node.loc?.file || 'no location'}:${node.loc?.line || 0}`);
         }
       });
       
-      console.log(`Function breakdown: ${sourceFileFunctions} from source file, ${otherFileFunctions} from other files`);
+      LoggingConfig.log('Parser', `Function breakdown: ${sourceFileFunctions} from source file, ${otherFileFunctions} from other files`);
       
       // Log sample of filtered nodes
       filtered.inner.slice(0, 10).forEach((node, idx) => {
-        console.log(`  Filtered node ${idx}: kind=${node.kind}, name=${node.name || 'none'}, loc=${node.loc?.file || 'none'}:${node.loc?.line || 0}`);
+        LoggingConfig.verbose('Parser', `  Filtered node ${idx}: kind=${node.kind}, name=${node.name || 'none'}, loc=${node.loc?.file || 'none'}:${node.loc?.line || 0}`);
       });
     } else {
-      console.warn('Filtered AST is null or has no inner nodes!');
+      LoggingConfig.warn('Parser', 'Filtered AST is null or has no inner nodes!');
       if (ast && ast.inner) {
-        console.log(`Original AST had ${ast.inner.length} top-level nodes`);
+        LoggingConfig.detail('Parser', `Original AST had ${ast.inner.length} top-level nodes`);
         ast.inner.slice(0, 5).forEach((node, idx) => {
-          console.log(`  Original node ${idx}: kind=${node.kind}, name=${node.name || 'none'}, loc=${node.loc?.file || 'none'}:${node.loc?.line || 0}`);
+          LoggingConfig.verbose('Parser', `  Original node ${idx}: kind=${node.kind}, name=${node.name || 'none'}, loc=${node.loc?.file || 'none'}:${node.loc?.line || 0}`);
         });
       }
     }

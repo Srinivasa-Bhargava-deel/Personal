@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+char buffer[200];
+
 // =============================================================================
 // TEST 1: MINIMAL Level Test - Only Explicit Data-Flow
 // =============================================================================
@@ -365,9 +367,129 @@ int main() {
     printf("Test 8: Comprehensive multi-level test\n");
     // test_comprehensive();
     
+    // Counterexamples
+    test_counterexample_sensitivity_funcptr();
+    test_counterexample_sensitivity_global();
+    test_counterexample_sensitivity_struct();
+    test_counterexample_sensitivity_array();
+    test_counterexample_sensitivity_nested_func();
+    
     printf("\n=== Test Complete ===\n");
     
     return 0;
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 1: Sensitivity Levels Through Function Pointer
+// =============================================================================
+// COUNTEREXAMPLE: Different sensitivity levels handle function pointers differently
+// This tests if sensitivity levels correctly handle function pointer calls
+// EXPECTED: Behavior should differ by sensitivity level
+// EDGE CASE: Function pointer sensitivity
+typedef int (*ProcessFunc)(int);
+
+int process_tainted(int x) {
+    return x * 2;  // Propagates taint
+}
+
+int process_clean(int x) {
+    return 100;  // Does not propagate taint
+}
+
+void test_counterexample_sensitivity_funcptr() {
+    int input;
+    scanf("%d", &input);  // TAINT SOURCE
+    
+    ProcessFunc func = input > 0 ? process_tainted : process_clean;
+    int result = func(input);  // Sensitivity level affects how this is handled
+    
+    sprintf(buffer, "%d", result);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Sensitivity Levels Through Global Variable
+// =============================================================================
+// COUNTEREXAMPLE: Different sensitivity levels handle global variables differently
+// This tests if sensitivity levels correctly handle global variable taint
+// EXPECTED: Behavior should differ by sensitivity level
+// EDGE CASE: Global variable sensitivity
+int global_sensitivity_var;
+
+void test_counterexample_sensitivity_global() {
+    scanf("%d", &global_sensitivity_var);  // TAINT SOURCE
+    
+    int result;
+    if (global_sensitivity_var > 0) {
+        result = 1;  // Control-dependent - behavior differs by level
+    } else {
+        result = 0;  // Control-dependent
+    }
+    
+    sprintf(buffer, "%d", result);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Sensitivity Levels Through Struct Field
+// =============================================================================
+// COUNTEREXAMPLE: Different sensitivity levels handle struct fields differently
+// This tests if sensitivity levels correctly handle struct field taint
+// EXPECTED: PRECISE/MAXIMUM should track fields separately
+// EDGE CASE: Struct field sensitivity
+struct SensitivityStruct {
+    int field1;
+    int field2;
+};
+
+void test_counterexample_sensitivity_struct() {
+    struct SensitivityStruct s;
+    scanf("%d", &s.field1);  // TAINT SOURCE - only field1
+    s.field2 = 100;          // NOT tainted
+    
+    int result = s.field1 + s.field2;  // Sensitivity level affects field tracking
+    sprintf(buffer, "%d", result);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Sensitivity Levels Through Array Element
+// =============================================================================
+// COUNTEREXAMPLE: Different sensitivity levels handle array elements differently
+// This tests if sensitivity levels correctly handle array element taint
+// EXPECTED: Behavior should differ by sensitivity level
+// EDGE CASE: Array element sensitivity
+void test_counterexample_sensitivity_array() {
+    int arr[10];
+    int index;
+    scanf("%d", &index);  // TAINT SOURCE
+    scanf("%d", &arr[index]);  // TAINT SOURCE - specific element
+    
+    int result = arr[index];  // Sensitivity level affects element tracking
+    sprintf(buffer, "%d", result);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Sensitivity Levels Through Nested Function Calls
+// =============================================================================
+// COUNTEREXAMPLE: Different sensitivity levels handle nested calls differently
+// This tests if sensitivity levels correctly handle nested function calls
+// EXPECTED: BALANCED+ should handle inter-procedural, MAXIMUM should be context-sensitive
+// EDGE CASE: Nested call sensitivity
+int nested_helper(int x) {
+    if (x > 0) {
+        return x * 2;  // Control-dependent
+    }
+    return 0;
+}
+
+int nested_wrapper(int x) {
+    return nested_helper(x);  // Nested call
+}
+
+void test_counterexample_sensitivity_nested_func() {
+    int input;
+    scanf("%d", &input);  // TAINT SOURCE
+    
+    int result = nested_wrapper(input);  // Sensitivity level affects nested call handling
+    sprintf(buffer, "%d", result);  // TAINT SINK
 }
 
 

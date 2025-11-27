@@ -397,10 +397,146 @@ int main() {
     // test_path_sensitive();
     // test_deep_nesting();
     
+    // Counterexamples
+    test_counterexample_indirect_control_dependent();
+    test_counterexample_function_call_control_dependent();
+    test_counterexample_loop_variable_control_dependent();
+    test_counterexample_switch_control_dependent();
+    test_counterexample_nested_function_control_dependent();
+    
     printf("\n=== Tests Complete ===\n");
     printf("Change Taint Sensitivity in settings to see different behaviors\n");
     
     return 0;
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 1: Indirect Control Dependency Through Function Call
+// =============================================================================
+// COUNTEREXAMPLE: Control dependency through function call return value
+// This tests if control-dependent taint propagates through function calls
+// EXPECTED: Return value should be control-dependent tainted
+// EDGE CASE: Function call in control-dependent context
+int get_value_based_on_secret(int secret) {
+    if (secret > 0) {
+        return 100;  // Control-dependent
+    }
+    return -100;  // Control-dependent
+}
+
+void test_counterexample_indirect_control_dependent() {
+    int secret;
+    scanf("%d", &secret);  // TAINT SOURCE
+    
+    int result = get_value_based_on_secret(secret);  // Control-dependent through call
+    printf("Result: %d\n", result);
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Control Dependency Through Function Pointer Call
+// =============================================================================
+// COUNTEREXAMPLE: Control-dependent taint through function pointer
+// This tests if control-dependent taint propagates through function pointers
+// EXPECTED: Function pointer call result should be control-dependent
+// EDGE CASE: Function pointer in control-dependent context
+typedef int (*GetValueFunc)(void);
+
+int get_value_a() { return 10; }
+int get_value_b() { return 20; }
+
+void test_counterexample_function_call_control_dependent() {
+    int choice;
+    scanf("%d", &choice);  // TAINT SOURCE
+    
+    GetValueFunc func;
+    if (choice > 0) {
+        func = get_value_a;  // Control-dependent assignment
+    } else {
+        func = get_value_b;  // Control-dependent assignment
+    }
+    
+    int result = func();  // Control-dependent call
+    printf("Result: %d\n", result);
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Control Dependency Through Loop Variable Modification
+// =============================================================================
+// COUNTEREXAMPLE: Loop variable modified based on tainted condition
+// This tests if loop variable modifications are control-dependent
+// EXPECTED: Modified loop variable should be control-dependent
+// EDGE CASE: Loop variable modification
+void test_counterexample_loop_variable_control_dependent() {
+    int limit;
+    scanf("%d", &limit);  // TAINT SOURCE
+    
+    int step = 1;
+    if (limit > 100) {
+        step = 2;  // Control-dependent modification
+    }
+    
+    int sum = 0;
+    for (int i = 0; i < limit; i += step) {  // step is control-dependent
+        sum += i;  // Control-dependent
+    }
+    
+    printf("Sum: %d\n", sum);
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Control Dependency Through Switch Case Fall-Through
+// =============================================================================
+// COUNTEREXAMPLE: Control-dependent taint through switch fall-through
+// This tests if fall-through cases are correctly marked as control-dependent
+// EXPECTED: Fall-through cases should be control-dependent
+// EDGE CASE: Switch fall-through
+void test_counterexample_switch_control_dependent() {
+    int value;
+    scanf("%d", &value);  // TAINT SOURCE
+    
+    int result = 0;
+    switch (value) {
+        case 1:
+            result += 10;  // Control-dependent
+            // Fall through
+        case 2:
+            result += 20;  // Control-dependent (also from case 1 fall-through)
+            break;
+        case 3:
+            result += 30;  // Control-dependent
+            break;
+    }
+    
+    printf("Result: %d\n", result);
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Control Dependency Through Nested Function Calls
+// =============================================================================
+// COUNTEREXAMPLE: Control-dependent taint through nested function calls
+// This tests if control-dependent taint propagates through call chains
+// EXPECTED: Nested call results should be control-dependent
+// EDGE CASE: Nested function calls
+int inner_func(int x) {
+    if (x > 0) {
+        return x * 2;  // Control-dependent
+    }
+    return x * -2;  // Control-dependent
+}
+
+int outer_func(int secret) {
+    if (secret > 0) {
+        return inner_func(secret);  // Control-dependent call
+    }
+    return inner_func(-secret);  // Control-dependent call
+}
+
+void test_counterexample_nested_function_control_dependent() {
+    int secret;
+    scanf("%d", &secret);  // TAINT SOURCE
+    
+    int result = outer_func(secret);  // Control-dependent through nested calls
+    printf("Result: %d\n", result);
 }
 
 

@@ -255,6 +255,105 @@ int test_complex_flow(int n, int mode) {
 }
 
 // =============================================================================
+// COUNTEREXAMPLE 1: Unreachable Code After Return
+// =============================================================================
+// COUNTEREXAMPLE: Code after return statement should not appear in CFG
+// This tests if CFG correctly handles unreachable code
+// EXPECTED: CFG should not include blocks after return
+// EDGE CASE: Unreachable code
+int test_counterexample_unreachable(int x) {
+    if (x < 0) {
+        return -1;  // Early return
+    }
+    return x;
+    // Unreachable code - should not appear in CFG
+    printf("This should not execute\n");
+    return 0;
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Infinite Loop Structure
+// =============================================================================
+// COUNTEREXAMPLE: Loop with no exit condition
+// This tests if CFG correctly handles infinite loops
+// EXPECTED: CFG should show loop structure even if infinite
+// EDGE CASE: Infinite loops
+void test_counterexample_infinite_loop() {
+    while (1) {  // Infinite loop
+        printf("Looping forever\n");
+        // No break or return - infinite loop
+    }
+    // Unreachable code after infinite loop
+    printf("Never reached\n");
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Goto Statement
+// =============================================================================
+// COUNTEREXAMPLE: Goto creates non-structured control flow
+// This tests if CFG handles goto statements correctly
+// EXPECTED: CFG should show edges created by goto
+// EDGE CASE: Goto statements
+void test_counterexample_goto(int x) {
+    if (x < 0) {
+        goto error_handler;  // Non-structured jump
+    }
+    printf("Normal path\n");
+    return;
+    
+error_handler:
+    printf("Error path\n");
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Switch Without Break (Fall-Through)
+// =============================================================================
+// COUNTEREXAMPLE: Switch cases without break fall through
+// This tests if CFG correctly handles fall-through cases
+// EXPECTED: CFG should show fall-through edges between cases
+// EDGE CASE: Switch fall-through
+void test_counterexample_switch_fallthrough(int value) {
+    switch (value) {
+        case 1:
+            printf("One\n");
+            // Fall through - no break
+        case 2:
+            printf("Two\n");
+            break;
+        case 3:
+            printf("Three\n");
+            // Fall through
+        default:
+            printf("Other\n");
+    }
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Nested Switch Statements
+// =============================================================================
+// COUNTEREXAMPLE: Switch inside switch creates complex control flow
+// This tests if CFG handles nested switches correctly
+// EXPECTED: CFG should show nested switch structures
+// EDGE CASE: Nested switches
+void test_counterexample_nested_switch(int outer, int inner) {
+    switch (outer) {
+        case 1:
+            switch (inner) {  // Nested switch
+                case 1:
+                    printf("1-1\n");
+                    break;
+                case 2:
+                    printf("1-2\n");
+                    break;
+            }
+            break;
+        case 2:
+            printf("Outer 2\n");
+            break;
+    }
+}
+
+// =============================================================================
 // MAIN - Entry Point for Testing
 // =============================================================================
 int main() {
@@ -275,6 +374,13 @@ int main() {
     
     printf("Early return: %d\n", test_early_return(5));
     printf("Complex flow: %d\n", test_complex_flow(5, 1));
+    
+    // Counterexamples
+    printf("Unreachable: %d\n", test_counterexample_unreachable(5));
+    // test_counterexample_infinite_loop();  // Commented out - infinite loop
+    test_counterexample_goto(5);
+    test_counterexample_switch_fallthrough(1);
+    test_counterexample_nested_switch(1, 2);
     
     return 0;
 }

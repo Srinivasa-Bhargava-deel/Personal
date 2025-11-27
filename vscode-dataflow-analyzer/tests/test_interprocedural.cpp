@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 // =============================================================================
 // TEST 1: Simple Parameter Taint Propagation
@@ -331,6 +332,126 @@ void test_function_pointer() {
 }
 
 // =============================================================================
+// COUNTEREXAMPLE 1: Taint Through Multiple Function Pointer Targets
+// =============================================================================
+// COUNTEREXAMPLE: Function pointer with multiple possible targets
+// This tests if taint propagates through all possible targets
+// EXPECTED: Taint should propagate through all possible function pointer targets
+// EDGE CASE: Multiple function pointer targets
+int process_a(int x) {
+    return x + 10;  // Process A
+}
+
+int process_b(int x) {
+    return x * 2;  // Process B
+}
+
+void test_counterexample_multi_target_funcptr(int choice) {
+    int input;
+    scanf("%d", &input);  // TAINT SOURCE
+    
+    Processor proc;
+    if (choice > 0) {
+        proc = process_a;  // Target 1
+    } else {
+        proc = process_b;  // Target 2
+    }
+    
+    int result = proc(input);  // Taint should propagate through both targets
+    sprintf(buffer, "%d", result);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Taint Through Pointer Parameter Chain
+// =============================================================================
+// COUNTEREXAMPLE: Multiple levels of pointer indirection
+// This tests if taint propagates through pointer chains
+// EXPECTED: Taint should propagate through all pointer levels
+// EDGE CASE: Pointer parameter chains
+void set_value(int** ptr) {
+    int input;
+    scanf("%d", &input);  // TAINT SOURCE
+    **ptr = input;  // Write through double pointer
+}
+
+void test_counterexample_pointer_chain() {
+    int value;
+    int* ptr = &value;
+    int** ptrptr = &ptr;
+    
+    set_value(ptrptr);  // Taint through double pointer
+    sprintf(buffer, "%d", value);  // TAINT SINK: value is tainted
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Taint Through Struct Field Pointer
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagates through struct field that is a pointer
+// This tests if taint analysis handles struct pointer fields
+// EXPECTED: Taint should propagate through struct pointer fields
+// EDGE CASE: Struct pointer fields
+struct Node {
+    int* data;
+    struct Node* next;
+};
+
+void set_node_data(struct Node* node) {
+    int input;
+    scanf("%d", &input);  // TAINT SOURCE
+    *(node->data) = input;  // Write through struct pointer field
+}
+
+void test_counterexample_struct_pointer_field() {
+    int value;
+    struct Node node;
+    node.data = &value;
+    
+    set_node_data(&node);  // Taint through struct pointer field
+    sprintf(buffer, "%d", value);  // TAINT SINK: value is tainted
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Taint Through Variadic Function Arguments
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagates through variadic function arguments
+// This tests if taint analysis handles variadic functions
+// EXPECTED: Taint should propagate through variadic arguments
+// EDGE CASE: Variadic function arguments
+void process_variadic(const char* format, ...) {
+    char buffer[200];
+    va_list args;
+    va_start(args, format);
+    vsprintf(buffer, format, args);  // Format string vulnerability if format is tainted
+    va_end(args);
+    printf("%s\n", buffer);
+}
+
+void test_counterexample_variadic_taint() {
+    char format[100];
+    scanf("%s", format);  // TAINT SOURCE: format string is tainted
+    
+    process_variadic(format, 42, "test");  // Taint through variadic args
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Taint Through Return Value Pointer
+// =============================================================================
+// COUNTEREXAMPLE: Function returns pointer to tainted data
+// This tests if taint propagates through returned pointers
+// EXPECTED: Returned pointer should carry taint
+// EDGE CASE: Return value pointers
+int* get_tainted_pointer() {
+    static int value;
+    scanf("%d", &value);  // TAINT SOURCE
+    return &value;  // Return pointer to tainted data
+}
+
+void test_counterexample_return_pointer() {
+    int* ptr = get_tainted_pointer();  // Pointer to tainted data
+    sprintf(buffer, "%d", *ptr);  // TAINT SINK: *ptr is tainted
+}
+
+// =============================================================================
 // MAIN - Entry Point for Testing
 // =============================================================================
 int main() {
@@ -350,6 +471,14 @@ int main() {
     // test_conditional_propagation();
     // test_struct_param();
     // test_function_pointer();
+    
+    // Counterexamples
+    char buffer[200];
+    test_counterexample_multi_target_funcptr(1);
+    test_counterexample_pointer_chain();
+    test_counterexample_struct_pointer_field();
+    test_counterexample_variadic_taint();
+    test_counterexample_return_pointer();
     
     printf("\n=== Tests Complete ===\n");
     

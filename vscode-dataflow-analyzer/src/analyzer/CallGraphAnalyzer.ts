@@ -235,13 +235,18 @@ export class CallGraphAnalyzer {
     // STEP 5: Analyze recursion patterns
     this.analyzeRecursion();
 
+    /**
+     * CALL GRAPH SUMMARY
+     * 
+     * Logs summary statistics of the constructed call graph.
+     */
     // STEP 6: Log summary
     LoggingConfig.raw(`[CG] Call graph complete:`);
-    console.log(`     Functions: ${this.callGraph.functions.size}`);
-    console.log(`     Calls: ${this.callGraph.calls.length}`);
-    console.log(`     Callers: ${this.callGraph.callsFrom.size}`);
-    console.log(`     Callees: ${this.callGraph.callsTo.size}`);
-    console.log(`     Function pointers tracked: ${this.functionPointers.size}`);
+    LoggingConfig.log('CallGraphAnalysis', `Functions: ${this.callGraph.functions.size}`);
+    LoggingConfig.log('CallGraphAnalysis', `Calls: ${this.callGraph.calls.length}`);
+    LoggingConfig.log('CallGraphAnalysis', `Callers: ${this.callGraph.callsFrom.size}`);
+    LoggingConfig.log('CallGraphAnalysis', `Callees: ${this.callGraph.callsTo.size}`);
+    LoggingConfig.log('CallGraphAnalysis', `Function pointers tracked: ${this.functionPointers.size}`);
 
     return this.callGraph;
   }
@@ -449,10 +454,7 @@ export class CallGraphAnalyzer {
             this.callGraph.calls.push(call);
             callCount++;
 
-            console.log(
-              `[CG]   Call: ${call.callerId} -> ${call.calleeId} ` +
-              `(${call.arguments.actual.length} args) at block ${blockId}`
-            );
+            LoggingConfig.verbose('CallGraphAnalysis', `Call: ${call.callerId} -> ${call.calleeId} (${call.arguments.actual.length} args) at block ${blockId}`);
           }
         }
       }
@@ -816,9 +818,14 @@ export class CallGraphAnalyzer {
       }
     }
 
+    /**
+     * RELATIONSHIP MAPS SUMMARY
+     * 
+     * Logs summary of caller/callee relationship maps.
+     */
     LoggingConfig.raw(`[CG] Relationship maps built:`);
-    console.log(`     Functions calling others: ${this.callGraph.callsFrom.size}`);
-    console.log(`     Functions being called: ${this.callGraph.callsTo.size}`);
+    LoggingConfig.log('CallGraphAnalysis', `Functions calling others: ${this.callGraph.callsFrom.size}`);
+    LoggingConfig.log('CallGraphAnalysis', `Functions being called: ${this.callGraph.callsTo.size}`);
   }
 
   /**
@@ -897,10 +904,7 @@ export class CallGraphAnalyzer {
         }
       } else if (stack.has(call.calleeId)) {
         // Found a cycle
-        console.log(
-          `[CG] Mutual recursion detected: ` +
-          `${funcId}() <- ${call.calleeId}()`
-        );
+        LoggingConfig.log('CallGraphAnalysis', `Mutual recursion detected: ${funcId}() <- ${call.calleeId}()`);
         return true;
       }
     }

@@ -44,89 +44,238 @@
  * - TaintInfo: Taint propagation data, flows from TaintAnalyzer to CFGVisualizer
  */
 
+/**
+ * POSITION INTERFACE
+ * 
+ * Represents a position in source code (line and column).
+ * Used for precise error reporting and source code navigation.
+ */
 export interface Position {
-  line: number;
-  column: number;
+  line: number;   // Line number (1-based)
+  column: number; // Column number (1-based)
 }
 
+/**
+ * RANGE INTERFACE
+ * 
+ * Represents a range of source code (start and end positions).
+ * Used to mark the location of statements, blocks, and other code elements.
+ */
 export interface Range {
-  start: Position;
-  end: Position;
+  start: Position; // Start position of the range
+  end: Position;   // End position of the range
 }
 
+/**
+ * BASIC BLOCK INTERFACE
+ * 
+ * Represents a basic block in the Control Flow Graph (CFG).
+ * A basic block is a sequence of statements with a single entry point
+ * and a single exit point - no branches within the block.
+ * 
+ * Structure:
+ * - id: Unique identifier for the block (e.g., "B0", "B1")
+ * - label: Human-readable label (often the first statement)
+ * - statements: Array of statements in the block
+ * - predecessors: Array of block IDs that can execute before this block
+ * - successors: Array of block IDs that can execute after this block
+ * - range: Optional source code location
+ * - isEntry: Optional marker indicating this is the function entry block
+ * - isExit: Optional marker indicating this is the function exit block
+ */
 export interface BasicBlock {
-  id: string;
-  label: string;
-  statements: Statement[];
-  predecessors: string[];
-  successors: string[];
-  range?: Range;
-  isEntry?: boolean;  // Optional marker for entry block
-  isExit?: boolean;   // Optional marker for exit block
+  id: string;              // Unique block identifier (e.g., "B0")
+  label: string;           // Human-readable label (usually first statement)
+  statements: Statement[]; // Statements in this block (executed sequentially)
+  predecessors: string[]; // Block IDs that can execute before this block
+  successors: string[];   // Block IDs that can execute after this block
+  range?: Range;          // Optional source code location
+  isEntry?: boolean;      // Optional marker for entry block (function start)
+  isExit?: boolean;       // Optional marker for exit block (function end)
 }
 
+/**
+ * STATEMENT INTERFACE
+ * 
+ * Represents a single statement in the source code. Statements are the
+ * atomic units of analysis - each statement can define variables, use
+ * variables, or both.
+ * 
+ * Structure:
+ * - id: Optional unique identifier for the statement
+ * - type: Optional statement type (assignment, conditional, loop, etc.)
+ * - text: Statement text as it appears in source code
+ * - content: Alias for text (used by some parsers for compatibility)
+ * - range: Optional source code location
+ * - variables: Optional variable usage information:
+ *   - defined: Variables defined (assigned) in this statement
+ *   - used: Variables used (read) in this statement
+ */
 export interface Statement {
-  id?: string;
-  type?: StatementType;
-  text: string;
-  content?: string;  // Alias for text, used by some parsers
-  range?: Range;
+  id?: string;      // Optional unique statement identifier
+  type?: StatementType; // Optional statement type classification
+  text: string;     // Statement text as it appears in source code
+  content?: string; // Alias for text, used by some parsers for compatibility
+  range?: Range;    // Optional source code location
+  /**
+   * VARIABLE USAGE INFORMATION
+   * 
+   * Tracks which variables are defined (assigned) and used (read) in this statement.
+   * This is critical for dataflow analysis - we need to know:
+   * - Which variables are modified (defined) -> affects reaching definitions
+   * - Which variables are read (used) -> affects liveness analysis
+   * 
+   * Example: "x = y + z;"
+   *   defined: ["x"]
+   *   used: ["y", "z"]
+   */
   variables?: {
-    defined: string[];
-    used: string[];
+    defined: string[]; // Variables defined (assigned) in this statement
+    used: string[];   // Variables used (read) in this statement
   };
 }
 
+/**
+ * STATEMENT TYPE ENUMERATION
+ * 
+ * Classifies statements by their semantic type. This helps analyzers
+ * apply appropriate analysis rules for different statement types.
+ */
 export enum StatementType {
-  ASSIGNMENT = 'assignment',
-  CONDITIONAL = 'conditional',
-  LOOP = 'loop',
-  RETURN = 'return',
-  DECLARATION = 'declaration',
-  FUNCTION_CALL = 'function_call',
-  OTHER = 'other'
+  ASSIGNMENT = 'assignment',     // Variable assignment: x = y;
+  CONDITIONAL = 'conditional',   // Conditional branch: if (x) { ... }
+  LOOP = 'loop',                 // Loop statement: for, while, do-while
+  RETURN = 'return',             // Return statement: return x;
+  DECLARATION = 'declaration',   // Variable declaration: int x;
+  FUNCTION_CALL = 'function_call', // Function call: foo(x, y);
+  OTHER = 'other'                // Other/unknown statement type
 }
 
+/**
+ * CFG (CONTROL FLOW GRAPH) INTERFACE
+ * 
+ * Represents the complete Control Flow Graph for an entire program or file.
+ * Contains all functions and their CFGs, plus global entry/exit points.
+ * 
+ * Structure:
+ * - entry: Entry block ID (typically the first block of main())
+ * - exit: Exit block ID (typically the last block of main())
+ * - blocks: Map of all basic blocks (keyed by block ID)
+ * - functions: Map of function CFGs (keyed by function name)
+ */
 export interface CFG {
-  entry: string;
-  exit: string;
-  blocks: Map<string, BasicBlock>;
-  functions: Map<string, FunctionCFG>;
+  entry: string;                    // Entry block ID (program entry point)
+  exit: string;                     // Exit block ID (program exit point)
+  blocks: Map<string, BasicBlock>;  // All basic blocks in the program
+  functions: Map<string, FunctionCFG>; // All function CFGs (keyed by function name)
 }
 
+/**
+ * FUNCTION CFG INTERFACE
+ * 
+ * Represents the Control Flow Graph for a single function.
+ * Each function has its own CFG with entry/exit blocks and basic blocks.
+ * 
+ * Structure:
+ * - name: Function name (e.g., "main", "foo", "bar")
+ * - entry: Entry block ID (first block of the function)
+ * - exit: Exit block ID (last block of the function)
+ * - blocks: Map of basic blocks in this function (keyed by block ID)
+ * - parameters: Array of function parameter names
+ */
 export interface FunctionCFG {
-  name: string;
-  entry: string;
-  exit: string;
-  blocks: Map<string, BasicBlock>;
-  parameters: string[];
+  name: string;                     // Function name
+  entry: string;                    // Entry block ID (function start)
+  exit: string;                     // Exit block ID (function end)
+  blocks: Map<string, BasicBlock>;  // Basic blocks in this function
+  parameters: string[];             // Function parameter names (e.g., ["x", "y"])
 }
 
+/**
+ * LIVENESS INFO INTERFACE
+ * 
+ * Represents liveness analysis results for a basic block.
+ * Liveness analysis determines which variables are "live" (may be used later)
+ * at each program point.
+ * 
+ * Structure:
+ * - blockId: Block identifier
+ * - in: Set of variables live at the entry of this block
+ * - out: Set of variables live at the exit of this block
+ * 
+ * Algorithm: Backward dataflow analysis
+ * - A variable is live if it may be used before being redefined
+ * - Used for dead code elimination and register allocation
+ */
 export interface LivenessInfo {
-  blockId: string;
-  in: Set<string>;
-  out: Set<string>;
+  blockId: string;      // Block identifier
+  in: Set<string>;      // Variables live at block entry (before block executes)
+  out: Set<string>;     // Variables live at block exit (after block executes)
 }
 
+/**
+ * REACHING DEFINITION INTERFACE
+ * 
+ * Represents a single reaching definition - a variable definition that
+ * "reaches" a particular program point (hasn't been killed by a redefinition).
+ * 
+ * Structure:
+ * - variable: Variable name
+ * - definitionId: Unique identifier for this definition
+ * - blockId: Block where this definition occurs
+ * - statementId: Optional statement identifier
+ * - range: Optional source code location
+ * - sourceBlock: Original block where definition was created
+ * - propagationPath: Path from source to current block (for tracking)
+ * - killed: Whether this definition was killed (overwritten)
+ * - isParameter: Whether this is a function parameter definition
+ */
 export interface ReachingDefinition {
-  variable: string;
-  definitionId: string;
-  blockId: string;
-  statementId?: string;
-  range?: Range;
-  // History tracking: shows the path of this definition through the CFG
+  variable: string;              // Variable name
+  definitionId: string;          // Unique definition identifier
+  blockId: string;               // Block where definition occurs
+  statementId?: string;          // Optional statement identifier
+  range?: Range;                 // Optional source code location
+  /**
+   * HISTORY TRACKING
+   * 
+   * Tracks the path of this definition through the CFG:
+   * - sourceBlock: Original block where definition was created
+   * - propagationPath: Path from source to current block: [B0 -> B1 -> B2]
+   * - killed: Whether this definition was killed (overwritten by another definition)
+   * - isParameter: Whether this is a function parameter definition (special case)
+   */
   sourceBlock?: string;        // Original block where definition was created
   propagationPath?: string[];  // Path from source to current block: [B0 -> B1 -> B2]
-  killed?: boolean;            // Whether this definition was killed
+  killed?: boolean;            // Whether this definition was killed (overwritten)
   isParameter?: boolean;       // Whether this is a function parameter definition
 }
 
+/**
+ * REACHING DEFINITIONS INFO INTERFACE
+ * 
+ * Represents reaching definitions analysis results for a basic block.
+ * Reaching definitions analysis determines which variable definitions
+ * "reach" each program point (haven't been killed).
+ * 
+ * Structure:
+ * - blockId: Block identifier
+ * - gen: Definitions generated (created) in this block
+ * - kill: Definitions killed (overwritten) in this block
+ * - in: Definitions reaching block entry (from predecessors)
+ * - out: Definitions reaching block exit (after GEN/KILL operations)
+ * 
+ * Algorithm: Forward dataflow analysis
+ * - GEN: New definitions created in this block
+ * - KILL: Old definitions killed (overwritten) in this block
+ * - OUT = (IN - KILL) ∪ GEN
+ */
 export interface ReachingDefinitionsInfo {
-  blockId: string;
-  gen: Map<string, ReachingDefinition[]>;
-  kill: Map<string, ReachingDefinition[]>;
-  in: Map<string, ReachingDefinition[]>;
-  out: Map<string, ReachingDefinition[]>;
+  blockId: string;                              // Block identifier
+  gen: Map<string, ReachingDefinition[]>;      // Definitions generated in this block (keyed by variable)
+  kill: Map<string, ReachingDefinition[]>;     // Definitions killed in this block (keyed by variable)
+  in: Map<string, ReachingDefinition[]>;       // Definitions reaching block entry (keyed by variable)
+  out: Map<string, ReachingDefinition[]>;      // Definitions reaching block exit (keyed by variable)
 }
 
 // Phase 4: Enhanced Taint Propagation - Taint Labels
@@ -146,12 +295,42 @@ export enum TaintLabel {
   CONTROL_DEPENDENT = 'control_dependent' // Control-dependent taint (implicit flow)
 }
 
+/**
+ * TAINT INFO INTERFACE
+ * 
+ * Represents taint analysis information for a variable.
+ * Taint analysis tracks the flow of potentially malicious or unsafe data
+ * through the program, from sources (user input, file I/O, network) to
+ * sinks (dangerous functions).
+ * 
+ * Structure:
+ * - variable: Variable name
+ * - source: Taint source description (e.g., "scanf", "user_input")
+ * - tainted: Whether variable is currently tainted
+ * - propagationPath: Path of taint propagation through CFG blocks
+ * - sourceCategory: Category of taint source (user_input, file_io, network, etc.)
+ * - taintType: Type of tainted data (string, buffer, integer, pointer)
+ * - sourceFunction: Function that introduced taint
+ * - sourceLocation: Location where taint was introduced
+ * - sanitized: Whether taint has been sanitized
+ * - sanitizationPoints: Points where sanitization occurred
+ * - labels: Taint labels (multiple labels possible for multiple sources)
+ */
 export interface TaintInfo {
-  variable: string;
-  source: string;
-  tainted: boolean;
-  propagationPath: string[];
-  // Enhanced fields for Phase 1+
+  variable: string;              // Variable name
+  source: string;               // Taint source description (e.g., "scanf", "user_input")
+  tainted: boolean;              // Whether variable is currently tainted
+  propagationPath: string[];     // Path of taint propagation: [B0, B1, B2, ...]
+  
+  /**
+   * ENHANCED FIELDS (Phase 1+)
+   * 
+   * Additional metadata about the taint source:
+   * - sourceCategory: Category of input channel (user_input, file_io, network, etc.)
+   * - taintType: Type of tainted data (string, buffer, integer, pointer)
+   * - sourceFunction: Function that introduced taint (e.g., "scanf", "fread")
+   * - sourceLocation: Precise location where taint was introduced
+   */
   sourceCategory?: 'user_input' | 'file_io' | 'network' | 'environment' | 'command_line' | 'database' | 'configuration';
   taintType?: 'string' | 'buffer' | 'integer' | 'pointer';
   sourceFunction?: string;
@@ -160,10 +339,24 @@ export interface TaintInfo {
     statementId?: string;
     range?: Range;
   };
-  // Phase 3: Sanitization tracking
+  
+  /**
+   * SANITIZATION TRACKING (Phase 3)
+   * 
+   * Tracks whether and where taint has been sanitized:
+   * - sanitized: Whether taint has been removed through sanitization
+   * - sanitizationPoints: Array of locations where sanitization occurred
+   */
   sanitized?: boolean;
   sanitizationPoints?: Array<{ location: string; type: string }>;
-  // Phase 4: Enhanced propagation - taint labels
+  
+  /**
+   * TAINT LABELS (Phase 4)
+   * 
+   * Multiple labels per variable allow tracking taint from multiple sources.
+   * Example: A variable could be tainted from both user_input and file_io.
+   * Labels: ['user_input', 'file_content'] indicates taint from both sources.
+   */
   labels?: TaintLabel[]; // Multiple labels per variable (tainted from multiple sources)
 }
 

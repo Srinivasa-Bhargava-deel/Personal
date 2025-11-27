@@ -80,6 +80,17 @@
  * References:
  * - "Incremental Static Analysis" - Reps et al. (2003)
  * - "Engineering a Compiler" (Cooper & Torczon) - Incremental Compilation
+ * 
+ * LOGGING STRATEGY:
+ * This file uses LoggingConfig methods for all logging:
+ * - LoggingConfig.log() - Normal operational messages (e.g., "State loaded...")
+ * - LoggingConfig.detail() - Detailed debugging info (e.g., file sizes, hash values)
+ * - LoggingConfig.error() - Error messages
+ * - LoggingConfig.warn() - Warning messages
+ * - LoggingConfig.raw() - Raw messages without module prefix (for state operations)
+ * 
+ * All logs are automatically written to .vscode/logs.txt via console interception.
+ * Module flag: LoggingConfig.StateManager controls logging for this component.
  */
 
 import * as fs from 'fs';
@@ -112,18 +123,31 @@ export class StateManager {
     LoggingConfig.raw(`[StateManager] [LOAD] ========== LOADING STATE ==========`);
     LoggingConfig.raw(`[StateManager] [LOAD] State path: ${this.statePath}`);
     try {
+      /**
+       * STATE FILE EXISTENCE CHECK
+       * 
+       * Checks if saved state file exists before attempting to load.
+       * Returns null state if file doesn't exist (first run scenario).
+       */
       if (!fs.existsSync(this.statePath)) {
+        // No saved state found - this is normal for first run
         LoggingConfig.raw(`[StateManager] [LOAD] No saved state found at ${this.statePath}`);
-        console.log(`[StateManager] [DEBUG] No saved state found at ${this.statePath}`);
+        LoggingConfig.detail('StateManager', `No saved state found at ${this.statePath}`);
         return { state: null, loadTimeMs: Date.now() - startTime };
       }
 
+      /**
+       * STATE FILE READING AND DESERIALIZATION
+       * 
+       * Reads JSON file from disk and deserializes to AnalysisState object.
+       * Reconstructs Maps and Sets from plain objects.
+       */
       LoggingConfig.raw(`[StateManager] [LOAD] Reading state file from disk...`);
-      console.log(`[StateManager] [INFO] Loading saved state from ${this.statePath}`);
+      LoggingConfig.log('StateManager', `Loading saved state from ${this.statePath}`);
       const data = fs.readFileSync(this.statePath, 'utf-8');
       const fileSizeKB = (data.length / 1024).toFixed(2);
       LoggingConfig.raw(`[StateManager] [LOAD] State file size: ${fileSizeKB} KB`);
-      console.log(`[StateManager] [DEBUG] State file size: ${fileSizeKB} KB`);
+      LoggingConfig.detail('StateManager', `State file size: ${fileSizeKB} KB`);
       
       LoggingConfig.raw(`[StateManager] [LOAD] Parsing JSON...`);
       const state = JSON.parse(data);
@@ -133,14 +157,26 @@ export class StateManager {
       const deserializedState = this.deserializeState(state);
       const loadTimeMs = Date.now() - startTime;
       
+      /**
+       * STATE LOAD SUCCESS
+       * 
+       * State successfully loaded and deserialized.
+       * Logs summary statistics for verification.
+       */
       LoggingConfig.raw(`[StateManager] [LOAD] ✅ State loaded successfully in ${loadTimeMs}ms`);
       LoggingConfig.raw(`[StateManager] [LOAD] Functions: ${deserializedState.cfg.functions.size}, Files: ${deserializedState.fileStates.size}`);
       LoggingConfig.raw(`[StateManager] [LOAD] Taint sensitivity: ${deserializedState.taintSensitivity || 'precise'}`);
-      console.log(`[StateManager] [INFO] State loaded successfully in ${loadTimeMs}ms (${deserializedState.cfg.functions.size} functions, ${deserializedState.fileStates.size} files)`);
+      LoggingConfig.log('StateManager', `State loaded successfully in ${loadTimeMs}ms (${deserializedState.cfg.functions.size} functions, ${deserializedState.fileStates.size} files)`);
       return { state: deserializedState, loadTimeMs };
     } catch (error) {
+      /**
+       * STATE LOAD ERROR
+       * 
+       * Error occurred while loading state - log error and return null state.
+       * Extension will proceed with fresh analysis.
+       */
       LoggingConfig.raw(`[StateManager] [LOAD] ❌ ERROR loading state: ${error}`);
-      console.error('[StateManager] [ERROR] Error loading state:', error);
+      LoggingConfig.error('StateManager', 'Error loading state', error);
       return { state: null, loadTimeMs: Date.now() - startTime };
     }
   }
@@ -164,14 +200,20 @@ export class StateManager {
     LoggingConfig.raw(`[StateManager] [SAVE] Functions: ${state.cfg.functions.size}, Files: ${state.fileStates.size}`);
     LoggingConfig.raw(`[StateManager] [SAVE] Taint sensitivity: ${state.taintSensitivity || 'precise'}`);
     try {
-      console.log(`[StateManager] [INFO] Saving analysis state to ${this.statePath}`);
+      /**
+       * STATE SERIALIZATION AND SAVE
+       * 
+       * Serializes AnalysisState to JSON and writes to disk.
+       * Ensures .vscode directory exists before writing.
+       */
+      LoggingConfig.log('StateManager', `Saving analysis state to ${this.statePath}`);
       
       // Ensure directory exists
       const dir = path.dirname(this.statePath);
       if (!fs.existsSync(dir)) {
         LoggingConfig.raw(`[StateManager] [SAVE] Creating directory: ${dir}`);
         fs.mkdirSync(dir, { recursive: true });
-        console.log(`[StateManager] [DEBUG] Created directory: ${dir}`);
+        LoggingConfig.detail('StateManager', `Created directory: ${dir}`);
       }
 
       LoggingConfig.raw(`[StateManager] [SAVE] Serializing state (converting Maps/Sets to JSON)...`);
@@ -181,36 +223,69 @@ export class StateManager {
       LoggingConfig.raw(`[StateManager] [SAVE] Writing to disk...`);
       fs.writeFileSync(this.statePath, jsonContent, 'utf-8');
       
+      /**
+       * STATE SAVE SUCCESS
+       * 
+       * State successfully written to disk.
+       * Logs file size and summary statistics.
+       */
       const fileSizeKB = (jsonContent.length / 1024).toFixed(2);
       LoggingConfig.raw(`[StateManager] [SAVE] ✅ State saved successfully (${fileSizeKB} KB)`);
-      console.log(`[StateManager] [INFO] State saved successfully (${fileSizeKB} KB, ${state.cfg.functions.size} functions, ${state.fileStates.size} files)`);
+      LoggingConfig.log('StateManager', `State saved successfully (${fileSizeKB} KB, ${state.cfg.functions.size} functions, ${state.fileStates.size} files)`);
     } catch (error) {
+      /**
+       * STATE SAVE ERROR
+       * 
+       * Error occurred while saving state - log error and notify user.
+       */
       LoggingConfig.raw(`[StateManager] [SAVE] ❌ ERROR saving state: ${error}`);
-      console.error('[StateManager] [ERROR] Error saving state:', error);
+      LoggingConfig.error('StateManager', 'Error saving state', error);
       vscode.window.showErrorMessage(`Failed to save analysis state: ${error}`);
     }
   }
 
   /**
    * Clear analysis state
+   * 
+   * Deletes the saved state file from disk.
+   * Used when user wants to reset analysis or when state is corrupted.
    */
   clearState(): void {
     LoggingConfig.raw(`[StateManager] [CLEAR] ========== CLEARING STATE ==========`);
     LoggingConfig.raw(`[StateManager] [CLEAR] State path: ${this.statePath}`);
     try {
       if (fs.existsSync(this.statePath)) {
+        // State file exists - delete it
         LoggingConfig.raw(`[StateManager] [CLEAR] Deleting state file...`);
         fs.unlinkSync(this.statePath);
         LoggingConfig.raw(`[StateManager] [CLEAR] ✅ State file deleted successfully`);
+        LoggingConfig.log('StateManager', 'State file deleted successfully');
       } else {
+        // State file doesn't exist - nothing to clear
         LoggingConfig.raw(`[StateManager] [CLEAR] State file does not exist, nothing to clear`);
+        LoggingConfig.detail('StateManager', 'State file does not exist, nothing to clear');
       }
     } catch (error) {
+      // Error clearing state - log error
       LoggingConfig.raw(`[StateManager] [CLEAR] ❌ ERROR clearing state: ${error}`);
-      console.error('Error clearing state:', error);
+      LoggingConfig.error('StateManager', 'Error clearing state', error);
     }
   }
 
+  /**
+   * Compute file hash for change detection
+   * 
+   * Uses SHA-256 cryptographic hash for content-based change detection.
+   * This enables incremental analysis by detecting file modifications without
+   * re-analyzing unchanged files.
+   * 
+   * Algorithm: SHA-256(content) -> 64-character hex string
+   * 
+   * Reference: "Incremental Static Analysis" - Reps et al. (2003)
+   * 
+   * @param filePath - Absolute path to the file
+   * @returns SHA-256 hash of file content (empty string on error)
+   */
   /**
    * Compute file hash for change detection
    * 
@@ -229,10 +304,12 @@ export class StateManager {
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
       const hash = crypto.createHash('sha256').update(content).digest('hex');
-      console.log(`[StateManager] [DEBUG] Computed hash for ${filePath}: ${hash.substring(0, 8)}...`);
+      // Log hash computation (verbose level - only first 8 chars for brevity)
+      LoggingConfig.verbose('StateManager', `Computed hash for ${filePath}: ${hash.substring(0, 8)}...`);
       return hash;
     } catch (error) {
-      console.error(`[StateManager] [ERROR] Failed to compute hash for ${filePath}:`, error);
+      // Hash computation failed - log error and return empty string
+      LoggingConfig.error('StateManager', `Failed to compute hash for ${filePath}`, error);
       return '';
     }
   }

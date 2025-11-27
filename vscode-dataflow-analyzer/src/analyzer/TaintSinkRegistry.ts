@@ -46,20 +46,87 @@ export interface TaintSink {
 }
 
 /**
- * Registry of all known taint sinks
+ * TAINT SINK REGISTRY CLASS
+ * 
+ * Manages a comprehensive registry of functions and operations that are dangerous
+ * when used with tainted (untrusted) data. These "sinks" are where tainted data
+ * should not flow without sanitization.
+ * 
+ * Features:
+ * - Pre-configured with common security sinks (SQL injection, command injection, etc.)
+ * - Support for custom taint sinks
+ * - Categorization by vulnerability type
+ * - Severity assessment for each sink
+ * - Argument index tracking (which arguments must be sanitized)
+ * 
+ * Usage:
+ * The taint analyzer uses this registry to detect when tainted data reaches
+ * dangerous functions, triggering vulnerability reports.
  */
 export class TaintSinkRegistry {
+  /**
+   * REGISTRY STORAGE
+   * 
+   * Maps function names to their taint sink definitions.
+   * This allows O(1) lookup when checking if a function is a taint sink.
+   */
   private sinks: Map<string, TaintSink> = new Map();
+  
+  /**
+   * CUSTOM SINKS TRACKING
+   * 
+   * Tracks which sinks were added by the user (not default sinks).
+   * This allows selective removal of custom sinks without affecting defaults.
+   */
   private customSinks: Set<string> = new Set();
 
   constructor() {
+    /**
+     * INITIALIZATION
+     * 
+     * Populate registry with default taint sinks covering all major
+     * vulnerability types: SQL injection, command injection, format strings,
+     * path traversal, buffer overflows, code injection, etc.
+     */
     this.initializeDefaultSinks();
   }
 
   /**
-   * Initialize default taint sinks covering all major vulnerability types
+   * INITIALIZE DEFAULT TAINT SINKS
+   * 
+   * Populates the registry with comprehensive default taint sinks.
+   * These cover all major vulnerability types that can occur when
+   * tainted data reaches dangerous functions:
+   * 
+   * 1. SQL Injection: sprintf, sqlite3_exec, mysql_query, etc.
+   * 2. Command Injection: system, popen, exec, execve, etc.
+   * 3. Format String: printf, fprintf, sprintf, snprintf, etc.
+   * 4. Path Traversal: fopen, open, chmod, chown, etc.
+   * 5. Buffer Overflow: strcpy, strcat, sprintf, gets, etc.
+   * 6. Code Injection: eval, system, etc.
+   * 
+   * Each sink includes:
+   * - Function name
+   * - Category (vulnerability type)
+   * - Argument indices (which arguments must be sanitized)
+   * - Severity (critical, high, medium, low)
+   * - Optional CWE ID and description
    */
   private initializeDefaultSinks(): void {
+    /**
+     * SQL INJECTION SINKS
+     * 
+     * Functions that execute SQL queries. If tainted data reaches these
+     * functions without sanitization, SQL injection attacks are possible.
+     * 
+     * Examples:
+     * - sprintf(query, "SELECT * FROM users WHERE id = %s", user_input)
+     * - sqlite3_exec(db, user_query, ...)
+     * - mysql_query(conn, user_query)
+     * 
+     * Severity: Critical - SQL injection can lead to data breach, data loss,
+     * or complete database compromise.
+     */
     // SQL Injection Sinks
     const sqlSinks: TaintSink[] = [
       { 
@@ -112,6 +179,20 @@ export class TaintSinkRegistry {
       },
     ];
 
+    /**
+     * COMMAND INJECTION SINKS
+     * 
+     * Functions that execute shell commands or programs. If tainted data
+     * reaches these functions, command injection attacks are possible.
+     * 
+     * Examples:
+     * - system(user_input): Executes shell command
+     * - popen(user_input, "r"): Opens process pipe
+     * - execve(user_program, args, env): Executes program
+     * 
+     * Severity: Critical - Command injection can lead to arbitrary code
+     * execution, system compromise, or data exfiltration.
+     */
     // Command Injection Sinks
     const commandSinks: TaintSink[] = [
       { 
@@ -172,6 +253,19 @@ export class TaintSinkRegistry {
       },
     ];
 
+    /**
+     * FORMAT STRING SINKS
+     * 
+     * Functions that interpret format strings. If the format string itself
+     * is tainted (user-controlled), format string attacks are possible.
+     * 
+     * Examples:
+     * - printf(user_format, ...): Format string controlled by user
+     * - sprintf(buffer, user_format, ...): Format string in buffer write
+     * 
+     * Severity: High - Format string attacks can lead to memory disclosure,
+     * memory corruption, or code execution (via %n format specifier).
+     */
     // Format String Sinks
     const formatStringSinks: TaintSink[] = [
       { 
@@ -216,6 +310,19 @@ export class TaintSinkRegistry {
       },
     ];
 
+    /**
+     * PATH TRAVERSAL SINKS
+     * 
+     * Functions that operate on file paths. If the path is tainted,
+     * path traversal attacks (directory traversal) are possible.
+     * 
+     * Examples:
+     * - fopen(user_path, "r"): Opens file at user-specified path
+     * - chmod(user_path, mode): Changes permissions of user-specified file
+     * 
+     * Severity: High - Path traversal can lead to unauthorized file access,
+     * file deletion, or privilege escalation.
+     */
     // Path Traversal Sinks
     const pathSinks: TaintSink[] = [
       { 
@@ -276,6 +383,20 @@ export class TaintSinkRegistry {
       },
     ];
 
+    /**
+     * BUFFER OVERFLOW SINKS
+     * 
+     * Functions that write to buffers without bounds checking. If tainted
+     * data exceeds buffer size, buffer overflow attacks are possible.
+     * 
+     * Examples:
+     * - strcpy(dest, tainted_source): Copies without size limit
+     * - strcat(dest, tainted_source): Concatenates without size limit
+     * - sprintf(buffer, format, tainted_data): Formats without size limit
+     * 
+     * Severity: Critical - Buffer overflows can lead to memory corruption,
+     * code execution, or system crashes.
+     */
     // Buffer Overflow Sinks
     const bufferSinks: TaintSink[] = [
       { 
@@ -320,6 +441,19 @@ export class TaintSinkRegistry {
       },
     ];
 
+    /**
+     * CODE INJECTION SINKS
+     * 
+     * Functions that execute code dynamically. If tainted data reaches
+     * these functions, code injection attacks are possible.
+     * 
+     * Examples:
+     * - eval(user_code): Evaluates code string
+     * - system(user_command): Executes shell command (also command injection)
+     * 
+     * Severity: Critical - Code injection can lead to arbitrary code
+     * execution and complete system compromise.
+     */
     // Code Injection Sinks
     const codeSinks: TaintSink[] = [
       { 
@@ -340,6 +474,16 @@ export class TaintSinkRegistry {
       },
     ];
 
+    /**
+     * REGISTER ALL SINKS
+     * 
+     * Combine all sink categories into a single array and register them
+     * in the sinks Map. This allows efficient lookup by function name.
+     * 
+     * Note: Some functions appear in multiple categories (e.g., sprintf
+     * is both SQL injection and buffer overflow sink). The last registration
+     * wins, but the function will still be detected as a sink regardless.
+     */
     // Register all sinks
     const allSinks = [
       ...sqlSinks,
@@ -350,48 +494,91 @@ export class TaintSinkRegistry {
       ...codeSinks,
     ];
 
+    // Add each sink to the registry Map
     allSinks.forEach(sink => {
       this.sinks.set(sink.functionName, sink);
     });
   }
 
   /**
-   * Check if a function is a known taint sink
+   * CHECK IF FUNCTION IS TAINT SINK
+   * 
+   * Determines if a function is registered as a taint sink (either default
+   * or custom). This is the primary lookup method used by the taint analyzer
+   * and security analyzer.
+   * 
+   * @param functionName - Name of function to check
+   * @returns true if function is a known taint sink
    */
   isTaintSink(functionName: string): boolean {
+    // Check both default sinks and custom sinks
     return this.sinks.has(functionName) || this.customSinks.has(functionName);
   }
 
   /**
-   * Get taint sink information for a function
+   * GET TAINT SINK INFORMATION
+   * 
+   * Retrieves the complete taint sink definition for a function.
+   * This includes category, argument indices, severity, and CWE ID.
+   * 
+   * @param functionName - Name of function to look up
+   * @returns TaintSink object or undefined if not found
    */
   getTaintSink(functionName: string): TaintSink | undefined {
     return this.sinks.get(functionName);
   }
 
   /**
-   * Get all taint sinks
+   * GET ALL TAINT SINKS
+   * 
+   * Returns all registered taint sinks (default + custom).
+   * Useful for debugging, logging, or UI display.
+   * 
+   * @returns Array of all taint sink definitions
    */
   getAllSinks(): TaintSink[] {
     return Array.from(this.sinks.values());
   }
 
   /**
-   * Get taint sinks by category
+   * GET SINKS BY CATEGORY
+   * 
+   * Filters taint sinks by category (sql, command, format_string, etc.).
+   * Useful for category-specific analysis or reporting.
+   * 
+   * @param category - Category to filter by
+   * @returns Array of taint sinks in the specified category
    */
   getSinksByCategory(category: TaintSinkCategory): TaintSink[] {
     return Array.from(this.sinks.values()).filter(s => s.category === category);
   }
 
   /**
-   * Get taint sinks by severity
+   * GET SINKS BY SEVERITY
+   * 
+   * Filters taint sinks by severity (critical, high, medium, low).
+   * Useful for prioritizing vulnerabilities or generating severity reports.
+   * 
+   * @param severity - Severity level to filter by
+   * @returns Array of taint sinks with the specified severity
    */
   getSinksBySeverity(severity: VulnerabilitySeverity): TaintSink[] {
     return Array.from(this.sinks.values()).filter(s => s.severity === severity);
   }
 
   /**
-   * Add a custom taint sink
+   * ADD CUSTOM TAINT SINK
+   * 
+   * Allows users to register custom taint sinks for application-specific
+   * dangerous functions. Custom sinks are tracked separately so they can
+   * be removed without affecting default sinks.
+   * 
+   * Use cases:
+   * - Application-specific dangerous functions
+   * - Third-party library functions that are security-sensitive
+   * - Custom protocol handlers that execute code
+   * 
+   * @param sink - TaintSink definition to add
    */
   addCustomSink(sink: TaintSink): void {
     this.sinks.set(sink.functionName, sink);
@@ -399,9 +586,16 @@ export class TaintSinkRegistry {
   }
 
   /**
-   * Remove a custom taint sink
+   * REMOVE CUSTOM TAINT SINK
+   * 
+   * Removes a custom taint sink that was previously added. Only removes
+   * sinks that were added via addCustomSink(), not default sinks.
+   * This prevents accidental removal of built-in taint sinks.
+   * 
+   * @param functionName - Name of custom sink to remove
    */
   removeCustomSink(functionName: string): void {
+    // Only remove if it's a custom sink (not a default sink)
     if (this.customSinks.has(functionName)) {
       this.sinks.delete(functionName);
       this.customSinks.delete(functionName);

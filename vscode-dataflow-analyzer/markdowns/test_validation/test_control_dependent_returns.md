@@ -107,9 +107,37 @@ int test_early_return_control_dependent() {
 - [ ] Logs show correct taint detection messages
 - [ ] Sensitivity level affects detection (MAXIMUM should detect all)
 
+## Counterexamples Added
+
+### Counterexample 1: Control-Dependent Return Through Function Pointer
+- **Purpose**: Tests control-dependent taint propagation through function pointer returns
+- **Expected**: Return value should be control-dependent tainted
+- **Edge Case**: Function pointer control-dependent return
+
+### Counterexample 2: Control-Dependent Return Through Global Variable
+- **Purpose**: Tests control-dependent taint propagation through global variables
+- **Expected**: Return value should be control-dependent tainted
+- **Edge Case**: Global variable control-dependent return
+
+### Counterexample 3: Control-Dependent Return Through Struct Field
+- **Purpose**: Tests control-dependent taint propagation through struct fields
+- **Expected**: Return value should be control-dependent tainted
+- **Edge Case**: Struct field control-dependent return
+
+### Counterexample 4: Control-Dependent Return Through Array Element
+- **Purpose**: Tests control-dependent taint propagation through array elements
+- **Expected**: Return value should be control-dependent tainted
+- **Edge Case**: Array element control-dependent return
+
+### Counterexample 5: Control-Dependent Return Through Nested Function Call
+- **Purpose**: Tests control-dependent taint propagation through nested function calls
+- **Expected**: Return value should be control-dependent tainted
+- **Edge Case**: Nested call control-dependent return
+
 ## Notes
 - This is the primary test file for control-dependent taint validation
 - Synthetic taint detection requires sensitivity >= CONSERVATIVE
 - Return statements without variables should create synthetic taint entries
 - See `EXPECTED_OUTPUT_test_control_dependent_returns.md` for detailed expected counts
+- Counterexamples test edge cases for control-dependent returns
 

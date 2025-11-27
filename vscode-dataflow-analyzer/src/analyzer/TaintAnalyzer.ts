@@ -119,21 +119,27 @@ export class TaintAnalyzer {
     this.sanitizationRegistry = sanitizationRegistry || defaultSanitizationRegistry;
     this.sensitivity = sensitivity;
     
-    console.log(`[TaintAnalyzer] [INFO] ========== TAINT ANALYZER INITIALIZATION ==========`);
-    console.log(`[TaintAnalyzer] [INFO] TaintAnalyzer constructor called`);
-    console.log(`[TaintAnalyzer] [INFO] Sensitivity parameter: ${sensitivity}`);
-    console.log(`[TaintAnalyzer] [INFO] Sensitivity type: ${typeof sensitivity}`);
-    console.log(`[TaintAnalyzer] [INFO] Sensitivity enum values: MINIMAL=${TaintSensitivity.MINIMAL}, CONSERVATIVE=${TaintSensitivity.CONSERVATIVE}, BALANCED=${TaintSensitivity.BALANCED}, PRECISE=${TaintSensitivity.PRECISE}, MAXIMUM=${TaintSensitivity.MAXIMUM}`);
-    console.log(`[TaintAnalyzer] [DEBUG] Setting this.sensitivity = ${sensitivity}`);
-    console.log(`[TaintAnalyzer] [DEBUG] this.sensitivity after assignment: ${this.sensitivity}`);
-    console.log(`[TaintAnalyzer] [DEBUG] Control-dependent enabled: ${this.shouldEnableControlDependent()}`);
-    console.log(`[TaintAnalyzer] [DEBUG] Recursive propagation enabled: ${this.shouldEnableRecursivePropagation()}`);
-    console.log(`[TaintAnalyzer] [DEBUG] Path-sensitive enabled: ${this.shouldEnablePathSensitive()}`);
-    console.log(`[TaintAnalyzer] [DEBUG] Field-sensitive enabled: ${this.shouldEnableFieldSensitive()}`);
-    console.log(`[TaintAnalyzer] [DEBUG] Context-sensitive enabled: ${this.shouldEnableContextSensitive()}`);
-    console.log(`[TaintAnalyzer] [DEBUG] Flow-sensitive enabled: ${this.shouldEnableFlowSensitive()}`);
-    console.log(`[TaintAnalyzer] [INFO] Taint analyzer initialized with registries (source, sink, sanitization)`);
-    console.log(`[TaintAnalyzer] [INFO] ========== INITIALIZATION COMPLETE ==========`);
+    /**
+     * TAINT ANALYZER INITIALIZATION
+     * 
+     * Logs initialization details including sensitivity configuration and enabled features.
+     * This helps diagnose taint analysis behavior based on sensitivity level.
+     */
+    LoggingConfig.section('TaintAnalysis', '========== TAINT ANALYZER INITIALIZATION ==========');
+    LoggingConfig.log('TaintAnalysis', 'TaintAnalyzer constructor called');
+    LoggingConfig.detail('TaintAnalysis', `Sensitivity parameter: ${sensitivity}`);
+    LoggingConfig.detail('TaintAnalysis', `Sensitivity type: ${typeof sensitivity}`);
+    LoggingConfig.detail('TaintAnalysis', `Sensitivity enum values: MINIMAL=${TaintSensitivity.MINIMAL}, CONSERVATIVE=${TaintSensitivity.CONSERVATIVE}, BALANCED=${TaintSensitivity.BALANCED}, PRECISE=${TaintSensitivity.PRECISE}, MAXIMUM=${TaintSensitivity.MAXIMUM}`);
+    LoggingConfig.verbose('TaintAnalysis', `Setting this.sensitivity = ${sensitivity}`);
+    LoggingConfig.verbose('TaintAnalysis', `this.sensitivity after assignment: ${this.sensitivity}`);
+    LoggingConfig.detail('TaintAnalysis', `Control-dependent enabled: ${this.shouldEnableControlDependent()}`);
+    LoggingConfig.detail('TaintAnalysis', `Recursive propagation enabled: ${this.shouldEnableRecursivePropagation()}`);
+    LoggingConfig.detail('TaintAnalysis', `Path-sensitive enabled: ${this.shouldEnablePathSensitive()}`);
+    LoggingConfig.detail('TaintAnalysis', `Field-sensitive enabled: ${this.shouldEnableFieldSensitive()}`);
+    LoggingConfig.detail('TaintAnalysis', `Context-sensitive enabled: ${this.shouldEnableContextSensitive()}`);
+    LoggingConfig.detail('TaintAnalysis', `Flow-sensitive enabled: ${this.shouldEnableFlowSensitive()}`);
+    LoggingConfig.log('TaintAnalysis', 'Taint analyzer initialized with registries (source, sink, sanitization)');
+    LoggingConfig.section('TaintAnalysis', '========== INITIALIZATION COMPLETE ==========');
   }
   
   /**
@@ -243,10 +249,12 @@ export class TaintAnalyzer {
       'Flow-Sensitive': this.shouldEnableFlowSensitive()
     });
     
-    console.log(`[TaintAnalyzer] [INFO] Starting taint analysis for function: ${functionCFG.name}`);
-    console.log(`[TaintAnalyzer] [DEBUG] Function has ${functionCFG.blocks.size} blocks, ${reachingDefinitions.size} reaching definition entries`);
-    console.log(`[TaintAnalyzer] [DEBUG] Sensitivity level: ${this.sensitivity}, Control-dependent enabled: ${this.shouldEnableControlDependent()}, Recursive: ${this.shouldEnableRecursivePropagation()}`);
-    
+    /**
+     * TAINT ANALYSIS START
+     * 
+     * Logs function analysis start with configuration details.
+     * These logs are already covered by the comprehensive logging above, so we can remove the duplicate console.log calls.
+     */
     // Store functionCFG for use in helper methods
     this.currentFunctionCFG = functionCFG;
     
@@ -547,10 +555,15 @@ export class TaintAnalyzer {
       });
     }
     
-    console.log(`[TaintAnalyzer] [INFO] Analysis completed for ${functionCFG.name} in ${analysisTimeMs}ms`);
-    console.log(`[TaintAnalyzer] [DEBUG] Found ${totalTaintedVars} tainted variables, ${vulnerabilities.length} vulnerabilities`);
+    /**
+     * TAINT ANALYSIS COMPLETE
+     * 
+     * Logs analysis completion with summary statistics.
+     */
+    LoggingConfig.log('TaintAnalysis', `Analysis completed for ${functionCFG.name} in ${analysisTimeMs}ms`);
+    LoggingConfig.detail('TaintAnalysis', `Found ${totalTaintedVars} tainted variables, ${vulnerabilities.length} vulnerabilities`);
     if (vulnerabilities.length > 0) {
-      console.log(`[TaintAnalyzer] [WARN] Detected ${vulnerabilities.length} taint vulnerabilities in ${functionCFG.name}`);
+      LoggingConfig.warn('TaintAnalysis', `Detected ${vulnerabilities.length} taint vulnerabilities in ${functionCFG.name}`);
     }
     
     return { taintMap, vulnerabilities };
@@ -1042,7 +1055,13 @@ export class TaintAnalyzer {
    * Reference: "Control Dependence" - Ferrante et al. (1987)
    */
   private buildControlDependencyGraph(functionCFG: FunctionCFG): Map<string, Set<string>> {
-    console.log(`[TaintAnalyzer] [DEBUG] Building control dependency graph for ${functionCFG.name}`);
+    /**
+     * CONTROL DEPENDENCY GRAPH CONSTRUCTION
+     * 
+     * Builds graph mapping conditional blocks to their control-dependent blocks.
+     * Used for control-dependent taint propagation (implicit flow analysis).
+     */
+    LoggingConfig.detail('TaintAnalysis', `Building control dependency graph for ${functionCFG.name}`);
     const isMainFunction = functionCFG.name === 'main';
     LoggingConfig.raw(`[TaintAnalysis] Building control dependency graph for ${functionCFG.name} (${functionCFG.blocks.size} blocks)`);
     
@@ -1065,7 +1084,7 @@ export class TaintAnalyzer {
           if (dependentBlocks.size > 0) {
             controlDeps.set(blockId, dependentBlocks);
             blocksWithDependents++;
-            console.log(`[TaintAnalyzer] [ControlDependentTaint] Conditional block ${blockId} has ${dependentBlocks.size} control-dependent blocks`);
+            LoggingConfig.detail('ControlDependentTaint', `Conditional block ${blockId} has ${dependentBlocks.size} control-dependent blocks`);
           } else {
             LoggingConfig.raw(`[TaintAnalysis]   ⚠️ No dependent blocks found for conditional block ${blockId}`);
           }
@@ -1080,8 +1099,13 @@ export class TaintAnalyzer {
       }
     });
     
+    /**
+     * CONTROL DEPENDENCY GRAPH COMPLETE
+     * 
+     * Summary of control dependency graph construction.
+     */
     LoggingConfig.raw(`[TaintAnalysis] Control dependency graph: ${conditionalBlocksFound} conditional blocks found, ${blocksWithDependents} with dependents`);
-    console.log(`[TaintAnalyzer] [ControlDependentTaint] Control dependency graph built: ${controlDeps.size} conditionals`);
+    LoggingConfig.log('ControlDependentTaint', `Control dependency graph built: ${controlDeps.size} conditionals`);
     return controlDeps;
   }
 
@@ -1155,7 +1179,7 @@ export class TaintAnalyzer {
     });
     
     if (vars.length > 0) {
-      console.log(`[TaintAnalyzer] [ControlDependentTaint] Extracted conditional variables: [${vars.join(', ')}]`);
+      LoggingConfig.verbose('ControlDependentTaint', `Extracted conditional variables: [${vars.join(', ')}]`);
     }
     return vars;
   }
@@ -1209,13 +1233,19 @@ export class TaintAnalyzer {
    * Only marks blocks reachable from SOME but not ALL branches as control-dependent
    * This reduces false positives by excluding blocks that execute regardless of branch taken
    */
+  /**
+   * PATH-SENSITIVE CONTROL DEPENDENCY DETECTION
+   * 
+   * Only marks blocks reachable from SOME but not ALL branches as control-dependent.
+   * This reduces false positives by excluding blocks that execute regardless of branch taken.
+   */
   private getPathSensitiveControlDependentBlocks(functionCFG: FunctionCFG, conditionalBlockId: string): Set<string> {
     const conditionalBlock = functionCFG.blocks.get(conditionalBlockId);
     if (!conditionalBlock) {
       return new Set();
     }
     
-    console.log(`[TaintAnalyzer] [PathSensitive] Analyzing conditional block ${conditionalBlockId} for path-sensitive control dependencies`);
+    LoggingConfig.detail('ControlDependentTaint', `Analyzing conditional block ${conditionalBlockId} for path-sensitive control dependencies`);
     
     const allReachable = new Set<string>();
     const branchReachable = new Map<number, Set<string>>();
@@ -1253,7 +1283,7 @@ export class TaintAnalyzer {
       }
       
       branchReachable.set(branchIndex, reachable);
-      console.log(`[TaintAnalyzer] [PathSensitive] Branch ${branchIndex} (target: ${branchTarget}) reaches ${reachable.size} blocks`);
+      LoggingConfig.verbose('ControlDependentTaint', `Branch ${branchIndex} (target: ${branchTarget}) reaches ${reachable.size} blocks`);
     });
     
     // Control-dependent = blocks reachable from SOME but not ALL branches
@@ -1271,13 +1301,13 @@ export class TaintAnalyzer {
       // If block is reachable from SOME but not ALL branches, it's control-dependent
       if (reachableFromBranches > 0 && reachableFromBranches < branches.length) {
         controlDependent.add(blockId);
-        console.log(`[TaintAnalyzer] [PathSensitive] Block ${blockId} is control-dependent (reachable from ${reachableFromBranches}/${branches.length} branches)`);
+        LoggingConfig.verbose('ControlDependentTaint', `Block ${blockId} is control-dependent (reachable from ${reachableFromBranches}/${branches.length} branches)`);
       } else if (reachableFromBranches === branches.length) {
-        console.log(`[TaintAnalyzer] [PathSensitive] Block ${blockId} is NOT control-dependent (reachable from ALL branches)`);
+        LoggingConfig.verbose('ControlDependentTaint', `Block ${blockId} is NOT control-dependent (reachable from ALL branches)`);
       }
     });
     
-    console.log(`[TaintAnalyzer] [PathSensitive] Found ${controlDependent.size} path-sensitive control-dependent blocks (out of ${allReachable.size} total reachable)`);
+    LoggingConfig.log('ControlDependentTaint', `Found ${controlDependent.size} path-sensitive control-dependent blocks (out of ${allReachable.size} total reachable)`);
     return controlDependent;
   }
 
@@ -1290,13 +1320,19 @@ export class TaintAnalyzer {
     controlDeps: Map<string, Set<string>>,
     functionCFG: FunctionCFG
   ): void {
+    /**
+     * CONTROL-DEPENDENT TAINT PROPAGATION
+     * 
+     * Propagates taint to blocks that are control-dependent on conditional blocks with tainted conditions.
+     * Uses fixed-point iteration until convergence.
+     */
     if (!this.shouldEnableControlDependent()) {
-      console.log(`[TaintAnalyzer] [ControlDependentTaint] Skipping control-dependent propagation (MINIMAL sensitivity)`);
+      LoggingConfig.detail('ControlDependentTaint', 'Skipping control-dependent propagation (MINIMAL sensitivity)');
       return;
     }
     
     LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] Starting control-dependent taint propagation`);
-    console.log(`[TaintAnalyzer] [ControlDependentTaint] Starting control-dependent taint propagation`);
+    LoggingConfig.log('ControlDependentTaint', 'Starting control-dependent taint propagation');
     
     let changed = true;
     let iteration = 0;
@@ -1307,7 +1343,7 @@ export class TaintAnalyzer {
       iteration++;
       
       LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] Fixed-point iteration ${iteration}`);
-      console.log(`[TaintAnalyzer] [ControlDependentTaint] Fixed-point iteration ${iteration}`);
+      LoggingConfig.verbose('ControlDependentTaint', `Fixed-point iteration ${iteration}`);
       
       controlDeps.forEach((dependentBlocks, conditionalBlockId) => {
         const conditionalBlock = functionCFG.blocks.get(conditionalBlockId);
@@ -1323,7 +1359,7 @@ export class TaintAnalyzer {
           if (taintInfos.some(t => t.tainted)) {
             hasTaintedCondition = true;
             LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] ✅ Found tainted condition: block ${conditionalBlockId} uses tainted variable '${varName}'`);
-            console.log(`[TaintAnalyzer] [ControlDependentTaint] Conditional block ${conditionalBlockId} uses tainted variable: ${varName}`);
+            LoggingConfig.detail('ControlDependentTaint', `Conditional block ${conditionalBlockId} uses tainted variable: ${varName}`);
             break;
           }
         }
@@ -1354,15 +1390,20 @@ export class TaintAnalyzer {
         }
       });
       
+      /**
+       * FIXED-POINT ITERATION STATUS
+       * 
+       * Logs whether new taint was added or convergence was reached.
+       */
       if (changed) {
-        console.log(`[TaintAnalyzer] [ControlDependentTaint] Iteration ${iteration}: new taint labels added`);
+        LoggingConfig.detail('ControlDependentTaint', `Iteration ${iteration}: new taint labels added`);
       } else {
-        console.log(`[TaintAnalyzer] [ControlDependentTaint] Iteration ${iteration}: converged (no new taint)`);
+        LoggingConfig.detail('ControlDependentTaint', `Iteration ${iteration}: converged (no new taint)`);
       }
     }
     
     if (iteration >= MAX_ITERATIONS) {
-      console.warn(`[TaintAnalyzer] [ControlDependentTaint] WARNING: Reached MAX_ITERATIONS (${MAX_ITERATIONS})`);
+      LoggingConfig.warn('ControlDependentTaint', `WARNING: Reached MAX_ITERATIONS (${MAX_ITERATIONS})`);
     }
   }
 
@@ -1401,7 +1442,7 @@ export class TaintAnalyzer {
       if (this.shouldEnableFlowSensitive()) {
         const previousTaint = this.getTaintFromPreviousStatements(stmt, statements.slice(0, stmtIndex), taintMap);
         if (previousTaint.length > 0) {
-          console.log(`[TaintAnalyzer] [FlowSensitive] Statement ${stmtIndex} affected by ${previousTaint.length} previous tainted variables`);
+          LoggingConfig.verbose('TaintAnalysis', `Statement ${stmtIndex} affected by ${previousTaint.length} previous tainted variables (flow-sensitive)`);
         }
       }
       
@@ -1472,7 +1513,7 @@ export class TaintAnalyzer {
             if (!existingTaint.labels.includes(TaintLabel.CONTROL_DEPENDENT)) {
               existingTaint.labels.push(TaintLabel.CONTROL_DEPENDENT);
               LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] ✅ Added CONTROL_DEPENDENT label to existing taint for '${varName}' in block ${blockId}`);
-              console.log(`[TaintAnalyzer] [ControlDependentTaint] Added CONTROL_DEPENDENT label to variable '${varName}' in block ${blockId}`);
+              LoggingConfig.verbose('ControlDependentTaint', `Added CONTROL_DEPENDENT label to variable '${varName}' in block ${blockId}`);
               changed = true;
             }
           } else {
@@ -1497,13 +1538,13 @@ export class TaintAnalyzer {
             // Add context for context-sensitive analysis
             if (context && this.shouldEnableContextSensitive()) {
               (newTaintInfo as any).context = context;
-              console.log(`[TaintAnalyzer] [ContextSensitive] Added context ${context} to taint for ${varName}`);
+              LoggingConfig.verbose('TaintAnalysis', `Added context ${context} to taint for ${varName} (context-sensitive)`);
             }
             
             taintInfos.push(newTaintInfo);
             taintMap.set(varName, taintInfos);
             LoggingConfig.raw(`[TaintAnalysis] [ControlDependentTaint] ✅ Created new CONTROL_DEPENDENT taint for '${varName}' in block ${blockId}`);
-            console.log(`[TaintAnalyzer] [ControlDependentTaint] Marked variable '${varName}' in block ${blockId} as control-dependent tainted`);
+            LoggingConfig.verbose('ControlDependentTaint', `Marked variable '${varName}' in block ${blockId} as control-dependent tainted`);
             changed = true;
           }
         }
@@ -1602,6 +1643,12 @@ export class TaintAnalyzer {
    * Propagate field-sensitive taint for struct fields
    * Tracks taint at the field level (e.g., struct.foo vs struct.bar)
    */
+  /**
+   * FIELD-SENSITIVE TAINT PROPAGATION
+   * 
+   * Propagates taint at struct field level (e.g., struct.foo vs struct.bar).
+   * Only enabled for PRECISE/MAXIMUM sensitivity levels.
+   */
   private propagateFieldSensitiveTaint(
     varName: string,
     taintMap: Map<string, TaintInfo[]>,
@@ -1610,7 +1657,7 @@ export class TaintAnalyzer {
     blockId: string,
     context: string | null = null
   ): void {
-    console.log(`[TaintAnalyzer] [FieldSensitive] Propagating field-sensitive taint for ${varName}`);
+    LoggingConfig.verbose('TaintAnalysis', `Propagating field-sensitive taint for ${varName}`);
     
     // Extract struct name and field name
     const fieldMatch = varName.match(/([a-zA-Z_][a-zA-Z0-9_]*)[\.->]([a-zA-Z_][a-zA-Z0-9_]*)/);
@@ -1660,21 +1707,24 @@ export class TaintAnalyzer {
         
         fieldTaintInfos.push(newTaintInfo);
         taintMap.set(fieldTaintKey, fieldTaintInfos);
-        console.log(`[TaintAnalyzer] [FieldSensitive] Marked field ${fieldTaintKey} as control-dependent tainted`);
+        LoggingConfig.verbose('TaintAnalysis', `Marked field ${fieldTaintKey} as control-dependent tainted (field-sensitive)`);
       }
     }
   }
 
   /**
-   * Get call-site context for context-sensitive analysis (k-limited, k=1)
-   * Returns context string representing the immediate caller
+   * CONTEXT-SENSITIVE ANALYSIS
+   * 
+   * Get call-site context for context-sensitive analysis (k-limited, k=1).
+   * Returns context string representing the immediate caller.
+   * Only enabled for MAXIMUM sensitivity level.
    */
   private getCallContext(functionCFG: FunctionCFG, blockId: string): string {
     // k-limited context (k=1): track immediate caller only
     // For intra-procedural analysis, use function name as context
     // In inter-procedural analysis, this would track the call site
     const context = `${functionCFG.name}:${blockId}`;
-    console.log(`[TaintAnalyzer] [ContextSensitive] Created context: ${context}`);
+    LoggingConfig.verbose('TaintAnalysis', `Created context: ${context} (context-sensitive)`);
     return context;
   }
 

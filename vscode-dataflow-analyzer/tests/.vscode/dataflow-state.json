@@ -1,0 +1,2115 @@
+{
+  "workspacePath": "/Users/srinivasabhargavamanda/Desktop/Personal/vscode-dataflow-analyzer/tests",
+  "timestamp": 1764215988223,
+  "cfg": {
+    "entry": "global_entry",
+    "exit": "global_exit",
+    "blocks": [],
+    "functions": [
+      [
+        "get_user_input",
+        {
+          "name": "get_user_input",
+          "entry": "2",
+          "exit": "0",
+          "blocks": [
+            [
+              "0",
+              {
+                "id": "0",
+                "label": "Exit",
+                "statements": [],
+                "predecessors": [
+                  "1"
+                ],
+                "successors": []
+              }
+            ],
+            [
+              "1",
+              {
+                "id": "1",
+                "label": "B1",
+                "statements": [
+                  {
+                    "text": "char buffer[100];\n",
+                    "content": "char buffer[100];\n",
+                    "range": {
+                      "start": {
+                        "line": 15,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 15,
+                        "column": 21
+                      }
+                    },
+                    "variables": {
+                      "defined": [
+                        "buffer"
+                      ],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(scanf, \"%s\", buffer)",
+                    "content": "<recovery-expr>(scanf, \"%s\", buffer)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 16,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 16,
+                        "column": 23
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "buffer"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "buffer",
+                    "content": "buffer",
+                    "range": {
+                      "start": {
+                        "line": 17,
+                        "column": 12
+                      },
+                      "end": {
+                        "line": 17,
+                        "column": 12
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "buffer"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "return buffer;\n",
+                    "content": "return buffer;\n",
+                    "range": {
+                      "start": {
+                        "line": 17,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 17,
+                        "column": 12
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "buffer"
+                      ]
+                    }
+                  }
+                ],
+                "predecessors": [
+                  "2"
+                ],
+                "successors": [
+                  "0"
+                ]
+              }
+            ],
+            [
+              "2",
+              {
+                "id": "2",
+                "label": "Entry",
+                "statements": [],
+                "predecessors": [],
+                "successors": [
+                  "1"
+                ]
+              }
+            ]
+          ],
+          "parameters": []
+        }
+      ],
+      [
+        "process_input",
+        {
+          "name": "process_input",
+          "entry": "2",
+          "exit": "0",
+          "blocks": [
+            [
+              "0",
+              {
+                "id": "0",
+                "label": "Exit",
+                "statements": [],
+                "predecessors": [
+                  "1"
+                ],
+                "successors": []
+              }
+            ],
+            [
+              "1",
+              {
+                "id": "1",
+                "label": "B1",
+                "statements": [
+                  {
+                    "text": "char local_buffer[100];\n",
+                    "content": "char local_buffer[100];\n",
+                    "range": {
+                      "start": {
+                        "line": 22,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 22,
+                        "column": 27
+                      }
+                    },
+                    "variables": {
+                      "defined": [
+                        "local_buffer"
+                      ],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(strcpy, local_buffer, input)",
+                    "content": "<recovery-expr>(strcpy, local_buffer, input)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 23,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 23,
+                        "column": 31
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "local_buffer",
+                        "input"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(printf, \"Processed: %s\\n\", local_buffer)",
+                    "content": "<recovery-expr>(printf, \"Processed: %s\\n\", local_buffer)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 24,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 24,
+                        "column": 43
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "local_buffer"
+                      ]
+                    }
+                  }
+                ],
+                "predecessors": [
+                  "2"
+                ],
+                "successors": [
+                  "0"
+                ]
+              }
+            ],
+            [
+              "2",
+              {
+                "id": "2",
+                "label": "Entry",
+                "statements": [],
+                "predecessors": [],
+                "successors": [
+                  "1"
+                ]
+              }
+            ]
+          ],
+          "parameters": [
+            "input"
+          ]
+        }
+      ],
+      [
+        "process_with_validation",
+        {
+          "name": "process_with_validation",
+          "entry": "4",
+          "exit": "0",
+          "blocks": [
+            [
+              "0",
+              {
+                "id": "0",
+                "label": "Exit",
+                "statements": [],
+                "predecessors": [
+                  "1",
+                  "2"
+                ],
+                "successors": []
+              }
+            ],
+            [
+              "1",
+              {
+                "id": "1",
+                "label": "B1",
+                "statements": [
+                  {
+                    "text": "char buffer[100];\n",
+                    "content": "char buffer[100];\n",
+                    "range": {
+                      "start": {
+                        "line": 37,
+                        "column": 9
+                      },
+                      "end": {
+                        "line": 37,
+                        "column": 25
+                      }
+                    },
+                    "variables": {
+                      "defined": [
+                        "buffer"
+                      ],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(strcpy, buffer, input)",
+                    "content": "<recovery-expr>(strcpy, buffer, input)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 38,
+                        "column": 9
+                      },
+                      "end": {
+                        "line": 38,
+                        "column": 29
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "buffer",
+                        "input"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(printf, \"Unsanitized: %s\\n\", buffer)",
+                    "content": "<recovery-expr>(printf, \"Unsanitized: %s\\n\", buffer)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 39,
+                        "column": 9
+                      },
+                      "end": {
+                        "line": 39,
+                        "column": 43
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "buffer"
+                      ]
+                    }
+                  }
+                ],
+                "predecessors": [
+                  "3"
+                ],
+                "successors": [
+                  "0"
+                ]
+              }
+            ],
+            [
+              "2",
+              {
+                "id": "2",
+                "label": "B2",
+                "statements": [
+                  {
+                    "text": "char sanitized[100];\n",
+                    "content": "char sanitized[100];\n",
+                    "range": {
+                      "start": {
+                        "line": 31,
+                        "column": 9
+                      },
+                      "end": {
+                        "line": 31,
+                        "column": 28
+                      }
+                    },
+                    "variables": {
+                      "defined": [
+                        "sanitized"
+                      ],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(strncpy, sanitized, input, 99)",
+                    "content": "<recovery-expr>(strncpy, sanitized, input, 99)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 32,
+                        "column": 9
+                      },
+                      "end": {
+                        "line": 32,
+                        "column": 37
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "sanitized",
+                        "input"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "sanitized[99] = '\\x00'",
+                    "content": "sanitized[99] = '\\x00'",
+                    "range": {
+                      "start": {
+                        "line": 33,
+                        "column": 9
+                      },
+                      "end": {
+                        "line": 33,
+                        "column": 25
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(printf, \"Sanitized: %s\\n\", sanitized)",
+                    "content": "<recovery-expr>(printf, \"Sanitized: %s\\n\", sanitized)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 34,
+                        "column": 9
+                      },
+                      "end": {
+                        "line": 34,
+                        "column": 44
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "sanitized"
+                      ]
+                    }
+                  }
+                ],
+                "predecessors": [
+                  "3"
+                ],
+                "successors": [
+                  "0"
+                ]
+              }
+            ],
+            [
+              "3",
+              {
+                "id": "3",
+                "label": "B3",
+                "statements": [
+                  {
+                    "text": "validate",
+                    "content": "validate",
+                    "range": {
+                      "start": {
+                        "line": 29,
+                        "column": 9
+                      },
+                      "end": {
+                        "line": 29,
+                        "column": 9
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "validate"
+                      ]
+                    }
+                  }
+                ],
+                "predecessors": [
+                  "4"
+                ],
+                "successors": [
+                  "2",
+                  "1"
+                ]
+              }
+            ],
+            [
+              "4",
+              {
+                "id": "4",
+                "label": "Entry",
+                "statements": [],
+                "predecessors": [],
+                "successors": [
+                  "3"
+                ]
+              }
+            ]
+          ],
+          "parameters": [
+            "input",
+            "validate"
+          ]
+        }
+      ],
+      [
+        "duplicate_string",
+        {
+          "name": "duplicate_string",
+          "entry": "2",
+          "exit": "0",
+          "blocks": [
+            [
+              "0",
+              {
+                "id": "0",
+                "label": "Exit",
+                "statements": [],
+                "predecessors": [
+                  "1"
+                ],
+                "successors": []
+              }
+            ],
+            [
+              "1",
+              {
+                "id": "1",
+                "label": "B1",
+                "statements": [
+                  {
+                    "text": "char *result = (char *)<recovery-expr>(malloc, 100);\n",
+                    "content": "char *result = (char *)<recovery-expr>(malloc, 100);\n",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 45,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 45,
+                        "column": 38
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(strcpy, result, src)",
+                    "content": "<recovery-expr>(strcpy, result, src)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 46,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 46,
+                        "column": 23
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "result",
+                        "src"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "result",
+                    "content": "result",
+                    "range": {
+                      "start": {
+                        "line": 47,
+                        "column": 12
+                      },
+                      "end": {
+                        "line": 47,
+                        "column": 12
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "result"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "return result;\n",
+                    "content": "return result;\n",
+                    "range": {
+                      "start": {
+                        "line": 47,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 47,
+                        "column": 12
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "result"
+                      ]
+                    }
+                  }
+                ],
+                "predecessors": [
+                  "2"
+                ],
+                "successors": [
+                  "0"
+                ]
+              }
+            ],
+            [
+              "2",
+              {
+                "id": "2",
+                "label": "Entry",
+                "statements": [],
+                "predecessors": [],
+                "successors": [
+                  "1"
+                ]
+              }
+            ]
+          ],
+          "parameters": [
+            "src"
+          ]
+        }
+      ],
+      [
+        "main",
+        {
+          "name": "main",
+          "entry": "2",
+          "exit": "0",
+          "blocks": [
+            [
+              "0",
+              {
+                "id": "0",
+                "label": "Exit",
+                "statements": [],
+                "predecessors": [
+                  "1"
+                ],
+                "successors": []
+              }
+            ],
+            [
+              "1",
+              {
+                "id": "1",
+                "label": "B1",
+                "statements": [
+                  {
+                    "text": "get_user_input()",
+                    "content": "get_user_input()",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 52,
+                        "column": 23
+                      },
+                      "end": {
+                        "line": 52,
+                        "column": 38
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "char *user_data = get_user_input();\n",
+                    "content": "char *user_data = get_user_input();\n",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 52,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 52,
+                        "column": 39
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "get_user_input"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "char *safe_data = \"constant_string\";\n",
+                    "content": "char *safe_data = \"constant_string\";\n",
+                    "range": {
+                      "start": {
+                        "line": 53,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 53,
+                        "column": 40
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "process_input(user_data)",
+                    "content": "process_input(user_data)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 55,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 55,
+                        "column": 28
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "user_data"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "process_input(safe_data)",
+                    "content": "process_input(safe_data)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 56,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 56,
+                        "column": 28
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "safe_data"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "get_user_input()",
+                    "content": "get_user_input()",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 59,
+                        "column": 20
+                      },
+                      "end": {
+                        "line": 59,
+                        "column": 35
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "char *input1 = get_user_input();\n",
+                    "content": "char *input1 = get_user_input();\n",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 59,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 59,
+                        "column": 36
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "get_user_input"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "char *input2 = \"safe\";\n",
+                    "content": "char *input2 = \"safe\";\n",
+                    "range": {
+                      "start": {
+                        "line": 60,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 60,
+                        "column": 26
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "process_with_validation(input1, 1)",
+                    "content": "process_with_validation(input1, 1)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 62,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 62,
+                        "column": 38
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "input1"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "process_with_validation(input1, 0)",
+                    "content": "process_with_validation(input1, 0)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 63,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 63,
+                        "column": 38
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "input1"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "process_with_validation(input2, 0)",
+                    "content": "process_with_validation(input2, 0)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 64,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 64,
+                        "column": 38
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "input2"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "duplicate_string(user_data)",
+                    "content": "duplicate_string(user_data)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 67,
+                        "column": 21
+                      },
+                      "end": {
+                        "line": 67,
+                        "column": 47
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "user_data"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "char *copied1 = duplicate_string(user_data);\n",
+                    "content": "char *copied1 = duplicate_string(user_data);\n",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 67,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 67,
+                        "column": 48
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "duplicate_string",
+                        "user_data"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "duplicate_string(safe_data)",
+                    "content": "duplicate_string(safe_data)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 68,
+                        "column": 21
+                      },
+                      "end": {
+                        "line": 68,
+                        "column": 47
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "safe_data"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "char *copied2 = duplicate_string(safe_data);\n",
+                    "content": "char *copied2 = duplicate_string(safe_data);\n",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 68,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 68,
+                        "column": 48
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "duplicate_string",
+                        "safe_data"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(printf, \"Copied: %s\\n\", copied1)",
+                    "content": "<recovery-expr>(printf, \"Copied: %s\\n\", copied1)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 70,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 70,
+                        "column": 35
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "copied1"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(printf, \"Copied: %s\\n\", copied2)",
+                    "content": "<recovery-expr>(printf, \"Copied: %s\\n\", copied2)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 71,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 71,
+                        "column": 35
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "copied2"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(free, copied1)",
+                    "content": "<recovery-expr>(free, copied1)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 73,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 73,
+                        "column": 17
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "copied1"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "<recovery-expr>(free, copied2)",
+                    "content": "<recovery-expr>(free, copied2)",
+                    "type": "function_call",
+                    "range": {
+                      "start": {
+                        "line": 74,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 74,
+                        "column": 17
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": [
+                        "copied2"
+                      ]
+                    }
+                  },
+                  {
+                    "text": "0",
+                    "content": "0",
+                    "range": {
+                      "start": {
+                        "line": 76,
+                        "column": 12
+                      },
+                      "end": {
+                        "line": 76,
+                        "column": 12
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": []
+                    }
+                  },
+                  {
+                    "text": "return 0;\n",
+                    "content": "return 0;\n",
+                    "range": {
+                      "start": {
+                        "line": 76,
+                        "column": 5
+                      },
+                      "end": {
+                        "line": 76,
+                        "column": 12
+                      }
+                    },
+                    "variables": {
+                      "defined": [],
+                      "used": []
+                    }
+                  }
+                ],
+                "predecessors": [
+                  "2"
+                ],
+                "successors": [
+                  "0"
+                ]
+              }
+            ],
+            [
+              "2",
+              {
+                "id": "2",
+                "label": "Entry",
+                "statements": [],
+                "predecessors": [],
+                "successors": [
+                  "1"
+                ]
+              }
+            ]
+          ],
+          "parameters": []
+        }
+      ]
+    ]
+  },
+  "liveness": [
+    [
+      "get_user_input_0",
+      {
+        "blockId": "0",
+        "in": [],
+        "out": []
+      }
+    ],
+    [
+      "get_user_input_1",
+      {
+        "blockId": "1",
+        "in": [
+          "buffer"
+        ],
+        "out": []
+      }
+    ],
+    [
+      "get_user_input_2",
+      {
+        "blockId": "2",
+        "in": [
+          "buffer"
+        ],
+        "out": [
+          "buffer"
+        ]
+      }
+    ],
+    [
+      "process_input_0",
+      {
+        "blockId": "0",
+        "in": [],
+        "out": []
+      }
+    ],
+    [
+      "process_input_1",
+      {
+        "blockId": "1",
+        "in": [
+          "local_buffer",
+          "input"
+        ],
+        "out": []
+      }
+    ],
+    [
+      "process_input_2",
+      {
+        "blockId": "2",
+        "in": [
+          "local_buffer",
+          "input"
+        ],
+        "out": [
+          "local_buffer",
+          "input"
+        ]
+      }
+    ],
+    [
+      "process_with_validation_0",
+      {
+        "blockId": "0",
+        "in": [],
+        "out": []
+      }
+    ],
+    [
+      "process_with_validation_1",
+      {
+        "blockId": "1",
+        "in": [
+          "buffer",
+          "input"
+        ],
+        "out": []
+      }
+    ],
+    [
+      "process_with_validation_2",
+      {
+        "blockId": "2",
+        "in": [
+          "sanitized",
+          "input"
+        ],
+        "out": []
+      }
+    ],
+    [
+      "process_with_validation_3",
+      {
+        "blockId": "3",
+        "in": [
+          "validate",
+          "sanitized",
+          "input",
+          "buffer"
+        ],
+        "out": [
+          "sanitized",
+          "input",
+          "buffer"
+        ]
+      }
+    ],
+    [
+      "process_with_validation_4",
+      {
+        "blockId": "4",
+        "in": [
+          "validate",
+          "sanitized",
+          "input",
+          "buffer"
+        ],
+        "out": [
+          "validate",
+          "sanitized",
+          "input",
+          "buffer"
+        ]
+      }
+    ],
+    [
+      "duplicate_string_0",
+      {
+        "blockId": "0",
+        "in": [],
+        "out": []
+      }
+    ],
+    [
+      "duplicate_string_1",
+      {
+        "blockId": "1",
+        "in": [
+          "result",
+          "src"
+        ],
+        "out": []
+      }
+    ],
+    [
+      "duplicate_string_2",
+      {
+        "blockId": "2",
+        "in": [
+          "result",
+          "src"
+        ],
+        "out": [
+          "result",
+          "src"
+        ]
+      }
+    ],
+    [
+      "main_0",
+      {
+        "blockId": "0",
+        "in": [],
+        "out": []
+      }
+    ],
+    [
+      "main_1",
+      {
+        "blockId": "1",
+        "in": [
+          "get_user_input",
+          "user_data",
+          "safe_data",
+          "input1",
+          "input2",
+          "duplicate_string",
+          "copied1",
+          "copied2"
+        ],
+        "out": []
+      }
+    ],
+    [
+      "main_2",
+      {
+        "blockId": "2",
+        "in": [
+          "get_user_input",
+          "user_data",
+          "safe_data",
+          "input1",
+          "input2",
+          "duplicate_string",
+          "copied1",
+          "copied2"
+        ],
+        "out": [
+          "get_user_input",
+          "user_data",
+          "safe_data",
+          "input1",
+          "input2",
+          "duplicate_string",
+          "copied1",
+          "copied2"
+        ]
+      }
+    ]
+  ],
+  "reachingDefinitions": [
+    [
+      "get_user_input_0",
+      {
+        "blockId": "0",
+        "gen": {},
+        "kill": {},
+        "in": {
+          "buffer": [
+            {
+              "variable": "buffer",
+              "definitionId": "d0",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 15,
+                  "column": 5
+                },
+                "end": {
+                  "line": 15,
+                  "column": 21
+                }
+              }
+            }
+          ]
+        },
+        "out": {
+          "buffer": [
+            {
+              "variable": "buffer",
+              "definitionId": "d0",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 15,
+                  "column": 5
+                },
+                "end": {
+                  "line": 15,
+                  "column": 21
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "get_user_input_1",
+      {
+        "blockId": "1",
+        "gen": {
+          "buffer": [
+            {
+              "variable": "buffer",
+              "definitionId": "d0",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 15,
+                  "column": 5
+                },
+                "end": {
+                  "line": 15,
+                  "column": 21
+                }
+              }
+            }
+          ]
+        },
+        "kill": {},
+        "in": {},
+        "out": {
+          "buffer": [
+            {
+              "variable": "buffer",
+              "definitionId": "d0",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 15,
+                  "column": 5
+                },
+                "end": {
+                  "line": 15,
+                  "column": 21
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "get_user_input_2",
+      {
+        "blockId": "2",
+        "gen": {},
+        "kill": {},
+        "in": {},
+        "out": {}
+      }
+    ],
+    [
+      "process_input_0",
+      {
+        "blockId": "0",
+        "gen": {},
+        "kill": {},
+        "in": {
+          "local_buffer": [
+            {
+              "variable": "local_buffer",
+              "definitionId": "d1",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 22,
+                  "column": 5
+                },
+                "end": {
+                  "line": 22,
+                  "column": 27
+                }
+              }
+            }
+          ],
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_input"
+            }
+          ]
+        },
+        "out": {
+          "local_buffer": [
+            {
+              "variable": "local_buffer",
+              "definitionId": "d1",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 22,
+                  "column": 5
+                },
+                "end": {
+                  "line": 22,
+                  "column": 27
+                }
+              }
+            }
+          ],
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_input"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "process_input_1",
+      {
+        "blockId": "1",
+        "gen": {
+          "local_buffer": [
+            {
+              "variable": "local_buffer",
+              "definitionId": "d1",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 22,
+                  "column": 5
+                },
+                "end": {
+                  "line": 22,
+                  "column": 27
+                }
+              }
+            }
+          ]
+        },
+        "kill": {},
+        "in": {
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_input"
+            }
+          ]
+        },
+        "out": {
+          "local_buffer": [
+            {
+              "variable": "local_buffer",
+              "definitionId": "d1",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 22,
+                  "column": 5
+                },
+                "end": {
+                  "line": 22,
+                  "column": 27
+                }
+              }
+            }
+          ],
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_input"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "process_input_2",
+      {
+        "blockId": "2",
+        "gen": {
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_input"
+            }
+          ]
+        },
+        "kill": {},
+        "in": {},
+        "out": {
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_input"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "process_with_validation_0",
+      {
+        "blockId": "0",
+        "gen": {},
+        "kill": {},
+        "in": {
+          "buffer": [
+            {
+              "variable": "buffer",
+              "definitionId": "d2",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 37,
+                  "column": 9
+                },
+                "end": {
+                  "line": 37,
+                  "column": 25
+                }
+              }
+            }
+          ],
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "4",
+              "statementId": "4_param_input"
+            }
+          ],
+          "validate": [
+            {
+              "variable": "validate",
+              "definitionId": "d1",
+              "blockId": "4",
+              "statementId": "4_param_validate"
+            }
+          ],
+          "sanitized": [
+            {
+              "variable": "sanitized",
+              "definitionId": "d3",
+              "blockId": "2",
+              "statementId": "2_0",
+              "range": {
+                "start": {
+                  "line": 31,
+                  "column": 9
+                },
+                "end": {
+                  "line": 31,
+                  "column": 28
+                }
+              }
+            }
+          ]
+        },
+        "out": {
+          "buffer": [
+            {
+              "variable": "buffer",
+              "definitionId": "d2",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 37,
+                  "column": 9
+                },
+                "end": {
+                  "line": 37,
+                  "column": 25
+                }
+              }
+            }
+          ],
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "4",
+              "statementId": "4_param_input"
+            }
+          ],
+          "validate": [
+            {
+              "variable": "validate",
+              "definitionId": "d1",
+              "blockId": "4",
+              "statementId": "4_param_validate"
+            }
+          ],
+          "sanitized": [
+            {
+              "variable": "sanitized",
+              "definitionId": "d3",
+              "blockId": "2",
+              "statementId": "2_0",
+              "range": {
+                "start": {
+                  "line": 31,
+                  "column": 9
+                },
+                "end": {
+                  "line": 31,
+                  "column": 28
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "process_with_validation_1",
+      {
+        "blockId": "1",
+        "gen": {
+          "buffer": [
+            {
+              "variable": "buffer",
+              "definitionId": "d2",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 37,
+                  "column": 9
+                },
+                "end": {
+                  "line": 37,
+                  "column": 25
+                }
+              }
+            }
+          ]
+        },
+        "kill": {},
+        "in": {
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "4",
+              "statementId": "4_param_input"
+            }
+          ],
+          "validate": [
+            {
+              "variable": "validate",
+              "definitionId": "d1",
+              "blockId": "4",
+              "statementId": "4_param_validate"
+            }
+          ]
+        },
+        "out": {
+          "buffer": [
+            {
+              "variable": "buffer",
+              "definitionId": "d2",
+              "blockId": "1",
+              "statementId": "1_0",
+              "range": {
+                "start": {
+                  "line": 37,
+                  "column": 9
+                },
+                "end": {
+                  "line": 37,
+                  "column": 25
+                }
+              }
+            }
+          ],
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "4",
+              "statementId": "4_param_input"
+            }
+          ],
+          "validate": [
+            {
+              "variable": "validate",
+              "definitionId": "d1",
+              "blockId": "4",
+              "statementId": "4_param_validate"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "process_with_validation_2",
+      {
+        "blockId": "2",
+        "gen": {
+          "sanitized": [
+            {
+              "variable": "sanitized",
+              "definitionId": "d3",
+              "blockId": "2",
+              "statementId": "2_0",
+              "range": {
+                "start": {
+                  "line": 31,
+                  "column": 9
+                },
+                "end": {
+                  "line": 31,
+                  "column": 28
+                }
+              }
+            }
+          ]
+        },
+        "kill": {},
+        "in": {
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "4",
+              "statementId": "4_param_input"
+            }
+          ],
+          "validate": [
+            {
+              "variable": "validate",
+              "definitionId": "d1",
+              "blockId": "4",
+              "statementId": "4_param_validate"
+            }
+          ]
+        },
+        "out": {
+          "sanitized": [
+            {
+              "variable": "sanitized",
+              "definitionId": "d3",
+              "blockId": "2",
+              "statementId": "2_0",
+              "range": {
+                "start": {
+                  "line": 31,
+                  "column": 9
+                },
+                "end": {
+                  "line": 31,
+                  "column": 28
+                }
+              }
+            }
+          ],
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "4",
+              "statementId": "4_param_input"
+            }
+          ],
+          "validate": [
+            {
+              "variable": "validate",
+              "definitionId": "d1",
+              "blockId": "4",
+              "statementId": "4_param_validate"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "process_with_validation_3",
+      {
+        "blockId": "3",
+        "gen": {},
+        "kill": {},
+        "in": {
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "4",
+              "statementId": "4_param_input"
+            }
+          ],
+          "validate": [
+            {
+              "variable": "validate",
+              "definitionId": "d1",
+              "blockId": "4",
+              "statementId": "4_param_validate"
+            }
+          ]
+        },
+        "out": {
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "4",
+              "statementId": "4_param_input"
+            }
+          ],
+          "validate": [
+            {
+              "variable": "validate",
+              "definitionId": "d1",
+              "blockId": "4",
+              "statementId": "4_param_validate"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "process_with_validation_4",
+      {
+        "blockId": "4",
+        "gen": {
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "4",
+              "statementId": "4_param_input"
+            }
+          ],
+          "validate": [
+            {
+              "variable": "validate",
+              "definitionId": "d1",
+              "blockId": "4",
+              "statementId": "4_param_validate"
+            }
+          ]
+        },
+        "kill": {},
+        "in": {},
+        "out": {
+          "input": [
+            {
+              "variable": "input",
+              "definitionId": "d0",
+              "blockId": "4",
+              "statementId": "4_param_input"
+            }
+          ],
+          "validate": [
+            {
+              "variable": "validate",
+              "definitionId": "d1",
+              "blockId": "4",
+              "statementId": "4_param_validate"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "duplicate_string_0",
+      {
+        "blockId": "0",
+        "gen": {},
+        "kill": {},
+        "in": {
+          "src": [
+            {
+              "variable": "src",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_src"
+            }
+          ]
+        },
+        "out": {
+          "src": [
+            {
+              "variable": "src",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_src"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "duplicate_string_1",
+      {
+        "blockId": "1",
+        "gen": {},
+        "kill": {},
+        "in": {
+          "src": [
+            {
+              "variable": "src",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_src"
+            }
+          ]
+        },
+        "out": {
+          "src": [
+            {
+              "variable": "src",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_src"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "duplicate_string_2",
+      {
+        "blockId": "2",
+        "gen": {
+          "src": [
+            {
+              "variable": "src",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_src"
+            }
+          ]
+        },
+        "kill": {},
+        "in": {},
+        "out": {
+          "src": [
+            {
+              "variable": "src",
+              "definitionId": "d0",
+              "blockId": "2",
+              "statementId": "2_param_src"
+            }
+          ]
+        }
+      }
+    ],
+    [
+      "main_0",
+      {
+        "blockId": "0",
+        "gen": {},
+        "kill": {},
+        "in": {},
+        "out": {}
+      }
+    ],
+    [
+      "main_1",
+      {
+        "blockId": "1",
+        "gen": {},
+        "kill": {},
+        "in": {},
+        "out": {}
+      }
+    ],
+    [
+      "main_2",
+      {
+        "blockId": "2",
+        "gen": {},
+        "kill": {},
+        "in": {},
+        "out": {}
+      }
+    ]
+  ],
+  "taintAnalysis": [
+    [
+      "get_user_input",
+      []
+    ],
+    [
+      "process_input",
+      []
+    ],
+    [
+      "process_with_validation",
+      []
+    ],
+    [
+      "duplicate_string",
+      []
+    ],
+    [
+      "main",
+      []
+    ]
+  ],
+  "vulnerabilities": [],
+  "fileStates": [
+    [
+      "/Users/srinivasabhargavamanda/Desktop/Personal/vscode-dataflow-analyzer/tests/test_context_sensitive_taint.cpp",
+      {
+        "path": "/Users/srinivasabhargavamanda/Desktop/Personal/vscode-dataflow-analyzer/tests/test_context_sensitive_taint.cpp",
+        "lastModified": 1764194722257.2927,
+        "hash": "2db37d413b7afd9244bbdcceb96c7abe3cd5ccc5c6f189fb07ecc38aa6af0790",
+        "functions": [
+          "get_user_input",
+          "process_input",
+          "process_with_validation",
+          "duplicate_string",
+          "main"
+        ]
+      }
+    ]
+  ]
+}

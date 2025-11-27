@@ -1,20 +1,31 @@
 # Final Validation Instructions - Complete Guide
 
-**Version**: 1.0  
-**Last Updated**: 2025-01-XX  
-**Status**: Ready for Validation
+**⚠️ THIS FILE IS NOW REDUNDANT**  
+**Last Updated**: 2024-11-27  
+**Status**: SUPERSEDED
 
 ---
 
-## 🎯 Overview
+## 🚨 IMPORTANT: Use Consolidated Instructions Instead
 
-This document provides **complete, merged instructions** for validating all features and bugs in the Dataflow Analyzer extension. It combines:
+**All content from this file has been merged into**:  
+👉 **`userinstructions/final_instructions.md`** 👈
+
+**Please use that file instead of this one.**
+
+This file is kept for reference only. All validation instructions, debugging guides, protocols, and workflows are now consolidated in `userinstructions/final_instructions.md`.
+
+---
+
+## 🎯 Overview (Historical)
+
+This document **previously** provided complete, merged instructions for validating all features and bugs in the Dataflow Analyzer extension. It combined:
 - Feature validation instructions
 - Bug validation instructions  
 - Test file validation instructions
 - Process guidelines
 
-**Start here** → Follow these instructions step-by-step.
+**All of this content is now in `userinstructions/final_instructions.md`**
 
 ---
 

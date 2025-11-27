@@ -18,6 +18,7 @@
 
 import { CallGraph, FunctionCall, FunctionMetadata } from './CallGraphAnalyzer';
 import { FunctionCFG, Statement } from '../types';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 /**
  * Categories of external/library functions.
@@ -508,9 +509,14 @@ export class CallGraphExtensions {
         const tailPattern = new RegExp(`return\\s+${funcId}\\s*\\(`);
         const stmtText = lastStmt.content || lastStmt.text;
 
+        /**
+         * TAIL RECURSION DETECTION
+         * 
+         * Detects tail-recursive functions where the return statement directly calls the function itself.
+         */
         if (tailPattern.test(stmtText)) {
           tailRecursiveFunctions.push(funcId);
-          console.log(`[CG] Tail recursion detected: ${funcId}`);
+          LoggingConfig.log('CallGraphAnalysis', `Tail recursion detected: ${funcId}`);
           break;  // Found one exit with tail recursion
         }
       }

@@ -113,11 +113,112 @@ void test_nested_fields() {
     printf("Value: %s\n", container.inner.value);
 }
 
+// =============================================================================
+// COUNTEREXAMPLE 1: Field Sensitivity Through Pointer
+// =============================================================================
+// COUNTEREXAMPLE: Field-sensitive taint through pointer to struct
+// This tests if field-sensitive analysis handles pointers correctly
+// EXPECTED: Only pointed-to field should be tainted
+// EDGE CASE: Pointer to struct field
+void test_counterexample_field_pointer() {
+    struct User user;
+    struct User* ptr = &user;
+    
+    scanf("%s", ptr->name);  // TAINT SOURCE - only name field through pointer
+    ptr->age = 25;           // NOT tainted
+    
+    sprintf(buffer, "%s %d", ptr->name, ptr->age);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Field Sensitivity Through Function Parameter
+// =============================================================================
+// COUNTEREXAMPLE: Field-sensitive taint through function parameter
+// This tests if field-sensitive analysis handles struct parameters
+// EXPECTED: Only specific field should be tainted
+// EDGE CASE: Struct parameter field sensitivity
+void process_user_field(struct User* user) {
+    sprintf(buffer, "%s", user->name);  // TAINT SINK - only name field should be tainted
+}
+
+void test_counterexample_field_parameter() {
+    struct User user;
+    scanf("%s", user.name);  // TAINT SOURCE - only name field
+    user.age = 25;           // NOT tainted
+    
+    process_user_field(&user);  // Pass struct - only name field should propagate
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Field Sensitivity Through Array of Structs
+// =============================================================================
+// COUNTEREXAMPLE: Field-sensitive taint through array of structs
+// This tests if field-sensitive analysis handles struct arrays
+// EXPECTED: Only specific field in specific struct should be tainted
+// EDGE CASE: Struct array field sensitivity
+void test_counterexample_field_array() {
+    struct User users[10];
+    int index;
+    scanf("%d", &index);  // TAINT SOURCE
+    scanf("%s", users[index].name);  // TAINT SOURCE - only name field of specific struct
+    
+    users[0].age = 25;  // NOT tainted
+    sprintf(buffer, "%s", users[index].name);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Field Sensitivity Through Union
+// =============================================================================
+// COUNTEREXAMPLE: Field-sensitive taint through union (aliasing)
+// This tests if field-sensitive analysis handles union aliasing
+// EXPECTED: Union members alias same memory - taint should propagate
+// EDGE CASE: Union field aliasing
+union FieldUnion {
+    char name[100];
+    int id;
+};
+
+void test_counterexample_field_union() {
+    union FieldUnion u;
+    scanf("%s", u.name);  // TAINT SOURCE - name field
+    
+    // Union aliasing: u.id shares memory with u.name
+    int id_value = u.id;  // PROPAGATION: id aliases name
+    sprintf(buffer, "%d", id_value);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Field Sensitivity Through Nested Pointer
+// =============================================================================
+// COUNTEREXAMPLE: Field-sensitive taint through nested struct pointer
+// This tests if field-sensitive analysis handles nested pointers
+// EXPECTED: Only nested field should be tainted
+// EDGE CASE: Nested pointer field sensitivity
+void test_counterexample_field_nested_ptr() {
+    struct Container container;
+    struct Container* ptr = &container;
+    
+    scanf("%s", ptr->inner.value);  // TAINT SOURCE - nested field through pointer
+    ptr->inner.other = 42;          // NOT tainted
+    ptr->outer = 10;                 // NOT tainted
+    
+    sprintf(buffer, "%s", ptr->inner.value);  // TAINT SINK
+}
+
 int main() {
+    char buffer[200];
     test_basic_field_sensitivity();
     test_field_propagation();
     test_multiple_tainted_fields();
     test_nested_fields();
+    
+    // Counterexamples
+    test_counterexample_field_pointer();
+    test_counterexample_field_parameter();
+    test_counterexample_field_array();
+    test_counterexample_field_union();
+    test_counterexample_field_nested_ptr();
+    
     return 0;
 }
 

@@ -76,9 +76,37 @@ Tests taint propagation through arithmetic expressions (n-1, n+1, n*2, etc.) and
 - [ ] All functions appear in visualization
 - [ ] Data flow edges show taint propagation paths
 
+## Counterexamples Added
+
+### Counterexample 1: Division and Modulo Operations
+- **Purpose**: Tests taint propagation through `/` and `%` operations
+- **Expected**: `quotient` and `remainder` should be tainted from `dividend` and `divisor`
+- **Edge Case**: Division/modulo operations
+
+### Counterexample 2: Bitwise Arithmetic Operations
+- **Purpose**: Tests taint propagation through bitwise operations (`&`, `|`, `^`, `<<`, `>>`)
+- **Expected**: All bitwise operation results should be tainted
+- **Edge Case**: Bitwise arithmetic operations
+
+### Counterexample 3: Compound Assignment Operators
+- **Purpose**: Tests taint propagation through `+=`, `-=`, `*=`, `/=`
+- **Expected**: Variables modified with compound assignments should be tainted
+- **Edge Case**: Compound assignment operators
+
+### Counterexample 4: Long Arithmetic Expression Chain
+- **Purpose**: Tests taint propagation through complex arithmetic chains
+- **Expected**: Final result should be tainted through entire chain
+- **Edge Case**: Complex expression chains
+
+### Counterexample 5: Arithmetic in Conditional Expression
+- **Purpose**: Tests taint propagation when arithmetic is used in conditions
+- **Expected**: Result should be tainted from arithmetic in condition
+- **Edge Case**: Arithmetic in conditionals
+
 ## Notes
 - Tests basic arithmetic taint propagation
 - Tests inter-procedural taint through parameters
 - Tests recursive taint propagation
 - Should work with all sensitivity levels
+- Counterexamples test edge cases: division/modulo, bitwise, compound assignments, chains, conditionals
 

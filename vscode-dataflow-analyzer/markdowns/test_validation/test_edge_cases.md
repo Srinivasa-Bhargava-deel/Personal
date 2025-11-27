@@ -28,6 +28,33 @@ Tests edge cases and corner cases in analysis including empty functions, single-
 - No crashes or errors
 - Appropriate warnings if needed
 
+## Counterexamples Added
+
+### Counterexample 1: Union Type Taint Propagation
+- **Purpose**: Tests taint propagation through union types
+- **Expected**: Taint should propagate through union members (int_val, float_val, char_val)
+- **Edge Case**: Union type aliasing
+
+### Counterexample 2: Volatile Pointer Arithmetic
+- **Purpose**: Tests taint propagation through volatile pointer arithmetic
+- **Expected**: Taint should propagate through volatile pointer operations
+- **Edge Case**: Volatile pointer arithmetic
+
+### Counterexample 3: Function Pointer Arithmetic
+- **Purpose**: Tests arithmetic operations through function pointers
+- **Expected**: Taint should propagate through function pointer calls with arithmetic
+- **Edge Case**: Function pointer arithmetic
+
+### Counterexample 4: Macro Arithmetic Expansion
+- **Purpose**: Tests taint propagation through macro arithmetic
+- **Expected**: Taint should propagate through macro-expanded arithmetic
+- **Edge Case**: Macro arithmetic expansion
+
+### Counterexample 5: Register Variable Taint
+- **Purpose**: Tests taint propagation through register variables
+- **Expected**: Taint should propagate through register-qualified variables
+- **Edge Case**: Register variable taint
+
 ## Validation Checklist
 
 - [ ] Empty functions are handled correctly
@@ -35,4 +62,9 @@ Tests edge cases and corner cases in analysis including empty functions, single-
 - [ ] Functions with no variables are handled correctly
 - [ ] Complex control flow is analyzed correctly
 - [ ] No crashes or errors occur
+- [ ] Union type taint propagation works correctly
+- [ ] Volatile pointer arithmetic is handled
+- [ ] Function pointer arithmetic propagates taint
+- [ ] Macro arithmetic expansion propagates taint
+- [ ] Register variable taint propagation works
 

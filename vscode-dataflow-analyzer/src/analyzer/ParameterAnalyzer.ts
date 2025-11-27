@@ -24,6 +24,7 @@
  */
 
 import { FunctionCall, FunctionMetadata } from './CallGraphAnalyzer';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 /**
  * Types of argument derivation patterns.
@@ -107,12 +108,17 @@ export class ParameterAnalyzer {
     call: FunctionCall,
     calleeMetadata: FunctionMetadata
   ): ParameterMapping[] {
+    /**
+     * PARAMETER MAPPING WITH DERIVATION ANALYSIS
+     * 
+     * Maps formal parameters to actual arguments, analyzing how each argument is derived.
+     */
     const mappings: ParameterMapping[] = [];
 
     // Debug logging
-    console.log(`[PA] mapParametersWithDerivation: callee=${call.calleeId}, params=${calleeMetadata.parameters.length}, args=${call.arguments.actual.length}`);
-    console.log(`[PA] Formal params:`, calleeMetadata.parameters.map(p => p.name).join(', '));
-    console.log(`[PA] Actual args:`, call.arguments.actual.join(', '));
+    LoggingConfig.detail('ParameterAnalysis', `mapParametersWithDerivation: callee=${call.calleeId}, params=${calleeMetadata.parameters.length}, args=${call.arguments.actual.length}`);
+    LoggingConfig.detail('ParameterAnalysis', `Formal params: ${calleeMetadata.parameters.map(p => p.name).join(', ')}`);
+    LoggingConfig.detail('ParameterAnalysis', `Actual args: ${call.arguments.actual.join(', ')}`);
 
     // Match parameters by position
     for (let i = 0; i < calleeMetadata.parameters.length && i < call.arguments.actual.length; i++) {
@@ -129,10 +135,7 @@ export class ParameterAnalyzer {
         position: i
       });
 
-      console.log(
-        `[PA] Map param: ${formalParam.name} <- ${actualArg} ` +
-        `(${derivation.type}, base: ${derivation.base})`
-      );
+      LoggingConfig.verbose('ParameterAnalysis', `Map param: ${formalParam.name} <- ${actualArg} (${derivation.type}, base: ${derivation.base})`);
     }
 
     return mappings;

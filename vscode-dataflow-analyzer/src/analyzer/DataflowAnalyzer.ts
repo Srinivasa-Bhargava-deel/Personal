@@ -70,6 +70,19 @@
  * - Enhanced sensitivity tracking in analysis state
  * - Improved visualization data preparation with sensitivity metadata
  * - Comprehensive logging for sensitivity verification
+ * 
+ * LOGGING STRATEGY:
+ * This file uses LoggingConfig methods for all logging:
+ * - LoggingConfig.log() - Normal operational messages (e.g., "Analyzing file...")
+ * - LoggingConfig.detail() - Detailed debugging info (e.g., sensitivity checks, hash comparisons)
+ * - LoggingConfig.verbose() - Very detailed info (e.g., variable lists, liveness sets)
+ * - LoggingConfig.error() - Error messages
+ * - LoggingConfig.warn() - Warning messages
+ * - LoggingConfig.section() - Major event headers
+ * - LoggingConfig.raw() - Raw messages without module prefix (for IPA logging)
+ * 
+ * All logs are automatically written to .vscode/logs.txt via console interception.
+ * Module flag: LoggingConfig.DataflowAnalyzer controls logging for this component.
  */
 
 import * as vscode from 'vscode';
@@ -162,13 +175,22 @@ export class DataflowAnalyzer {
     this.stateManager = new StateManager(workspacePath);
     this.config = config;
     
+    /**
+     * STATE INITIALIZATION AND SENSITIVITY SYNCHRONIZATION
+     * 
+     * Loads saved state from disk if available, otherwise creates empty state.
+     * CRITICAL: Ensures state's taintSensitivity always matches current config
+     * to prevent sensitivity mismatches during analysis.
+     */
     // Load existing state from disk, or create empty state if none exists
     const loadResult = this.stateManager.loadState();
     this.currentState = loadResult.state;
     if (!this.currentState) {
       this.currentState = this.createEmptyState(workspacePath);
+      LoggingConfig.log('DataflowAnalyzer', 'Created new empty state (no saved state found)');
     } else {
-      console.log(`[DataflowAnalyzer] Loaded saved state in ${loadResult.loadTimeMs}ms`);
+      // State loaded successfully - log load time and verify sensitivity
+      LoggingConfig.log('DataflowAnalyzer', `Loaded saved state in ${loadResult.loadTimeMs}ms`);
       // Store load time for notification
       (this.currentState as any).loadTimeMs = loadResult.loadTimeMs;
       
@@ -177,20 +199,22 @@ export class DataflowAnalyzer {
       const configSensitivity = this.config.taintSensitivity || TaintSensitivity.PRECISE;
       const stateSensitivity = this.currentState.taintSensitivity;
       if (stateSensitivity !== configSensitivity) {
-        console.log(`[DataflowAnalyzer] [DEBUG] Updating loaded state's taintSensitivity: ${stateSensitivity} -> ${configSensitivity}`);
+        LoggingConfig.detail('DataflowAnalyzer', `Updating loaded state's taintSensitivity: ${stateSensitivity} -> ${configSensitivity}`);
         this.currentState.taintSensitivity = configSensitivity;
       } else {
-        console.log(`[DataflowAnalyzer] [DEBUG] State sensitivity matches config: ${stateSensitivity}`);
+        LoggingConfig.detail('DataflowAnalyzer', `State sensitivity matches config: ${stateSensitivity}`);
       }
     }
     
     // CRITICAL FIX: Always ensure state's taintSensitivity matches config before analysis
+    // Final synchronization to guarantee consistency
     const finalSensitivity = this.config.taintSensitivity || TaintSensitivity.PRECISE;
     if (this.currentState.taintSensitivity !== finalSensitivity) {
-      console.log(`[DataflowAnalyzer] [DEBUG] Final sync: Updating state sensitivity ${this.currentState.taintSensitivity} -> ${finalSensitivity}`);
+      LoggingConfig.detail('DataflowAnalyzer', `Final sync: Updating state sensitivity ${this.currentState.taintSensitivity} -> ${finalSensitivity}`);
       this.currentState.taintSensitivity = finalSensitivity;
     }
-    console.log(`[DataflowAnalyzer] [DEBUG] Starting analysis with sensitivity: ${this.currentState.taintSensitivity}`);
+    // Log final sensitivity configuration for verification
+    LoggingConfig.log('DataflowAnalyzer', `Starting analysis with sensitivity: ${this.currentState.taintSensitivity}`);
   }
 
   /**
@@ -257,9 +281,10 @@ export class DataflowAnalyzer {
         parsedFiles++;
         LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ✅ Parsed ${filePath}: ${fileState.functions.length} functions`);
       } catch (error) {
+        // File analysis failed - log error and continue with other files
         failedFiles++;
         LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ❌ ERROR analyzing ${filePath}: ${error}`);
-        console.error(`Error analyzing ${filePath}:`, error);
+        LoggingConfig.error('DataflowAnalyzer', `Error analyzing ${filePath}`, error);
       }
     }
     LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Parsing complete: ${parsedFiles} succeeded, ${failedFiles} failed`);
@@ -278,30 +303,43 @@ export class DataflowAnalyzer {
       funcIndex++;
       LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Analyzing function ${funcIndex}/${cfg.functions.size}: ${funcName} (${funcCFG.blocks.size} blocks)`);
       
+      /**
+       * LIVENESS ANALYSIS
+       * 
+       * Performs backward dataflow analysis to determine which variables are "live"
+       * at each program point. Results are stored per block and used for optimization
+       * and visualization.
+       */
       if (this.config.enableLiveness) {
         LoggingConfig.raw(`[DataflowAnalyzer] [LIVENESS] Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
-        console.log(`Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcLiveness = this.livenessAnalyzer.analyze(funcCFG);
         LoggingConfig.raw(`[DataflowAnalyzer] [LIVENESS] ✅ Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
-        console.log(`Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
+        // Store liveness results keyed by function_blockId for lookup
         funcLiveness.forEach((info, blockId) => {
           const key = `${funcName}_${blockId}`;
           liveness.set(key, info);
-          console.log(`Set liveness for key: ${key}, in: ${Array.from(info.in).join(', ')}, out: ${Array.from(info.out).join(', ')}`);
+          // Log detailed liveness sets for debugging (verbose level)
+          LoggingConfig.verbose('DataflowAnalyzer', `Set liveness for key: ${key}, in: ${Array.from(info.in).join(', ')}, out: ${Array.from(info.out).join(', ')}`);
         });
       }
 
+      /**
+       * REACHING DEFINITIONS ANALYSIS
+       * 
+       * Performs forward dataflow analysis to track where variable definitions reach
+       * through the program. Results include propagation paths and are critical for
+       * taint analysis and definition-use chain visualization.
+       */
       if (this.config.enableReachingDefinitions) {
         LoggingConfig.raw(`[DataflowAnalyzer] [RD] Running reaching definitions analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
-        console.log(`Running reaching definitions analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcRD = this.reachingDefinitionsAnalyzer.analyze(funcCFG);
         LoggingConfig.raw(`[DataflowAnalyzer] [RD] ✅ Reaching definitions analysis for ${funcName} produced ${funcRD.size} entries`);
-        console.log(`Reaching definitions analysis for ${funcName} produced ${funcRD.size} entries`);
+        // Store reaching definitions results keyed by function_blockId
         funcRD.forEach((info, blockId) => {
           const key = `${funcName}_${blockId}`;
           reachingDefinitions.set(key, info);
           
-          // Log the IN/OUT sets for each block WITH FULL HISTORY/PROPAGATION PATHS
+          // Log detailed IN/OUT sets with propagation paths (verbose level for debugging)
           const inVars = Array.from(info.in.entries())
             .map(([v, defs]) => {
               const defDetails = defs.map(d => {
@@ -323,9 +361,10 @@ export class DataflowAnalyzer {
             })
             .join('; ');
           
-          console.log(`Set RD for key: ${key}`);
-          console.log(`  - IN: ${inVars || '(empty)'}`);
-          console.log(`  - OUT: ${outVars || '(empty)'}`);
+          // Verbose logging of reaching definitions sets (includes propagation paths)
+          LoggingConfig.verbose('DataflowAnalyzer', `Set RD for key: ${key}`);
+          LoggingConfig.verbose('DataflowAnalyzer', `  - IN: ${inVars || '(empty)'}`);
+          LoggingConfig.verbose('DataflowAnalyzer', `  - OUT: ${outVars || '(empty)'}`);
         });
       }
 
@@ -902,16 +941,24 @@ export class DataflowAnalyzer {
           });
         }
       } catch (error) {
-        console.error('[IPA] Error during inter-procedural analysis:', error);
+        // Inter-procedural analysis failed - log error but continue with analysis
+        LoggingConfig.error('DataflowAnalyzer', 'Error during inter-procedural analysis', error);
         // Continue without IPA if it fails
       }
     }
 
+    /**
+     * STATE ASSEMBLY
+     * 
+     * Assembles the final AnalysisState object containing all analysis results.
+     * CRITICAL: Ensures taintSensitivity is set from config to match analysis settings.
+     */
     // Update state
     // CRITICAL FIX: Ensure taintSensitivity is set from config
     const currentSensitivity = this.config.taintSensitivity || TaintSensitivity.PRECISE;
     LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Creating new state with sensitivity: ${currentSensitivity}`);
-    console.log(`[DataflowAnalyzer] [DEBUG] Creating new state (analyzeWorkspace) with sensitivity: ${currentSensitivity}`);
+    // Create new analysis state with current sensitivity configuration
+    LoggingConfig.detail('DataflowAnalyzer', `Creating new state (analyzeWorkspace) with sensitivity: ${currentSensitivity}`);
     
     LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Assembling analysis state...`);
     LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Functions: ${cfg.functions.size}, Files: ${fileStates.size}`);
@@ -937,17 +984,25 @@ export class DataflowAnalyzer {
       taintSensitivity: currentSensitivity
     };
 
+    /**
+     * VISUALIZATION DATA PREPARATION
+     * 
+     * Prepares all visualization data structures needed by CFGVisualizer.
+     * This includes graph data, taint visualization, call graph data, etc.
+     * The data is cached in state.visualizationData for efficient rendering.
+     */
     // Prepare all visualization data in backend (before saving state)
     LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Preparing visualization data...`);
-    console.log('[DataflowAnalyzer] Preparing all visualization data in backend...');
+    LoggingConfig.log('DataflowAnalyzer', 'Preparing all visualization data in backend...');
     try {
       const visualizationData = await CFGVisualizer.prepareAllVisualizationData(this.currentState);
       this.currentState.visualizationData = visualizationData;
       LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ✅ Visualization data prepared successfully`);
-      console.log('[DataflowAnalyzer] Visualization data prepared successfully');
+      LoggingConfig.log('DataflowAnalyzer', 'Visualization data prepared successfully');
     } catch (error) {
+      // Visualization data preparation failed - log error but don't fail entire analysis
       LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ❌ ERROR preparing visualization data: ${error}`);
-      console.error('[DataflowAnalyzer] Error preparing visualization data:', error);
+      LoggingConfig.error('DataflowAnalyzer', 'Error preparing visualization data', error);
       // Continue without visualization data if preparation fails
     }
 
@@ -960,7 +1015,18 @@ export class DataflowAnalyzer {
     LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] ✅ Analysis completed in ${analysisTimeMs}ms`);
     LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Final state: ${cfg.functions.size} functions, ${Array.from(vulnerabilities.values()).flat().length} vulnerabilities`);
     LoggingConfig.raw(`[DataflowAnalyzer] [WORKSPACE] Sensitivity: ${currentSensitivity}`);
-    console.log(`[DataflowAnalyzer] Analysis completed in ${analysisTimeMs}ms`);
+    // Analysis complete - log total time and summary statistics
+    LoggingConfig.section('DataflowAnalyzer', '========== WORKSPACE ANALYSIS COMPLETE ==========');
+    LoggingConfig.log('DataflowAnalyzer', `Analysis completed in ${analysisTimeMs}ms`);
+    LoggingConfig.table('DataflowAnalyzer', 'Analysis Summary', {
+      'Functions': this.currentState.cfg.functions.size,
+      'Files': this.currentState.fileStates.size,
+      'Liveness Entries': this.currentState.liveness.size,
+      'RD Entries': this.currentState.reachingDefinitions.size,
+      'Taint Entries': this.currentState.taintAnalysis.size,
+      'Vulnerabilities': this.currentState.vulnerabilities.size,
+      'Sensitivity': this.currentState.taintSensitivity || 'precise'
+    });
     (this.currentState as any).analysisTimeMs = analysisTimeMs;
 
     return this.currentState;
@@ -986,19 +1052,26 @@ export class DataflowAnalyzer {
 
     const fileStates = new Map<string, FileAnalysisState>();
 
+    /**
+     * FILE FILTERING AND ANALYSIS
+     * 
+     * Filters files to only process C++ source files (excludes headers).
+     * Each file is analyzed and its state is stored for aggregation.
+     */
     for (const filePath of filePaths) {
       // Only allow source files
       const ext = path.extname(filePath).toLowerCase();
       const sourceExtensions = ['.cpp', '.cxx', '.cc', '.c'];
       if (!sourceExtensions.includes(ext)) {
-        console.log(`Skipping non-source file: ${filePath}`);
+        LoggingConfig.detail('DataflowAnalyzer', `Skipping non-source file: ${filePath}`);
         continue;
       }
       try {
         const fileState = await this.analyzeFile(filePath, cfg);
         fileStates.set(filePath, fileState);
       } catch (error) {
-        console.error(`Error analyzing ${filePath}:`, error);
+        // File analysis failed - log error and continue with other files
+        LoggingConfig.error('DataflowAnalyzer', `Error analyzing ${filePath}`, error);
       }
     }
 
@@ -1008,15 +1081,25 @@ export class DataflowAnalyzer {
     const taintAnalysis = new Map();
     const vulnerabilities = new Map();
 
+    /**
+     * INTRA-PROCEDURAL ANALYSIS (analyzeSpecificFiles)
+     * 
+     * Runs dataflow analyses on each function CFG:
+     * - Liveness analysis (backward dataflow)
+     * - Reaching definitions (forward dataflow)
+     * - Taint analysis (taint propagation)
+     * Results are stored keyed by function_blockId for lookup.
+     */
     cfg.functions.forEach((funcCFG, funcName) => {
       if (this.config.enableLiveness) {
-        console.log(`Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
+        LoggingConfig.detail('DataflowAnalyzer', `Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcLiveness = this.livenessAnalyzer.analyze(funcCFG);
-        console.log(`Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
+        LoggingConfig.detail('DataflowAnalyzer', `Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
         funcLiveness.forEach((info, blockId) => {
           const key = `${funcName}_${blockId}`;
           liveness.set(key, info);
-          console.log(`Set liveness for key: ${key}, in: ${Array.from(info.in).join(', ')}, out: ${Array.from(info.out).join(', ')}`);
+          // Verbose logging of liveness sets (for debugging)
+          LoggingConfig.verbose('DataflowAnalyzer', `Set liveness for key: ${key}, in: ${Array.from(info.in).join(', ')}, out: ${Array.from(info.out).join(', ')}`);
         });
       }
 
@@ -1603,15 +1686,22 @@ export class DataflowAnalyzer {
       taintSensitivity: this.config.taintSensitivity || TaintSensitivity.PRECISE
     };
 
+    /**
+     * VISUALIZATION DATA PREPARATION (analyzeSpecificFiles)
+     * 
+     * Prepares visualization data for the analyzed files.
+     * Same process as analyzeWorkspace but for specific files only.
+     */
     // Prepare all visualization data in backend (before saving state)
-    console.log('[DataflowAnalyzer] Preparing all visualization data in backend (analyzeSpecificFiles)...');
-    console.log(`[DataflowAnalyzer] [DEBUG] Creating new state (analyzeSpecificFiles) with sensitivity: ${this.currentState.taintSensitivity}`);
+    LoggingConfig.log('DataflowAnalyzer', 'Preparing all visualization data in backend (analyzeSpecificFiles)...');
+    LoggingConfig.detail('DataflowAnalyzer', `Creating new state (analyzeSpecificFiles) with sensitivity: ${this.currentState.taintSensitivity}`);
     try {
       const visualizationData = await CFGVisualizer.prepareAllVisualizationData(this.currentState);
       this.currentState.visualizationData = visualizationData;
-      console.log('[DataflowAnalyzer] Visualization data prepared successfully');
+      LoggingConfig.log('DataflowAnalyzer', 'Visualization data prepared successfully');
     } catch (error) {
-      console.error('[DataflowAnalyzer] Error preparing visualization data:', error);
+      // Visualization data preparation failed - log error but don't fail entire analysis
+      LoggingConfig.error('DataflowAnalyzer', 'Error preparing visualization data', error);
       // Continue without visualization data if preparation fails
     }
 
@@ -1637,13 +1727,19 @@ export class DataflowAnalyzer {
     LoggingConfig.detail('DataflowAnalyzer', `File Hash: ${hash.substring(0, 16)}...`);
     LoggingConfig.detail('DataflowAnalyzer', `File Size: ${stats.size} bytes`);
 
-    console.log(`Analyzing file: ${filePath}`);
+    /**
+     * FILE PARSING
+     * 
+     * Parses the C++ file to extract CFG structures for all functions.
+     * The parser uses Clang's official CFG generation to create accurate control flow graphs.
+     */
+    LoggingConfig.log('DataflowAnalyzer', `Analyzing file: ${filePath}`);
     const normalizedSourcePath = path.resolve(filePath);
     const sourceFileBase = path.basename(filePath);
     const sourceFileDir = path.dirname(filePath);
     
     const { functions, globalVars } = await this.parser.parseFile(filePath);
-    console.log(`Parser returned ${functions.length} functions from ${filePath}`);
+    LoggingConfig.log('DataflowAnalyzer', `Parser returned ${functions.length} functions from ${filePath}`);
 
     const functionNames: string[] = [];
     let addedCount = 0;
@@ -1658,10 +1754,17 @@ export class DataflowAnalyzer {
       // - CFG functions: NO location info but parsed directly from source file
       let isFromThisFile = false;
 
+      /**
+       * FUNCTION LOCATION VERIFICATION
+       * 
+       * Verifies that functions are actually from the source file being analyzed.
+       * This prevents including library/system functions and functions from included headers.
+       * Uses Clang's location information to determine function origin.
+       */
       // Special handling for CFG-based functions (parsed directly from source file)
       if (funcInfo.cfg && (!funcInfo.astNode || !funcInfo.astNode.location)) {
         isFromThisFile = true;
-        console.log(`ACCEPTING CFG-based function ${funcInfo.name} (no location verification needed)`);
+        LoggingConfig.detail('DataflowAnalyzer', `ACCEPTING CFG-based function ${funcInfo.name} (no location verification needed)`);
       } else if (funcInfo.astNode && funcInfo.astNode.location) {
         const funcLoc = funcInfo.astNode.location;
         const funcLocAny = funcLoc as any;
@@ -1673,7 +1776,7 @@ export class DataflowAnalyzer {
           isFromThisFile = false;
         } else if (funcLocAny.includedFrom && funcLocAny.includedFrom.file) {
           // Has includedFrom = from included header - REJECT
-          console.log(`SKIPPING function ${funcInfo.name} - from included file ${funcLocAny.includedFrom.file}`);
+          LoggingConfig.detail('DataflowAnalyzer', `SKIPPING function ${funcInfo.name} - from included file ${funcLocAny.includedFrom.file}`);
           skippedCount++;
           continue;
         } else if (!funcFile) {
@@ -1712,7 +1815,7 @@ export class DataflowAnalyzer {
         const headerExts = ['.h', '.hpp', '.hxx', '.hh', '.H'];
         const fileExt = path.extname(funcFile).toLowerCase();
         if (headerExts.includes(fileExt)) {
-          console.log(`SKIPPING function ${funcInfo.name} - from header file ${funcFile}`);
+          LoggingConfig.detail('DataflowAnalyzer', `SKIPPING function ${funcInfo.name} - from header file ${funcFile}`);
           skippedCount++;
           continue;
         }
@@ -1724,18 +1827,24 @@ export class DataflowAnalyzer {
             funcFile.includes('/Library/') ||
             funcFile.includes('/opt/') ||
             funcFile.includes('/include/')) {
-          console.log(`SKIPPING function ${funcInfo.name} - from system/library ${funcFile}`);
+          LoggingConfig.detail('DataflowAnalyzer', `SKIPPING function ${funcInfo.name} - from system/library ${funcFile}`);
           skippedCount++;
           continue;
         }
       }
       
       if (!isFromThisFile) {
-        console.log(`SKIPPING function ${funcInfo.name} - not from source file ${filePath}`);
+        LoggingConfig.detail('DataflowAnalyzer', `SKIPPING function ${funcInfo.name} - not from source file ${filePath}`);
         skippedCount++;
         continue;
       }
       
+      /**
+       * FUNCTION CFG ADDITION
+       * 
+       * Function is verified to be from this file - add its CFG to the global CFG structure.
+       * Variable information is populated for statements to enable dataflow analysis.
+       */
       // Function is verified to be from this file - add it
       // Use the CFG that was already built by the parser (from Clang CFG generation)
       if (funcInfo.cfg) {
@@ -1744,15 +1853,17 @@ export class DataflowAnalyzer {
         cfg.functions.set(funcInfo.name, funcInfo.cfg);
         functionNames.push(funcInfo.name);
         addedCount++;
-        console.log(`✓ Added function to CFG: ${funcInfo.name} (from ${filePath}, ${funcInfo.cfg.blocks.size} blocks)`);
+        LoggingConfig.log('DataflowAnalyzer', `✓ Added function to CFG: ${funcInfo.name} (from ${filePath}, ${funcInfo.cfg.blocks.size} blocks)`);
       } else {
-        console.warn(`Function ${funcInfo.name} has no CFG - skipping`);
+        // Function has no CFG - cannot analyze it
+        LoggingConfig.warn('DataflowAnalyzer', `Function ${funcInfo.name} has no CFG - skipping`);
         skippedCount++;
         continue;
       }
     }
 
-    console.log(`File ${filePath}: ${addedCount} functions added, ${skippedCount} skipped, total in CFG: ${cfg.functions.size}`);
+    // Log file analysis summary
+    LoggingConfig.log('DataflowAnalyzer', `File ${filePath}: ${addedCount} functions added, ${skippedCount} skipped, total in CFG: ${cfg.functions.size}`);
 
     return {
       path: filePath,
@@ -1778,13 +1889,21 @@ export class DataflowAnalyzer {
   async updateFile(filePath: string): Promise<void> {
     // CRITICAL FIX (LOGIC.md #4): Acquire mutex to serialize concurrent updates
     // Chain the current operation after the previous one completes
+    /**
+     * MUTEX-BASED CONCURRENT UPDATE PROTECTION
+     * 
+     * Serializes file updates to prevent race conditions when multiple files
+     * are saved/changed concurrently. Each update waits for the previous one
+     * to complete before starting.
+     */
     this.updateMutex = this.updateMutex.then(async () => {
       try {
-        console.log(`[DataflowAnalyzer] updateFile mutex acquired for: ${filePath}`);
+        LoggingConfig.detail('DataflowAnalyzer', `updateFile mutex acquired for: ${filePath}`);
         await this.updateFileInternal(filePath);
-        console.log(`[DataflowAnalyzer] updateFile mutex released for: ${filePath}`);
+        LoggingConfig.detail('DataflowAnalyzer', `updateFile mutex released for: ${filePath}`);
       } catch (error) {
-        console.error(`[DataflowAnalyzer] Error in updateFile for ${filePath}:`, error);
+        // Update failed - log error and re-throw to caller
+        LoggingConfig.error('DataflowAnalyzer', `Error in updateFile for ${filePath}`, error);
         throw error;
       }
     });
@@ -1807,20 +1926,31 @@ export class DataflowAnalyzer {
     const newHash = this.stateManager.computeFileHash(filePath);
     const existingState = this.currentState.fileStates.get(filePath);
 
+    /**
+     * INCREMENTAL ANALYSIS: Hash-Based Change Detection
+     * 
+     * Uses content-based hashing (SHA-256) to detect if file actually changed.
+     * Academic standard: Follows "incremental compilation" principle from compiler theory.
+     * Reference: "Engineering a Compiler" (Cooper & Torczon) - Incremental Analysis
+     * 
+     * If hash matches, file hasn't changed - skip re-analysis for performance.
+     * If hash differs, file changed - re-analyze to update results.
+     */
     // INCREMENTAL ANALYSIS: Check if file actually changed using hash comparison
     // Academic standard: Use content-based hashing (SHA-256) for change detection
     // This follows the principle of "incremental compilation" from compiler theory
     // Reference: "Engineering a Compiler" (Cooper & Torczon) - Incremental Analysis
     if (existingState && existingState.hash === newHash) {
-      console.log(`[DataflowAnalyzer] [INFO] [Incremental] File ${filePath} unchanged (hash: ${newHash.substring(0, 8)}...), skipping re-analysis`);
+      // File unchanged - skip re-analysis for performance
+      LoggingConfig.log('DataflowAnalyzer', `[Incremental] File ${filePath} unchanged (hash: ${newHash.substring(0, 8)}...), skipping re-analysis`);
       return;
     }
     
     // File changed - log incremental analysis decision
     if (existingState) {
-      console.log(`[DataflowAnalyzer] [INFO] [Incremental] File ${filePath} changed (old hash: ${existingState.hash.substring(0, 8)}..., new hash: ${newHash.substring(0, 8)}...), re-analyzing`);
+      LoggingConfig.log('DataflowAnalyzer', `[Incremental] File ${filePath} changed (old hash: ${existingState.hash.substring(0, 8)}..., new hash: ${newHash.substring(0, 8)}...), re-analyzing`);
     } else {
-      console.log(`[DataflowAnalyzer] [INFO] [Incremental] New file ${filePath} detected (hash: ${newHash.substring(0, 8)}...), analyzing`);
+      LoggingConfig.log('DataflowAnalyzer', `[Incremental] New file ${filePath} detected (hash: ${newHash.substring(0, 8)}...), analyzing`);
     }
 
     // Remove old function CFGs from this file
@@ -1840,15 +1970,22 @@ export class DataflowAnalyzer {
     const taintAnalysis = new Map();
     const vulnerabilities = new Map<string, any[]>();
 
+    /**
+     * RE-RUN ANALYSES FOR UPDATED FUNCTIONS
+     * 
+     * After file update, re-run all dataflow analyses for affected functions.
+     * This ensures analysis results reflect the latest code changes.
+     */
     this.currentState.cfg.functions.forEach((funcCFG: FunctionCFG, funcName: string) => {
       if (this.config.enableLiveness) {
-        console.log(`Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
+        LoggingConfig.detail('DataflowAnalyzer', `Running liveness analysis for ${funcName} with ${funcCFG.blocks.size} blocks`);
         const funcLiveness = this.livenessAnalyzer.analyze(funcCFG);
-        console.log(`Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
+        LoggingConfig.detail('DataflowAnalyzer', `Liveness analysis for ${funcName} produced ${funcLiveness.size} entries`);
         funcLiveness.forEach((info, blockId) => {
           const key = `${funcName}_${blockId}`;
           liveness.set(key, info);
-          console.log(`Set liveness for key: ${key}, in: ${Array.from(info.in).join(', ')}, out: ${Array.from(info.out).join(', ')}`);
+          // Verbose logging of liveness sets (for debugging)
+          LoggingConfig.verbose('DataflowAnalyzer', `Set liveness for key: ${key}, in: ${Array.from(info.in).join(', ')}, out: ${Array.from(info.out).join(', ')}`);
         });
       }
 
@@ -1873,15 +2010,21 @@ export class DataflowAnalyzer {
         
         LoggingConfig.log('TaintAnalysis', `[DataflowAnalyzer] Taint analysis for ${funcName}: collected RD info for ${funcRD.size} blocks`);
         
+        /**
+         * TAINT ANALYSIS WITH SENSITIVITY VERIFICATION
+         * 
+         * Performs taint analysis and verifies that sensitivity settings are correctly applied.
+         * Logs comprehensive taint statistics to verify sensitivity is working as expected.
+         */
         // CRITICAL FIX: Log sensitivity being used for taint analysis
         const currentSensitivity = this.config.taintSensitivity || TaintSensitivity.PRECISE;
         const analyzerSensitivity = (this.taintAnalyzer as any).sensitivity || 'unknown';
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] Analyzing ${funcName} with config sensitivity: ${currentSensitivity}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] TaintAnalyzer sensitivity: ${analyzerSensitivity}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] Sensitivity match: ${currentSensitivity === analyzerSensitivity}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK] Analyzing ${funcName} with config sensitivity: ${currentSensitivity}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK] TaintAnalyzer sensitivity: ${analyzerSensitivity}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK] Sensitivity match: ${currentSensitivity === analyzerSensitivity}`);
         
         if (currentSensitivity !== analyzerSensitivity) {
-          console.warn(`[DataflowAnalyzer] [SENSITIVITY-CHECK] WARNING: Sensitivity mismatch! Config: ${currentSensitivity}, Analyzer: ${analyzerSensitivity}`);
+          LoggingConfig.warn('DataflowAnalyzer', `[SENSITIVITY-CHECK] WARNING: Sensitivity mismatch! Config: ${currentSensitivity}, Analyzer: ${analyzerSensitivity}`);
         }
         
         const taintResult = this.taintAnalyzer.analyze(funcCFG, funcRD);
@@ -1907,28 +2050,29 @@ export class DataflowAnalyzer {
           t.labels?.length === 1
         );
         
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] ${funcName} taint results:`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Total taint entries: ${totalTaints.length}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Unique tainted variables: ${uniqueTaintedVars.size}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Pure data-flow taints: ${pureDataFlowTaints.length}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Pure control-dependent taints: ${pureControlDependentTaints.length}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Mixed taints (both types): ${mixedTaints.length}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Total data-flow taints (including mixed): ${dataFlowTaints.length}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   Total control-dependent taints (including mixed): ${controlDependentTaints.length}`);
+        // Log comprehensive taint statistics (detail level for sensitivity verification)
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK] ${funcName} taint results:`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK]   Total taint entries: ${totalTaints.length}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK]   Unique tainted variables: ${uniqueTaintedVars.size}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK]   Pure data-flow taints: ${pureDataFlowTaints.length}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK]   Pure control-dependent taints: ${pureControlDependentTaints.length}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK]   Mixed taints (both types): ${mixedTaints.length}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK]   Total data-flow taints (including mixed): ${dataFlowTaints.length}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK]   Total control-dependent taints (including mixed): ${controlDependentTaints.length}`);
         
         // Log CFG structure counts
         const funcCFGNodeCount = funcCFG.blocks.size;
         const funcCFGEdgeCount = Array.from(funcCFG.blocks.values()).reduce((sum, block) => 
           sum + (block.successors?.length || 0), 0
         );
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK] ${funcName} CFG structure:`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   CFG Blocks (nodes): ${funcCFGNodeCount}`);
-        console.log(`[DataflowAnalyzer] [SENSITIVITY-CHECK]   CFG Edges: ${funcCFGEdgeCount}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK] ${funcName} CFG structure:`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK]   CFG Blocks (nodes): ${funcCFGNodeCount}`);
+        LoggingConfig.detail('DataflowAnalyzer', `[SENSITIVITY-CHECK]   CFG Edges: ${funcCFGEdgeCount}`);
         
         // Verify sensitivity-specific expectations
         if (currentSensitivity === TaintSensitivity.MINIMAL) {
           if (controlDependentTaints.length > 0) {
-            console.warn(`[DataflowAnalyzer] [SENSITIVITY-CHECK] WARNING: Found ${controlDependentTaints.length} control-dependent taints in MINIMAL mode!`);
+            LoggingConfig.warn('DataflowAnalyzer', `[SENSITIVITY-CHECK] WARNING: Found ${controlDependentTaints.length} control-dependent taints in MINIMAL mode!`);
           }
         }
         
@@ -1973,10 +2117,17 @@ export class DataflowAnalyzer {
       return systemDirs.some(sysDir => normalizedPath.startsWith(sysDir));
     }
 
+    /**
+     * DIRECTORY WALKING FUNCTION
+     * 
+     * Recursively walks directory tree to find C++ source files.
+     * Skips system directories, hidden directories, and build directories.
+     * Only processes files with source extensions (.cpp, .cxx, .cc, .c).
+     */
     async function walkDir(dir: string): Promise<void> {
       // Skip system directories entirely
       if (isSystemDirectory(dir)) {
-        console.log(`Skipping system directory: ${dir}`);
+        LoggingConfig.detail('DataflowAnalyzer', `Skipping system directory: ${dir}`);
         return;
       }
 
@@ -2018,40 +2169,47 @@ export class DataflowAnalyzer {
           } catch (entryError: any) {
             // Skip individual entries that cause errors (permission denied, etc.)
             if (entryError.code === 'EACCES' || entryError.code === 'EPERM') {
-              console.log(`Permission denied accessing ${fullPath}, skipping...`);
+              LoggingConfig.detail('DataflowAnalyzer', `Permission denied accessing ${fullPath}, skipping...`);
             } else {
-              console.warn(`Error processing ${fullPath}:`, entryError.message);
+              LoggingConfig.warn('DataflowAnalyzer', `Error processing ${fullPath}`, entryError);
             }
           }
         }
       } catch (dirError: any) {
         // Handle permission denied and other directory access errors gracefully
         if (dirError.code === 'EACCES' || dirError.code === 'EPERM') {
-          console.log(`Permission denied accessing directory ${dir}, skipping...`);
+          LoggingConfig.detail('DataflowAnalyzer', `Permission denied accessing directory ${dir}, skipping...`);
         } else if (dirError.code === 'ENOENT') {
-          console.log(`Directory not found: ${dir}, skipping...`);
+          LoggingConfig.detail('DataflowAnalyzer', `Directory not found: ${dir}, skipping...`);
         } else {
-          console.warn(`Error reading directory ${dir}:`, dirError.message);
+          LoggingConfig.warn('DataflowAnalyzer', `Error reading directory ${dir}`, dirError);
         }
         // Continue processing other directories
         return;
       }
     }
 
+    /**
+     * WORKSPACE PATH VALIDATION
+     * 
+     * Validates workspace path before starting directory walk.
+     * Ensures path exists and is not a system directory for security.
+     */
     // Validate workspace path before walking
     if (!workspacePath || !fs.existsSync(workspacePath)) {
-      console.error(`Invalid workspace path: ${workspacePath}`);
+      LoggingConfig.error('DataflowAnalyzer', `Invalid workspace path: ${workspacePath}`);
       return files;
     }
 
     // Check if workspace path is a system directory
     if (isSystemDirectory(workspacePath)) {
-      console.error(`Workspace path is a system directory: ${workspacePath}. This is not allowed.`);
+      LoggingConfig.error('DataflowAnalyzer', `Workspace path is a system directory: ${workspacePath}. This is not allowed.`);
       return files;
     }
 
     await walkDir(workspacePath);
-    console.log(`Found ${files.length} source files to analyze:`, files);
+    // Log file discovery summary
+    LoggingConfig.log('DataflowAnalyzer', `Found ${files.length} source files to analyze: ${files.slice(0, 5).join(', ')}${files.length > 5 ? '...' : ''}`);
     return files;
   }
 
@@ -2208,8 +2366,20 @@ export class DataflowAnalyzer {
 
     cleanContent = cleanContent.trim();
 
-    console.log(`Analyzing statement: "${trimmed}" -> cleaned: "${cleanContent}"`);
+    // Log statement cleaning process (verbose level for debugging)
+    LoggingConfig.verbose('DataflowAnalyzer', `Analyzing statement: "${trimmed}" -> cleaned: "${cleanContent}"`);
 
+    /**
+     * STATEMENT VARIABLE ANALYSIS
+     * 
+     * Analyzes cleaned statement to extract:
+     * - Variables DEFINED (LHS of assignment or in declaration)
+     * - Variables USED (RHS or in expressions)
+     * 
+     * Academic Definition:
+     * - DEF[S]: Set of variables assigned values by statement S
+     * - USE[S]: Set of variables whose values are read by statement S
+     */
     // STEP 4: Check for DECLARATION statement first
     // Critical fix (v1.1): Declarations must be checked BEFORE assignments
     // because "int x = 5" contains '=' but should be handled as a declaration
@@ -2219,7 +2389,7 @@ export class DataflowAnalyzer {
     if (declMatch) {
       // Variable is DEFINED by this declaration
       variables.defined.push(declMatch[2]); // Group 2 = variable name
-      console.log(`Declared variable: ${declMatch[2]}`);
+      LoggingConfig.verbose('DataflowAnalyzer', `Declared variable: ${declMatch[2]}`);
 
       // If there's an initializer expression, extract variables USED in it
       if (declMatch[3]) { // Group 3 = initializer expression
@@ -2239,7 +2409,7 @@ export class DataflowAnalyzer {
         const lhsVar = lhs.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*$/);
         if (lhsVar) {
           variables.defined.push(lhsVar[1]);
-          console.log(`Defined variable: ${lhsVar[1]}`);
+          LoggingConfig.verbose('DataflowAnalyzer', `Defined variable: ${lhsVar[1]}`);
         }
 
         // RHS: extract variables (academic approach)
@@ -2280,16 +2450,23 @@ export class DataflowAnalyzer {
       const varMatch = cleanContent.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*$/);
       if (varMatch) {
         variables.used.push(varMatch[1]);
-        console.log(`Used variable: ${varMatch[1]}`);
+        LoggingConfig.verbose('DataflowAnalyzer', `Used variable: ${varMatch[1]}`);
       }
     }
 
+    /**
+     * VARIABLE LIST CLEANUP
+     * 
+     * Removes duplicates and filters out C++ keywords.
+     * Ensures clean variable lists for dataflow analysis.
+     */
     // Remove duplicates and filter out keywords
     const keywords = new Set(['int', 'float', 'double', 'char', 'void', 'return', 'if', 'else', 'for', 'while', 'scanf', 'printf']);
     variables.defined = [...new Set(variables.defined)].filter(v => !keywords.has(v) && v.length > 0);
     variables.used = [...new Set(variables.used)].filter(v => !keywords.has(v) && !variables.defined.includes(v) && v.length > 0);
 
-    console.log(`Final analysis - defined: [${variables.defined.join(', ')}], used: [${variables.used.join(', ')}]`);
+    // Log final variable analysis results (verbose level)
+    LoggingConfig.verbose('DataflowAnalyzer', `Final analysis - defined: [${variables.defined.join(', ')}], used: [${variables.used.join(', ')}]`);
     return variables;
   }
 
@@ -2322,36 +2499,56 @@ export class DataflowAnalyzer {
    * Updates analyzer configuration and recreates TaintAnalyzer if sensitivity changed.
    * This ensures the analyzer uses the new sensitivity level for subsequent analyses.
    */
+  /**
+   * Update configuration
+   * 
+   * Updates analyzer configuration and recreates TaintAnalyzer if sensitivity changed.
+   * This ensures the analyzer uses the new sensitivity level for subsequent analyses.
+   * 
+   * CRITICAL: Also updates currentState.taintSensitivity to maintain consistency.
+   */
   updateConfig(config: AnalysisConfig): void {
     const oldSensitivity = this.config.taintSensitivity;
-    console.log(`[DataflowAnalyzer] [INFO] ========== CONFIG UPDATE ==========`);
-    console.log(`[DataflowAnalyzer] [INFO] updateConfig() called`);
-    console.log(`[DataflowAnalyzer] [DEBUG] Old sensitivity: ${oldSensitivity}`);
-    console.log(`[DataflowAnalyzer] [DEBUG] New sensitivity: ${config.taintSensitivity}`);
-    console.log(`[DataflowAnalyzer] [DEBUG] Sensitivity change: ${oldSensitivity} -> ${config.taintSensitivity}`);
+    LoggingConfig.section('DataflowAnalyzer', '========== CONFIG UPDATE ==========');
+    LoggingConfig.log('DataflowAnalyzer', 'updateConfig() called');
+    LoggingConfig.detail('DataflowAnalyzer', `Old sensitivity: ${oldSensitivity}`);
+    LoggingConfig.detail('DataflowAnalyzer', `New sensitivity: ${config.taintSensitivity}`);
+    LoggingConfig.detail('DataflowAnalyzer', `Sensitivity change: ${oldSensitivity} -> ${config.taintSensitivity}`);
     
     this.config = config;
-    console.log(`[DataflowAnalyzer] [INFO] Configuration object updated`);
+    LoggingConfig.log('DataflowAnalyzer', 'Configuration object updated');
     
+    /**
+     * STATE SENSITIVITY SYNCHRONIZATION
+     * 
+     * Updates currentState's taintSensitivity to match new config.
+     * This ensures state reflects the sensitivity that will be used for analysis.
+     */
     // CRITICAL FIX: Update current state's taintSensitivity to match config
     if (this.currentState) {
       const oldStateSensitivity = this.currentState.taintSensitivity;
       this.currentState.taintSensitivity = config.taintSensitivity || TaintSensitivity.PRECISE;
-      console.log(`[DataflowAnalyzer] [DEBUG] Updated currentState.taintSensitivity: ${oldStateSensitivity} -> ${this.currentState.taintSensitivity}`);
+      LoggingConfig.detail('DataflowAnalyzer', `Updated currentState.taintSensitivity: ${oldStateSensitivity} -> ${this.currentState.taintSensitivity}`);
     } else {
-      console.log(`[DataflowAnalyzer] [DEBUG] No currentState exists yet, will be set on next analysis`);
+      LoggingConfig.detail('DataflowAnalyzer', 'No currentState exists yet, will be set on next analysis');
     }
     
+    /**
+     * TAINT ANALYZER RECREATION
+     * 
+     * If sensitivity changed, recreates TaintAnalyzer with new sensitivity.
+     * This ensures taint analysis uses the correct sensitivity level.
+     */
     // Check current TaintAnalyzer sensitivity
     const currentTaintSensitivity = this.taintAnalyzer['sensitivity'];
-    console.log(`[DataflowAnalyzer] [DEBUG] Current TaintAnalyzer sensitivity: ${currentTaintSensitivity}`);
-    console.log(`[DataflowAnalyzer] [DEBUG] Sensitivity match check: ${config.taintSensitivity} === ${currentTaintSensitivity} = ${config.taintSensitivity === currentTaintSensitivity}`);
+    LoggingConfig.detail('DataflowAnalyzer', `Current TaintAnalyzer sensitivity: ${currentTaintSensitivity}`);
+    LoggingConfig.detail('DataflowAnalyzer', `Sensitivity match check: ${config.taintSensitivity} === ${currentTaintSensitivity} = ${config.taintSensitivity === currentTaintSensitivity}`);
     
     // Recreate TaintAnalyzer with new sensitivity if it changed
     if (config.taintSensitivity !== currentTaintSensitivity) {
-      console.log(`[DataflowAnalyzer] [INFO] Sensitivity changed - recreating TaintAnalyzer`);
-      console.log(`[DataflowAnalyzer] [DEBUG] Old TaintAnalyzer sensitivity: ${currentTaintSensitivity}`);
-      console.log(`[DataflowAnalyzer] [DEBUG] New TaintAnalyzer sensitivity: ${config.taintSensitivity}`);
+      LoggingConfig.log('DataflowAnalyzer', 'Sensitivity changed - recreating TaintAnalyzer');
+      LoggingConfig.detail('DataflowAnalyzer', `Old TaintAnalyzer sensitivity: ${currentTaintSensitivity}`);
+      LoggingConfig.detail('DataflowAnalyzer', `New TaintAnalyzer sensitivity: ${config.taintSensitivity}`);
       
       this.taintAnalyzer = new TaintAnalyzer(
         undefined,  // sourceRegistry
@@ -2362,18 +2559,18 @@ export class DataflowAnalyzer {
       
       // Verify the new TaintAnalyzer has the correct sensitivity
       const newTaintSensitivity = this.taintAnalyzer['sensitivity'];
-      console.log(`[DataflowAnalyzer] [DEBUG] New TaintAnalyzer created`);
-      console.log(`[DataflowAnalyzer] [DEBUG] New TaintAnalyzer sensitivity: ${newTaintSensitivity}`);
-      console.log(`[DataflowAnalyzer] [DEBUG] TaintAnalyzer recreation successful: ${newTaintSensitivity === config.taintSensitivity}`);
+      LoggingConfig.detail('DataflowAnalyzer', 'New TaintAnalyzer created');
+      LoggingConfig.detail('DataflowAnalyzer', `New TaintAnalyzer sensitivity: ${newTaintSensitivity}`);
+      LoggingConfig.detail('DataflowAnalyzer', `TaintAnalyzer recreation successful: ${newTaintSensitivity === config.taintSensitivity}`);
       
       if (newTaintSensitivity !== config.taintSensitivity) {
-        console.error(`[DataflowAnalyzer] [ERROR] TaintAnalyzer sensitivity mismatch! Expected ${config.taintSensitivity}, got ${newTaintSensitivity}`);
+        LoggingConfig.error('DataflowAnalyzer', `TaintAnalyzer sensitivity mismatch! Expected ${config.taintSensitivity}, got ${newTaintSensitivity}`);
       }
     } else {
-      console.log(`[DataflowAnalyzer] [DEBUG] Sensitivity unchanged - TaintAnalyzer not recreated`);
+      LoggingConfig.detail('DataflowAnalyzer', 'Sensitivity unchanged - TaintAnalyzer not recreated');
     }
     
-    console.log(`[DataflowAnalyzer] [INFO] ========== CONFIG UPDATE COMPLETE ==========`);
+    LoggingConfig.section('DataflowAnalyzer', '========== CONFIG UPDATE COMPLETE ==========');
   }
 
   getConfig(): AnalysisConfig {

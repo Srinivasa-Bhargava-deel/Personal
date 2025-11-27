@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+char buffer[200];
+
 // =============================================================================
 // EDGE CASE 1: Empty Function
 // =============================================================================
@@ -417,9 +419,123 @@ int main() {
     // self_assignment();
     // printf("Dead code: %d\n", dead_code_after_return(5));
     
+    // Counterexamples
+    test_counterexample_union_taint();
+    test_counterexample_volatile_pointer();
+    test_counterexample_function_pointer_arithmetic();
+    test_counterexample_macro_arithmetic();
+    test_counterexample_register_variable();
+    
     printf("\n=== Edge Case Tests Complete ===\n");
     
     return 0;
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 1: Union Type Taint Propagation
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagation through union types
+// This tests if taint propagates correctly through union members
+// EXPECTED: Taint should propagate through union members
+// EDGE CASE: Union type taint
+union DataUnion {
+    int int_val;
+    float float_val;
+    char char_val;
+};
+
+void test_counterexample_union_taint() {
+    union DataUnion data;
+    scanf("%d", &data.int_val);  // TAINT SOURCE
+    
+    // Union aliasing: all members share same memory
+    float f = data.float_val;  // PROPAGATION: float_val aliases int_val
+    char c = data.char_val;    // PROPAGATION: char_val aliases int_val
+    
+    sprintf(buffer, "%f %c", f, c);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Volatile Pointer Arithmetic
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagation through volatile pointer arithmetic
+// This tests if taint propagates through volatile pointers
+// EXPECTED: Taint should propagate through volatile pointer operations
+// EDGE CASE: Volatile pointer arithmetic
+void test_counterexample_volatile_pointer() {
+    int arr[10];
+    volatile int* ptr = arr;
+    int offset;
+    
+    scanf("%d", &offset);  // TAINT SOURCE
+    
+    ptr = ptr + offset;  // Pointer arithmetic with volatile
+    int value = *ptr;     // Dereference volatile pointer
+    
+    sprintf(buffer, "%d", value);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Function Pointer Arithmetic
+// =============================================================================
+// COUNTEREXAMPLE: Arithmetic operations through function pointers
+// This tests if taint propagates through function pointer calls with arithmetic
+// EXPECTED: Taint should propagate through function pointer arithmetic
+// EDGE CASE: Function pointer arithmetic
+typedef int (*ArithFunc)(int, int);
+
+int add_func(int a, int b) { return a + b; }
+int mul_func(int a, int b) { return a * b; }
+
+void test_counterexample_function_pointer_arithmetic() {
+    int x, y;
+    scanf("%d %d", &x, &y);  // TAINT SOURCES
+    
+    ArithFunc funcs[] = {add_func, mul_func};
+    int choice;
+    scanf("%d", &choice);  // TAINT SOURCE
+    
+    int result = funcs[choice % 2](x, y);  // Function pointer with arithmetic index
+    
+    sprintf(buffer, "%d", result);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Macro Arithmetic Expansion
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagation through macro arithmetic
+// This tests if taint propagates correctly when macros expand to arithmetic
+// EXPECTED: Taint should propagate through macro-expanded arithmetic
+// EDGE CASE: Macro arithmetic expansion
+#define ARITH_ADD(a, b) ((a) + (b))
+#define ARITH_MUL(a, b) ((a) * (b))
+#define ARITH_CHAIN(a, b, c) ARITH_ADD(ARITH_MUL(a, b), c)
+
+void test_counterexample_macro_arithmetic() {
+    int x, y, z;
+    scanf("%d %d %d", &x, &y, &z);  // TAINT SOURCES
+    
+    int result1 = ARITH_ADD(x, y);      // Macro expands to arithmetic
+    int result2 = ARITH_MUL(x, y);      // Macro expands to arithmetic
+    int result3 = ARITH_CHAIN(x, y, z); // Nested macro arithmetic
+    
+    sprintf(buffer, "%d %d %d", result1, result2, result3);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Register Variable Taint
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagation through register variables
+// This tests if taint propagates correctly through register-qualified variables
+// EXPECTED: Taint should propagate through register variables
+// EDGE CASE: Register variable taint
+void test_counterexample_register_variable() {
+    register int reg_var;
+    scanf("%d", &reg_var);  // TAINT SOURCE (register variable)
+    
+    register int reg_result = reg_var * 2;  // PROPAGATION through register variable
+    
+    sprintf(buffer, "%d", reg_result);  // TAINT SINK
 }
 
 

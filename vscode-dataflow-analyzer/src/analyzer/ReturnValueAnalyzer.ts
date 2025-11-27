@@ -26,6 +26,7 @@
  */
 
 import { FunctionCFG, Statement } from '../types';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 /**
  * Types of return value patterns.
@@ -102,14 +103,14 @@ export class ReturnValueAnalyzer {
           // STEP 2: Extract return value
           const returnInfo = this.extractReturnValue(stmt, blockId);
           
+          /**
+           * RETURN VALUE EXTRACTION
+           * 
+           * Logs extracted return value information including type, variables used, and statement text.
+           */
           if (returnInfo) {
             returns.push(returnInfo);
-            console.log(
-              `[RA] Return: ${returnInfo.value} ` +
-              `(${returnInfo.type}) from block ${blockId}, ` +
-              `usedVars: [${returnInfo.usedVariables.join(', ')}], ` +
-              `stmtText: "${stmtText}"`
-            );
+            LoggingConfig.detail('ReturnValueAnalysis', `Return: ${returnInfo.value} (${returnInfo.type}) from block ${blockId}, usedVars: [${returnInfo.usedVariables.join(', ')}], stmtText: "${stmtText}"`);
           }
         }
       }
@@ -378,15 +379,17 @@ export class ReturnValueAnalyzer {
   ): string[] {
     const affectingVars = new Set<string>();
 
+    /**
+     * RETURN VALUE PROPAGATION ANALYSIS
+     * 
+     * Collects all variables that affect any return path and logs the propagation information.
+     */
     // Collect all variables that affect any return path
     for (const ret of returnValues) {
       ret.usedVariables.forEach(v => affectingVars.add(v));
     }
 
-    console.log(
-      `[RA] Propagate return: ${returnValueVariable} ` +
-      `affected by [${Array.from(affectingVars).join(', ')}]`
-    );
+    LoggingConfig.detail('ReturnValueAnalysis', `Propagate return: ${returnValueVariable} affected by [${Array.from(affectingVars).join(', ')}]`);
 
     return Array.from(affectingVars);
   }

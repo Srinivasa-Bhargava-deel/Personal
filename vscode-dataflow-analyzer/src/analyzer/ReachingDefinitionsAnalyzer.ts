@@ -93,20 +93,26 @@ export class ReachingDefinitionsAnalyzer {
     LoggingConfig.log('ReachingDefinitions', `Entry Block: ${functionCFG.entry}`);
     LoggingConfig.log('ReachingDefinitions', `Exit Block: ${functionCFG.exit}`);
     
-    console.log(`[ReachingDefinitionsAnalyzer] [INFO] Starting reaching definitions analysis for function: ${functionCFG.name}`);
-    console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Function has ${functionCFG.blocks.size} blocks`);
-    
+    /**
+     * REACHING DEFINITIONS ANALYSIS START
+     * 
+     * Logs function analysis start. Comprehensive logging already done above.
+     */
     const rdMap = new Map<string, ReachingDefinitionsInfo>();
     
+    /**
+     * DEFINITION COLLECTION
+     * 
+     * Collects all variable definitions in the function, including function parameters.
+     */
     // Step 1: Collect ALL definitions in the function
     const allDefinitions = this.collectDefinitions(functionCFG);
     LoggingConfig.log('ReachingDefinitions', `Total Definitions Found: ${allDefinitions.length}`);
-    console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Collected ${allDefinitions.length} total definitions in function ${functionCFG.name}`);
+    LoggingConfig.detail('ReachingDefinitions', `Collected ${allDefinitions.length} total definitions in function ${functionCFG.name}`);
     
     LoggingConfig.subsection('ReachingDefinitions', 'All Definitions');
     allDefinitions.forEach(def => {
       LoggingConfig.detail('ReachingDefinitions', `Definition: var="${def.variable}", block=${def.blockId}, id=${def.definitionId}`);
-      console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Definition: ${def.variable} in block ${def.blockId} (${def.definitionId})`);
     });
     
     // Step 2: Initialize RD info for each block with GEN and KILL sets
@@ -122,9 +128,15 @@ export class ReachingDefinitionsAnalyzer {
         out: new Map<string, ReachingDefinition[]>()
       });
       
-      console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Block ${blockId}: GEN=${Array.from(gen.keys()).length} vars, KILL=${Array.from(kill.keys()).length} vars`);
+      LoggingConfig.verbose('ReachingDefinitions', `Block ${blockId}: GEN=${Array.from(gen.keys()).length} vars, KILL=${Array.from(kill.keys()).length} vars`);
     });
 
+    /**
+     * ITERATIVE DATAFLOW ANALYSIS
+     * 
+     * Processes blocks in forward order until reaching fixed point.
+     * Uses MAX_ITERATIONS safety check to prevent infinite loops.
+     */
     // Step 3: Iterative dataflow analysis until reaching fixed point
     // MODERATE FIX (Issue #6): Add MAX_ITERATIONS safety check
     const MAX_ITERATIONS = 10 * functionCFG.blocks.size;
@@ -133,7 +145,7 @@ export class ReachingDefinitionsAnalyzer {
     while (changed && iteration < MAX_ITERATIONS) {
       iteration++;
       changed = false;
-      console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Fixed-point iteration ${iteration}/${MAX_ITERATIONS}`);
+      LoggingConfig.verbose('ReachingDefinitions', `Fixed-point iteration ${iteration}/${MAX_ITERATIONS}`);
       
       // Process blocks in forward order (follows CFG edges)
       const blockIds = Array.from(functionCFG.blocks.keys());
@@ -148,7 +160,7 @@ export class ReachingDefinitionsAnalyzer {
         for (const predId of block.predecessors) {
           const predRdInfo = rdMap.get(String(predId));
           if (!predRdInfo) {
-            console.warn(`[ReachingDefinitionsAnalyzer] [WARN] Predecessor ${predId} has no RD info`);
+            LoggingConfig.warn('ReachingDefinitions', `Predecessor ${predId} has no RD info`);
             continue;
           }
           
@@ -243,7 +255,7 @@ export class ReachingDefinitionsAnalyzer {
                 ...def,
                 killed: true  // Mark this definition as killed in this block
               };
-              console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Definition ${def.definitionId} (${varName}) killed in block ${blockId}`);
+              LoggingConfig.verbose('ReachingDefinitions', `Definition ${def.definitionId} (${varName}) killed in block ${blockId}`);
             });
           }
         });
@@ -254,26 +266,30 @@ export class ReachingDefinitionsAnalyzer {
         
         if (inChanged || outChanged) {
           changed = true;
-          console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Block ${blockId} changed - updating IN/OUT (iteration ${iteration})`);
+          LoggingConfig.verbose('ReachingDefinitions', `Block ${blockId} changed - updating IN/OUT (iteration ${iteration})`);
           rdInfo.in = newIn;
           rdInfo.out = newOut;
           
           // Log summary (detailed paths logged only in verbose mode)
           const inVarCount = Array.from(newIn.keys()).length;
           const outVarCount = Array.from(newOut.keys()).length;
-          console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Block ${blockId}: IN=${inVarCount} vars, OUT=${outVarCount} vars`);
+          LoggingConfig.verbose('ReachingDefinitions', `Block ${blockId}: IN=${inVarCount} vars, OUT=${outVarCount} vars`);
         }
       }
     }
     
+    /**
+     * ANALYSIS COMPLETE
+     * 
+     * Logs convergence status and analysis summary.
+     */
     const analysisTimeMs = Date.now() - analysisStartTime;
     if (iteration >= MAX_ITERATIONS) {
-      console.warn(`[ReachingDefinitionsAnalyzer] [WARN] Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence for function ${functionCFG.name}!`);
-      console.warn(`[ReachingDefinitionsAnalyzer] [WARN] This may indicate a bug in the CFG structure or analysis algorithm.`);
-      LoggingConfig.warn('ReachingDefinitions', `Reached MAX_ITERATIONS without convergence for ${functionCFG.name}`);
+      LoggingConfig.warn('ReachingDefinitions', `Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence for function ${functionCFG.name}!`);
+      LoggingConfig.warn('ReachingDefinitions', 'This may indicate a bug in the CFG structure or analysis algorithm.');
     } else {
-      console.log(`[ReachingDefinitionsAnalyzer] [INFO] Converged after ${iteration} iterations for function ${functionCFG.name} in ${analysisTimeMs}ms`);
-      console.log(`[ReachingDefinitionsAnalyzer] [DEBUG] Analysis completed: ${rdMap.size} blocks analyzed`);
+      LoggingConfig.log('ReachingDefinitions', `Converged after ${iteration} iterations for function ${functionCFG.name} in ${analysisTimeMs}ms`);
+      LoggingConfig.detail('ReachingDefinitions', `Analysis completed: ${rdMap.size} blocks analyzed`);
     }
     
     // ============================================================
@@ -333,10 +349,15 @@ export class ReachingDefinitionsAnalyzer {
           isParameter: true  // Mark as parameter definition
         };
         definitions.push(paramDef);
-        console.log(`[RD Analysis] Found parameter definition: ${paramName} -> ${definitionId} at entry block ${entryBlockId}`);
+        LoggingConfig.verbose('ReachingDefinitions', `Found parameter definition: ${paramName} -> ${definitionId} at entry block ${entryBlockId}`);
       });
     }
     
+    /**
+     * STATEMENT DEFINITION COLLECTION
+     * 
+     * Collects definitions from all statements in all blocks.
+     */
     // Collect definitions from statements in all blocks
     functionCFG.blocks.forEach((block, blockId) => {
       block.statements.forEach((stmt, stmtIdx) => {
@@ -356,7 +377,7 @@ export class ReachingDefinitionsAnalyzer {
               propagationPath: [String(blockId)]
             };
             definitions.push(def);
-            console.log(`[RD Analysis] Found definition: ${varName} -> ${definitionId} in block ${blockId}`);
+            LoggingConfig.verbose('ReachingDefinitions', `Found definition: ${varName} -> ${definitionId} in block ${blockId}`);
           });
         }
       });
@@ -411,9 +432,9 @@ export class ReachingDefinitionsAnalyzer {
             gen.set(def.variable, []);
           }
           gen.get(def.variable)!.push(def);
-          console.log(`[RD Analysis] Parameter ${def.variable} added to GEN (not redefined in entry block)`);
+          LoggingConfig.verbose('ReachingDefinitions', `Parameter ${def.variable} added to GEN (not redefined in entry block)`);
         } else {
-          console.log(`[RD Analysis] Parameter ${def.variable} NOT added to GEN (redefined in entry block)`);
+          LoggingConfig.verbose('ReachingDefinitions', `Parameter ${def.variable} NOT added to GEN (redefined in entry block)`);
         }
       });
     }

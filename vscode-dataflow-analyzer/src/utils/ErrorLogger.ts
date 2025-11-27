@@ -44,6 +44,8 @@
  * use these functions to ensure uniform error reporting and easier debugging.
  */
 
+import { LoggingConfig } from './LoggingConfig';
+
 export enum ErrorSeverity {
   ERROR = 'ERROR',      // Critical errors that prevent operation
   WARNING = 'WARNING',  // Non-critical issues that may affect results
@@ -52,6 +54,9 @@ export enum ErrorSeverity {
 
 /**
  * Log an error with consistent formatting
+ * 
+ * Integrates with LoggingConfig for centralized logging control.
+ * Also outputs to console.error for immediate visibility.
  * 
  * @param component - Component name (e.g., 'Parser', 'Analyzer')
  * @param message - Error message
@@ -68,11 +73,25 @@ export function logError(
   const contextStr = context ? ` Context: ${JSON.stringify(context)}` : '';
   const errorStr = error ? ` Error: ${errorMessage}` : '';
   
-  console.error(`[${component}] ERROR: ${message}${errorStr}${contextStr}`);
+  const fullMessage = `${message}${errorStr}${contextStr}`;
+  
+  // Use LoggingConfig for centralized logging
+  LoggingConfig.error(component as any, fullMessage);
+  
+  // Also output to console for immediate visibility
+  console.error(`[${component}] ERROR: ${fullMessage}`);
+  
+  // Log stack trace if available
+  if (error instanceof Error && error.stack) {
+    LoggingConfig.raw(`[${component}] Stack trace: ${error.stack}`);
+  }
 }
 
 /**
  * Log a warning with consistent formatting
+ * 
+ * Integrates with LoggingConfig for centralized logging control.
+ * Also outputs to console.warn for immediate visibility.
  * 
  * @param component - Component name
  * @param message - Warning message
@@ -84,11 +103,20 @@ export function logWarning(
   context?: Record<string, any>
 ): void {
   const contextStr = context ? ` Context: ${JSON.stringify(context)}` : '';
-  console.warn(`[${component}] WARNING: ${message}${contextStr}`);
+  const fullMessage = `${message}${contextStr}`;
+  
+  // Use LoggingConfig for centralized logging
+  LoggingConfig.warn(component as any, fullMessage);
+  
+  // Also output to console for immediate visibility
+  console.warn(`[${component}] WARNING: ${fullMessage}`);
 }
 
 /**
  * Log an info message with consistent formatting
+ * 
+ * Integrates with LoggingConfig for centralized logging control.
+ * Also outputs to console.log for immediate visibility.
  * 
  * @param component - Component name
  * @param message - Info message
@@ -100,6 +128,15 @@ export function logInfo(
   context?: Record<string, any>
 ): void {
   const contextStr = context ? ` Context: ${JSON.stringify(context)}` : '';
-  console.log(`[${component}] INFO: ${message}${contextStr}`);
+  const fullMessage = `${message}${contextStr}`;
+  
+  // Use LoggingConfig for centralized logging (if component matches a known module)
+  // Otherwise just use console.log
+  try {
+    LoggingConfig.log(component as any, fullMessage);
+  } catch {
+    // Component not in LoggingConfig, use console directly
+    console.log(`[${component}] INFO: ${fullMessage}`);
+  }
 }
 

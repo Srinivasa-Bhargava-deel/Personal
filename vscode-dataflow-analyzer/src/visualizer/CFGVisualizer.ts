@@ -75,6 +75,19 @@
  * - Enhanced visualization data regeneration when sensitivity changes
  * - Comprehensive logging for debugging sensitivity issues
  * - Sensitivity storage in visualization data for mismatch detection
+ * 
+ * LOGGING STRATEGY:
+ * This file uses LoggingConfig methods for all logging:
+ * - LoggingConfig.log() - Normal operational messages (e.g., "Panel created...")
+ * - LoggingConfig.detail() - Detailed debugging info (e.g., panel keys, sensitivity checks)
+ * - LoggingConfig.verbose() - Very detailed info (e.g., graph data structures)
+ * - LoggingConfig.error() - Error messages
+ * - LoggingConfig.warn() - Warning messages
+ * - LoggingConfig.section() - Major event headers
+ * - LoggingConfig.raw() - Raw messages without module prefix (for webview messages)
+ * 
+ * All logs are automatically written to .vscode/logs.txt via console interception.
+ * Module flags: LoggingConfig.CFGViz, LoggingConfig.VizTabs, LoggingConfig.VizNodes, etc.
  */
 
 import * as vscode from 'vscode';
@@ -122,12 +135,20 @@ export class CFGVisualizer {
    * 
    * @returns true if any panels are currently tracked
    */
+  /**
+   * Check if any panels exist
+   * 
+   * Used to determine if visualization panels are currently open.
+   * Returns true if any panels are tracked in the panels Map.
+   * 
+   * @returns true if any panels are currently tracked
+   */
   hasPanels(): boolean {
     const count = this.panels.size;
-    console.log(`[CFGVisualizer] [DEBUG] hasPanels() called - panel count: ${count}`);
+    LoggingConfig.detail('CFGViz', `hasPanels() called - panel count: ${count}`);
     if (count > 0) {
       const panelKeys = Array.from(this.panels.keys());
-      console.log(`[CFGVisualizer] [DEBUG] Existing panel keys:`, panelKeys);
+      LoggingConfig.detail('CFGViz', `Existing panel keys: ${panelKeys.join(', ')}`);
     }
     return count > 0;
   }
@@ -161,23 +182,53 @@ export class CFGVisualizer {
    * @param filename - Name of the file being analyzed (for tab title)
    * @param viewType - Type of view: 'Viz' for analysis, 'Viz/Cfg' for CFG display
    */
+  /**
+   * Create or show the visualizer panel
+   * 
+   * Creates a new webview panel or reveals an existing one if it already exists
+   * for the given filename and view type. This enables multi-file visualization
+   * where each file gets its own panel.
+   * 
+   * CRITICAL: Handles sensitivity mismatch detection - recreates panel if sensitivity changed.
+   * 
+   * @param context - Extension context for managing subscriptions
+   * @param filename - Name of the file being analyzed (for tab title)
+   * @param viewType - Type of view: 'Viz' for analysis, 'Viz/Cfg' for CFG display
+   * @param state - Optional analysis state (if provided, updates currentState)
+   */
   async createOrShow(context: vscode.ExtensionContext, filename?: string, viewType: 'Viz' | 'Viz/Cfg' = 'Viz', state?: AnalysisState): Promise<void> {
+    /**
+     * PANEL CREATION/REVEAL LOGIC
+     * 
+     * This method handles:
+     * 1. Checking if panel already exists for this filename+viewType combination
+     * 2. Detecting sensitivity mismatches (panel title doesn't match current sensitivity)
+     * 3. Creating new panel or revealing existing one
+     * 4. Updating panel with current analysis state
+     */
     // CRITICAL FIX: Store context for later use
     this.context = context;
     
-    console.log('[CFGVisualizer] [INFO] createOrShow called');
-    console.log('[CFGVisualizer] [DEBUG] Filename:', filename);
-    console.log('[CFGVisualizer] [DEBUG] View type:', viewType);
-    console.log('[CFGVisualizer] [DEBUG] Current panel count:', this.panels.size);
-    console.log('[CFGVisualizer] [DEBUG] Current panel keys:', Array.from(this.panels.keys()));
+    LoggingConfig.log('CFGViz', 'createOrShow called');
+    LoggingConfig.detail('CFGViz', `Filename: ${filename || 'undefined'}`);
+    LoggingConfig.detail('CFGViz', `View type: ${viewType}`);
+    LoggingConfig.detail('CFGViz', `Current panel count: ${this.panels.size}`);
+    LoggingConfig.detail('CFGViz', `Current panel keys: ${Array.from(this.panels.keys()).join(', ')}`);
 
     const panelKey = this.getPanelKey(filename, viewType);
-    console.log('[CFGVisualizer] [DEBUG] Computed panel key:', panelKey);
+    LoggingConfig.detail('CFGViz', `Computed panel key: ${panelKey}`);
 
+    /**
+     * EXISTING PANEL CHECK AND SENSITIVITY MISMATCH DETECTION
+     * 
+     * Checks if a panel already exists for this filename+viewType combination.
+     * CRITICAL: Detects sensitivity mismatches by comparing panel title with current sensitivity.
+     * If sensitivity changed, disposes old panel and creates new one (VS Code doesn't allow runtime title updates).
+     */
     // Check if panel already exists for this key
     const existingPanel = this.panels.get(panelKey);
     if (existingPanel) {
-      console.log('[CFGVisualizer] [INFO] Panel exists for key, checking if title needs update...');
+      LoggingConfig.log('CFGViz', 'Panel exists for key, checking if title needs update...');
       
       // CRITICAL FIX: Check if panel title needs to be updated (sensitivity changed)
       // VS Code doesn't allow runtime title updates, so we need to recreate the panel
@@ -195,8 +246,9 @@ export class CFGVisualizer {
       const expectedTitle = `${baseName}: ${viewType} [${currentSensitivity.toUpperCase()}]`;
       
       if (currentTitle !== expectedTitle) {
-        console.log(`[CFGVisualizer] [DEBUG] Panel title mismatch: "${currentTitle}" vs "${expectedTitle}"`);
-        console.log(`[CFGVisualizer] [DEBUG] Sensitivity changed - closing old panel and creating new one with correct title`);
+        // Sensitivity mismatch detected - recreate panel with correct title
+        LoggingConfig.detail('CFGViz', `Panel title mismatch: "${currentTitle}" vs "${expectedTitle}"`);
+        LoggingConfig.log('CFGViz', 'Sensitivity changed - closing old panel and creating new one with correct title');
         
         // Dispose old panel
         existingPanel.dispose();
@@ -204,7 +256,8 @@ export class CFGVisualizer {
         
         // Continue to create new panel below with correct title
       } else {
-        console.log('[CFGVisualizer] [INFO] Panel title matches current sensitivity, revealing existing panel');
+        // Panel title matches - reveal existing panel and update with current state
+        LoggingConfig.log('CFGViz', 'Panel title matches current sensitivity, revealing existing panel');
       const column = vscode.window.activeTextEditor
         ? vscode.window.activeTextEditor.viewColumn
         : undefined;
@@ -213,20 +266,38 @@ export class CFGVisualizer {
         
         // CRITICAL FIX: Update the existing panel with current state if it exists
         if (this.currentState) {
-          console.log('[CFGVisualizer] [DEBUG] Updating existing panel with current state');
+          LoggingConfig.detail('CFGViz', 'Updating existing panel with current state');
           await this.updateWebview(existingPanel);
         }
       return;
       }
     }
     
-    console.log('[CFGVisualizer] [INFO] No existing panel found for key, creating new panel');
+    /**
+     * NEW PANEL CREATION
+     * 
+     * No existing panel found - create a new webview panel.
+     * Panel title includes sensitivity level for user visibility.
+     */
+    LoggingConfig.log('CFGViz', 'No existing panel found for key, creating new panel');
 
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
-    console.log('[CFGVisualizer] Target column:', column);
+    LoggingConfig.detail('CFGViz', `Target column: ${column || 'undefined'}`);
 
+    /**
+     * PANEL TITLE DETERMINATION
+     * 
+     * Determines panel title based on filename and current sensitivity.
+     * CRITICAL: Priority order for sensitivity:
+     * 1. Passed state parameter
+     * 2. Current state (this.currentState)
+     * 3. VS Code configuration
+     * 4. Default (PRECISE)
+     * 
+     * Panel title format: "filename: viewType [SENSITIVITY]"
+     */
     // Determine panel title based on filename and current sensitivity
     // CRITICAL FIX: Use passed state, then currentState, then VS Code config, then default
     let panelTitle = 'Control Flow Graph Visualizer';
@@ -239,28 +310,24 @@ export class CFGVisualizer {
         const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
         const configValue = config.get<string>('taintSensitivity', 'precise');
         sensitivity = (configValue as TaintSensitivity) || TaintSensitivity.PRECISE;
-        console.log(`[CFGVisualizer] [DEBUG] No sensitivity in state/currentState, using VS Code config: ${sensitivity}`);
+        LoggingConfig.detail('CFGViz', `No sensitivity in state/currentState, using VS Code config: ${sensitivity}`);
       } else {
-        console.log(`[CFGVisualizer] [DEBUG] Using sensitivity from ${state ? 'passed state' : 'currentState'}: ${sensitivity}`);
+        LoggingConfig.detail('CFGViz', `Using sensitivity from ${state ? 'passed state' : 'currentState'}: ${sensitivity}`);
       }
       // Final fallback to PRECISE if still not set
       sensitivity = sensitivity || TaintSensitivity.PRECISE;
-      console.log(`[CFGVisualizer] [DEBUG] Creating panel with sensitivity: ${sensitivity}`);
+      LoggingConfig.detail('CFGViz', `Creating panel with sensitivity: ${sensitivity}`);
       panelTitle = `${baseName}: ${viewType} [${sensitivity.toUpperCase()}]`;
     }
     
     // CRITICAL FIX: Update currentState if state was passed
     if (state) {
       this.currentState = state;
-      console.log(`[CFGVisualizer] [DEBUG] Updated currentState from passed state parameter`);
+      LoggingConfig.detail('CFGViz', 'Updated currentState from passed state parameter');
     }
 
-    console.log('[CFGVisualizer] Creating new webview panel with title:', panelTitle);
-    console.log('[CFGVisualizer] Panel options:', {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media').toString()]
-    });
+    LoggingConfig.log('CFGViz', `Creating new webview panel with title: ${panelTitle}`);
+    LoggingConfig.detail('CFGViz', `Panel options: enableScripts=true, retainContextWhenHidden=true`);
 
     // Create a new panel
     const panel = vscode.window.createWebviewPanel(
@@ -274,43 +341,71 @@ export class CFGVisualizer {
       }
     );
 
+    /**
+     * PANEL TRACKING AND LIFECYCLE MANAGEMENT
+     * 
+     * Stores panel in Map for tracking and sets up disposal handler.
+     * CRITICAL: Panel must be removed from Map on disposal to prevent memory leaks.
+     */
     // Store panel in map
     this.panels.set(panelKey, panel);
     this.panel = panel; // Set current panel reference
 
-    console.log('[CFGVisualizer] [INFO] Panel created successfully');
-    console.log('[CFGVisualizer] [DEBUG] Panel key stored:', panelKey);
-    console.log('[CFGVisualizer] [DEBUG] Total panels tracked:', this.panels.size);
-    console.log('[CFGVisualizer] [DEBUG] All panel keys:', Array.from(this.panels.keys()));
-    console.log('[CFGVisualizer] Panel webview available:', !!panel.webview);
-    console.log('[CFGVisualizer] Panel webview CSP source:', panel.webview.cspSource);
+    LoggingConfig.log('CFGViz', 'Panel created successfully');
+    LoggingConfig.detail('CFGViz', `Panel key stored: ${panelKey}`);
+    LoggingConfig.detail('CFGViz', `Total panels tracked: ${this.panels.size}`);
+    LoggingConfig.detail('CFGViz', `All panel keys: ${Array.from(this.panels.keys()).join(', ')}`);
+    LoggingConfig.detail('CFGViz', `Panel webview available: ${!!panel.webview}`);
+    LoggingConfig.detail('CFGViz', `Panel webview CSP source: ${panel.webview.cspSource}`);
 
+    /**
+     * PANEL DISPOSAL HANDLER
+     * 
+     * Removes panel from tracking Map when disposed.
+     * CRITICAL: Prevents memory leaks by cleaning up panel references.
+     */
     panel.onDidDispose(() => {
-      console.log('[CFGVisualizer] Panel disposed, removing from tracking');
+      LoggingConfig.detail('CFGViz', 'Panel disposed, removing from tracking');
       // CRITICAL FIX (LOGIC.md #9): Ensure panel is removed from Map to prevent memory leak
       this.panels.delete(panelKey);
       if (this.panel === panel) {
       this.panel = undefined;
       }
-      console.log(`[CFGVisualizer] Panel ${panelKey} removed. Remaining panels: ${this.panels.size}`);
+      LoggingConfig.log('CFGViz', `Panel ${panelKey} removed. Remaining panels: ${this.panels.size}`);
     }, null, context.subscriptions);
 
+    /**
+     * WEBVIEW MESSAGE HANDLER
+     * 
+     * Handles messages from the webview (user interactions):
+     * - changeFunction: User selected a different function to visualize
+     * - changeSensitivity: User changed taint sensitivity level
+     * - saveState: User clicked save state button
+     * - reAnalyze: User clicked re-analyze button
+     * 
+     * All messages are logged for debugging and audit purposes.
+     */
     // Handle messages from webview
     panel.webview.onDidReceiveMessage(
       async message => {
-        console.log('[CFGVisualizer] [INFO] Received message from webview:', JSON.stringify(message));
+        LoggingConfig.detail('CFGViz', `Received message from webview: ${JSON.stringify(message)}`);
         
         if (message.type === 'changeFunction') {
-          console.log('[CFGVisualizer] [INFO] Function changed to:', message.functionName);
+          // User selected a different function - update visualization
+          LoggingConfig.log('CFGViz', `Function changed to: ${message.functionName}`);
           this.currentFunction = message.functionName;
           await this.updateWebview(panel);
         } else if (message.type === 'changeSensitivity') {
+          /**
+           * SENSITIVITY CHANGE HANDLER
+           * 
+           * User changed taint sensitivity level from the webview dropdown.
+           * Updates VS Code settings and optionally triggers re-analysis.
+           */
           LoggingConfig.section('CFGViz', '🎯 MAJOR EVENT: Sensitivity Change Requested');
           LoggingConfig.raw(`[MAJOR EVENT] User changed: Taint Sensitivity to "${message.sensitivity}"`);
-          LoggingConfig.raw('[CFGVisualizer] [INFO] changeSensitivity message received from webview');
-          LoggingConfig.raw(`[CFGVisualizer] [INFO] Sensitivity: ${message.sensitivity}, triggerReAnalysis: ${message.triggerReAnalysis}`);
-          console.log('[CFGVisualizer] [INFO] changeSensitivity message received');
-          console.log(`[CFGVisualizer] [INFO] Sensitivity: ${message.sensitivity}, triggerReAnalysis: ${message.triggerReAnalysis}`);
+          LoggingConfig.log('CFGViz', 'changeSensitivity message received from webview');
+          LoggingConfig.detail('CFGViz', `Sensitivity: ${message.sensitivity}, triggerReAnalysis: ${message.triggerReAnalysis}`);
           
           // Try to update VS Code settings (workspace or user)
           // If workspace is not available, fall back to user settings or skip
@@ -324,51 +419,59 @@ export class CFGVisualizer {
               LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] Updating workspace settings (workspace folder: ${workspaceFolder.name})`);
               await config.update('taintSensitivity', message.sensitivity, vscode.ConfigurationTarget.Workspace);
               LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] ✅ VS Code workspace settings updated successfully`);
-              console.log('[CFGVisualizer] [DEBUG] VS Code workspace settings updated');
+              LoggingConfig.log('CFGViz', 'VS Code workspace settings updated');
               settingsUpdated = true;
             } else {
               // No workspace, try user settings
               LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] No workspace found, updating global user settings`);
               await config.update('taintSensitivity', message.sensitivity, vscode.ConfigurationTarget.Global);
               LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] ✅ VS Code user settings updated successfully`);
-              console.log('[CFGVisualizer] [DEBUG] VS Code user settings updated (no workspace)');
+              LoggingConfig.detail('CFGViz', 'VS Code user settings updated (no workspace)');
               settingsUpdated = true;
             }
           } catch (error) {
             // Settings update failed, but we can still update analyzer config directly
             LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] ❌ WARNING: Failed to update VS Code settings: ${error}`);
             LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] Will update analyzer config directly instead`);
-            console.log('[CFGVisualizer] [WARN] Failed to update VS Code settings:', error);
-            console.log('[CFGVisualizer] [DEBUG] Will update analyzer config directly instead');
+            LoggingConfig.warn('CFGViz', 'Failed to update VS Code settings', error);
+            LoggingConfig.detail('CFGViz', 'Will update analyzer config directly instead');
             settingsUpdated = false;
           }
           
+          /**
+           * RE-ANALYSIS TRIGGER
+           * 
+           * If triggerReAnalysis is true, executes changeSensitivityAndAnalyze command
+           * to trigger full re-analysis with new sensitivity.
+           */
           // Only trigger re-analysis if explicitly requested
           if (message.triggerReAnalysis) {
             LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] triggerReAnalysis=true, triggering re-analysis with sensitivity: ${message.sensitivity}`);
-            console.log('[CFGVisualizer] [INFO] Triggering re-analysis with sensitivity:', message.sensitivity);
+            LoggingConfig.log('CFGViz', `Triggering re-analysis with sensitivity: ${message.sensitivity}`);
             vscode.window.showInformationMessage(`Taint sensitivity changed to ${message.sensitivity.toUpperCase()}. Re-analyzing workspace...`);
             
             // Send a message to extension to update analyzer config, then trigger re-analysis
             // We'll use a custom command that handles both
             try {
               LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] Executing changeSensitivityAndAnalyze command with sensitivity: ${message.sensitivity}`);
-              console.log('[CFGVisualizer] [DEBUG] Executing changeSensitivityAndAnalyze command...');
+              LoggingConfig.detail('CFGViz', 'Executing changeSensitivityAndAnalyze command...');
               await vscode.commands.executeCommand('dataflowAnalyzer.changeSensitivityAndAnalyze', message.sensitivity);
               LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] ✅ changeSensitivityAndAnalyze command completed successfully`);
-              console.log('[CFGVisualizer] [INFO] changeSensitivityAndAnalyze command completed successfully');
+              LoggingConfig.log('CFGViz', 'changeSensitivityAndAnalyze command completed successfully');
               // Send success message back to webview
               panel.webview.postMessage({ type: 'reAnalyzeResult', success: true });
               LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] ✅ Sent success message back to webview`);
             } catch (error) {
+              // Re-analysis failed - log error and notify webview
               LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] ❌ ERROR: Failed to trigger re-analysis: ${error}`);
-              console.error('[CFGVisualizer] [ERROR] Failed to trigger re-analysis:', error);
+              LoggingConfig.error('CFGViz', 'Failed to trigger re-analysis', error);
               panel.webview.postMessage({ type: 'reAnalyzeResult', success: false, error: String(error) });
               LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] ❌ Sent error message back to webview`);
             }
           } else {
+            // Sensitivity updated but re-analysis not triggered - user will trigger manually
             LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] triggerReAnalysis=false, sensitivity updated but waiting for manual re-analysis trigger`);
-            console.log('[CFGVisualizer] [DEBUG] Sensitivity updated, waiting for manual re-analysis trigger');
+            LoggingConfig.detail('CFGViz', 'Sensitivity updated, waiting for manual re-analysis trigger');
             // Just update settings, don't trigger re-analysis
             if (settingsUpdated) {
               LoggingConfig.raw(`[CFGVisualizer] [SETTINGS] Settings updated successfully, showing info message to user`);
@@ -381,21 +484,33 @@ export class CFGVisualizer {
             }
           }
         } else if (message.type === 'saveState') {
-          console.log('[CFGVisualizer] [INFO] saveState message received');
+          /**
+           * SAVE STATE HANDLER
+           * 
+           * User clicked save state button - executes saveState command.
+           */
+          LoggingConfig.log('CFGViz', 'saveState message received');
           try {
             // Trigger save state command
-            console.log('[CFGVisualizer] [DEBUG] Executing saveState command...');
+            LoggingConfig.detail('CFGViz', 'Executing saveState command...');
             await vscode.commands.executeCommand('dataflowAnalyzer.saveState');
-            console.log('[CFGVisualizer] [INFO] saveState command completed successfully');
+            LoggingConfig.log('CFGViz', 'saveState command completed successfully');
             // Send success message back to webview
             panel.webview.postMessage({ type: 'saveStateResult', success: true });
           } catch (error) {
-            console.error('[CFGVisualizer] [ERROR] Error saving state:', error);
+            // Save state failed - log error and notify webview
+            LoggingConfig.error('CFGViz', 'Error saving state', error);
             panel.webview.postMessage({ type: 'saveStateResult', success: false, error: String(error) });
           }
         } else if (message.type === 'reAnalyze') {
+          /**
+           * RE-ANALYZE HANDLER
+           * 
+           * User clicked re-analyze button - executes reAnalyze command.
+           * Tracks panel as pending re-analysis - success message sent after visualization updates.
+           */
           LoggingConfig.raw('[CFGVisualizer] [RE-ANALYSIS] reAnalyze message received from webview');
-          console.log('[CFGVisualizer] [INFO] reAnalyze message received');
+          LoggingConfig.log('CFGViz', 'reAnalyze message received');
           
           // CRITICAL FIX: Track this panel as having a pending re-analysis
           // The success message will be sent after updateVisualization completes
@@ -406,26 +521,33 @@ export class CFGVisualizer {
             // Trigger re-analysis command (uses current analyzer config)
             // This will call analyzeWorkspace which calls updateVisualization
             LoggingConfig.raw('[CFGVisualizer] [RE-ANALYSIS] Executing reAnalyze command...');
-            console.log('[CFGVisualizer] [DEBUG] Executing reAnalyze command...');
+            LoggingConfig.detail('CFGViz', 'Executing reAnalyze command...');
             await vscode.commands.executeCommand('dataflowAnalyzer.reAnalyze');
             LoggingConfig.raw('[CFGVisualizer] [RE-ANALYSIS] reAnalyze command completed');
-            console.log('[CFGVisualizer] [INFO] reAnalyze command completed successfully');
+            LoggingConfig.log('CFGViz', 'reAnalyze command completed successfully');
             
             // Note: Success message will be sent after updateVisualization completes
             // See updateVisualization method below
           } catch (error) {
+            // Re-analysis failed - log error, remove from pending, and notify webview
             LoggingConfig.raw(`[CFGVisualizer] [RE-ANALYSIS] ❌ ERROR: Failed to trigger re-analysis: ${error}`);
-            console.error('[CFGVisualizer] [ERROR] Failed to trigger re-analysis:', error);
+            LoggingConfig.error('CFGViz', 'Failed to trigger re-analysis', error);
             // Remove from pending on error
             this.pendingReAnalyses.delete(panelKey);
             panel.webview.postMessage({ type: 'reAnalyzeResult', success: false, error: String(error) });
           }
         } else if (message.type === 'openFileAtLine') {
+          /**
+           * OPEN FILE AT LINE HANDLER
+           * 
+           * User double-clicked a CFG block - opens the source file at that block's line.
+           * This enables navigation from visualization back to source code.
+           */
           // Handle double-click on CFG block: open file at the block's starting line
           LoggingConfig.section('CFGViz', '🎯 MAJOR EVENT: CFG Block Double-Clicked');
           LoggingConfig.raw(`[MAJOR EVENT] User double-clicked: CFG Block to open file at line`);
-          LoggingConfig.raw('[CFGVisualizer] [INFO] openFileAtLine message received');
-          LoggingConfig.raw(`[CFGVisualizer] [DEBUG] File: ${message.filePath}, Line: ${message.line}`);
+          LoggingConfig.log('CFGViz', 'openFileAtLine message received');
+          LoggingConfig.detail('CFGViz', `File: ${message.filePath}, Line: ${message.line}`);
           
           try {
             if (message.filePath) {
@@ -450,17 +572,20 @@ export class CFGVisualizer {
                 vscode.TextEditorRevealType.InCenter
               );
               
-              console.log('[CFGVisualizer] [INFO] Opened file at line', message.line);
+              LoggingConfig.log('CFGViz', `Opened file at line ${message.line}`);
             } else {
-              console.log('[CFGVisualizer] [WARN] No file path provided for openFileAtLine');
+              // No file path provided - show warning to user
+              LoggingConfig.warn('CFGViz', 'No file path provided for openFileAtLine');
               vscode.window.showWarningMessage('No file path available for this block');
             }
           } catch (error) {
-            console.error('[CFGVisualizer] [ERROR] Failed to open file:', error);
+            // File open failed - log error and show error message to user
+            LoggingConfig.error('CFGViz', 'Failed to open file', error);
             vscode.window.showErrorMessage(`Failed to open file: ${error instanceof Error ? error.message : String(error)}`);
           }
         } else {
-          console.log('[CFGVisualizer] [WARN] Unknown message type:', message.type);
+          // Unknown message type - log warning
+          LoggingConfig.warn('CFGViz', `Unknown message type: ${message.type}`);
         }
       },
       null,
@@ -480,23 +605,40 @@ export class CFGVisualizer {
           })
         );
         this.notifyCommandRegistered = true;
-        console.log('[CFGVisualizer] [DEBUG] notifySaveStateResult command registered');
+        LoggingConfig.detail('CFGViz', 'notifySaveStateResult command registered');
       } catch (error) {
         // Command might already exist from previous activation, that's OK
-        console.log('[CFGVisualizer] [DEBUG] notifySaveStateResult command already exists (reload scenario)');
+        LoggingConfig.detail('CFGViz', 'notifySaveStateResult command already exists (reload scenario)');
         this.notifyCommandRegistered = true; // Mark as registered to avoid retrying
       }
     }
 
+    /**
+     * INITIAL WEBVIEW UPDATE
+     * 
+     * If state is already available, update webview immediately.
+     * Otherwise, webview will be updated when state is provided via updateVisualization().
+     */
     // Only update webview if we have state, otherwise it will be updated when state is provided
     if (this.currentState) {
-      console.log('[CFGVisualizer] Panel created with existing state, updating webview');
+      LoggingConfig.detail('CFGViz', 'Panel created with existing state, updating webview');
       await this.updateWebview(panel);
     } else {
-      console.log('[CFGVisualizer] Panel created without state, will update when state is provided');
+      LoggingConfig.detail('CFGViz', 'Panel created without state, will update when state is provided');
     }
   }
 
+  /**
+   * Update visualization for a specific file's panel
+   * 
+   * Finds the panel associated with the given filename and view type,
+   * then updates it with the new analysis state. Used by file watchers
+   * to update visualizations when files are saved or changed.
+   * 
+   * @param filename - Filename to update
+   * @param state - Analysis state containing CFG and analysis results
+   * @param viewType - View type ('Viz' or 'Viz/Cfg')
+   */
   /**
    * Update visualization for a specific file's panel
    * 
@@ -513,12 +655,13 @@ export class CFGVisualizer {
     const panel = this.panels.get(panelKey);
     
     if (panel) {
-      console.log('[CFGVisualizer] Updating visualization for file:', filename, 'viewType:', viewType);
+      LoggingConfig.log('CFGViz', `Updating visualization for file: ${filename}, viewType: ${viewType}`);
       this.currentState = state;
       this.panel = panel;
       await this.updateWebview(panel);
     } else {
-      console.log('[CFGVisualizer] No panel found for file:', filename, 'viewType:', viewType);
+      // No panel found for this file - panel may not have been created yet
+      LoggingConfig.detail('CFGViz', `No panel found for file: ${filename}, viewType: ${viewType}`);
     }
   }
 
@@ -532,52 +675,86 @@ export class CFGVisualizer {
    * @param functionName - Optional function name to display (defaults to current or first function)
    */
   async updateVisualization(state: AnalysisState, functionName?: string, isFromSavedState: boolean = false): Promise<void> {
+    /**
+     * VISUALIZATION UPDATE ENTRY POINT
+     * 
+     * Updates all visualization panels with new analysis state.
+     * Handles panel recreation if sensitivity changed, and updates webview content.
+     */
     LoggingConfig.section('CFGViz', '🔄 updateVisualization CALLED');
     LoggingConfig.raw(`[CFGViz] updateVisualization called with ${state.cfg.functions.size} functions`);
     LoggingConfig.raw(`[CFGViz] State sensitivity: ${state.taintSensitivity || 'not set'}`);
     LoggingConfig.raw(`[CFGViz] State source: ${isFromSavedState ? 'Saved State' : 'Current Analysis'}`);
-    console.log('[CFGVisualizer] updateVisualization called');
+    LoggingConfig.log('CFGViz', 'updateVisualization called');
     // Store state source for UI display
     (state as any).isFromSavedState = isFromSavedState;
-    console.log('[CFGVisualizer] State analysis summary:', {
-      functionsCount: state.cfg.functions.size,
-      functionNames: Array.from(state.cfg.functions.keys()),
-      fileStatesCount: state.fileStates.size,
-      vulnerabilitiesCount: state.vulnerabilities.size,
-      livenessKeys: Object.keys(state.liveness).length,
-      reachingDefinitionsKeys: Object.keys(state.reachingDefinitions).length,
-      taintAnalysisKeys: Object.keys(state.taintAnalysis).length
+    // Log comprehensive state summary
+    LoggingConfig.table('CFGViz', 'State Analysis Summary', {
+      'Functions': state.cfg.functions.size,
+      'Function Names': Array.from(state.cfg.functions.keys()).join(', '),
+      'File States': state.fileStates.size,
+      'Vulnerabilities': state.vulnerabilities.size,
+      'Liveness Entries': Object.keys(state.liveness).length,
+      'RD Entries': Object.keys(state.reachingDefinitions).length,
+      'Taint Entries': Object.keys(state.taintAnalysis).length
     });
 
+    /**
+     * FUNCTION SELECTION LOGIC
+     * 
+     * Determines which function to display:
+     * 1. Explicitly requested function (if provided)
+     * 2. Current function (if set)
+     * 3. First function in state (default)
+     */
     if (functionName) {
-      console.log('[CFGVisualizer] Requested specific function:', functionName);
+      LoggingConfig.detail('CFGViz', `Requested specific function: ${functionName}`);
       this.currentFunction = functionName;
     } else {
-      console.log('[CFGVisualizer] No specific function requested, using current:', this.currentFunction);
+      LoggingConfig.detail('CFGViz', `No specific function requested, using current: ${this.currentFunction || 'none'}`);
     }
 
+    /**
+     * STATE STORAGE AND PANEL UPDATE
+     * 
+     * CRITICAL: Update currentState BEFORE checking panels to ensure
+     * panel titles and other state-dependent operations use correct state.
+     */
     // CRITICAL FIX: Update currentState BEFORE checking panels
     // This ensures panel titles and other state-dependent operations use the correct state
     this.currentState = state;
     LoggingConfig.raw(`[CFGViz] State stored. Panels count: ${this.panels.size}`);
-    console.log('[CFGVisualizer] State stored, checking panels...');
-    console.log(`[CFGVisualizer] [DEBUG] Current state sensitivity: ${state.taintSensitivity || 'precise'}`);
+    LoggingConfig.detail('CFGViz', 'State stored, checking panels...');
+    LoggingConfig.detail('CFGViz', `Current state sensitivity: ${state.taintSensitivity || 'precise'}`);
 
+    /**
+     * PANEL UPDATE LOOP
+     * 
+     * Updates all existing panels with new analysis state.
+     * CRITICAL: Checks for sensitivity mismatches and recreates panels if needed.
+     */
     // Update all existing panels instead of creating new ones
     if (this.panels.size > 0) {
       LoggingConfig.raw(`[CFGViz] Updating ${this.panels.size} existing panel(s)`);
-      console.log(`[CFGVisualizer] [INFO] Updating ${this.panels.size} existing panel(s) with new analysis results`);
+      LoggingConfig.log('CFGViz', `Updating ${this.panels.size} existing panel(s) with new analysis results`);
       // Update all panels
       for (const [panelKey, panel] of this.panels.entries()) {
-        console.log(`[CFGVisualizer] [INFO] Updating panel: ${panelKey}`);
+        LoggingConfig.detail('CFGViz', `Updating panel: ${panelKey}`);
         if (!panel || !panel.webview) {
-          console.log(`[CFGVisualizer] [WARN] Panel ${panelKey} has no webview, skipping`);
+          // Panel has no webview - likely disposed, skip it
+          LoggingConfig.warn('CFGViz', `Panel ${panelKey} has no webview, skipping`);
           continue;
         }
         // Check if panel is disposed (VS Code doesn't expose this directly, but we can check visibility)
         try {
           const isVisible = panel.visible;
           
+          /**
+           * SENSITIVITY MISMATCH DETECTION AND PANEL RECREATION
+           * 
+           * CRITICAL: If panel title doesn't match current sensitivity, recreate panel.
+           * VS Code doesn't allow runtime title updates, so we must dispose and recreate.
+           */
           // CRITICAL FIX: Check if panel needs to be recreated due to title mismatch
           const sensitivity = state.taintSensitivity || 'precise';
           const currentTitle = panel.title;
@@ -587,8 +764,9 @@ export class CFGVisualizer {
           const newTitle = `${baseName}: ${viewType} [${sensitivity.toUpperCase()}]`;
           
           if (currentTitle !== newTitle) {
-            console.log(`[CFGVisualizer] [DEBUG] Panel title mismatch: "${currentTitle}" vs "${newTitle}"`);
-            console.log(`[CFGVisualizer] [DEBUG] Recreating panel ${panelKey} with correct title`);
+            // Sensitivity mismatch - recreate panel with correct title
+            LoggingConfig.detail('CFGViz', `Panel title mismatch: "${currentTitle}" vs "${newTitle}"`);
+            LoggingConfig.log('CFGViz', `Recreating panel ${panelKey} with correct title`);
             
             // Dispose old panel
             panel.dispose();
@@ -599,22 +777,30 @@ export class CFGVisualizer {
             if (this.context) {
               await this.createOrShow(this.context, fullFilename, viewType as 'Viz' | 'Viz/Cfg', state);
     } else {
-              console.log(`[CFGVisualizer] [ERROR] Cannot recreate panel - context not available`);
+              // Context not available - cannot recreate panel
+              LoggingConfig.error('CFGViz', 'Cannot recreate panel - context not available');
             }
             continue; // Skip updating this panel, it's been recreated
           }
           
+          /**
+           * PANEL WEBVIEW UPDATE
+           * 
+           * Panel title matches - update webview with new analysis state.
+           */
           this.panel = panel; // Set current panel reference
           await this.updateWebview(panel);
-          console.log(`[CFGVisualizer] [INFO] Panel ${panelKey} updated successfully (visible: ${isVisible}, sensitivity: ${sensitivity})`);
+          LoggingConfig.log('CFGViz', `Panel ${panelKey} updated successfully (visible: ${isVisible}, sensitivity: ${sensitivity})`);
         } catch (error) {
-          console.log(`[CFGVisualizer] [ERROR] Failed to update panel ${panelKey}:`, error);
+          // Panel update failed - likely disposed, remove from tracking
+          LoggingConfig.error('CFGViz', `Failed to update panel ${panelKey}`, error);
           // Panel might be disposed, remove it from tracking
           this.panels.delete(panelKey);
         }
       }
     } else {
-      console.log('[CFGVisualizer] [INFO] No panels exist yet, state stored for when panel is created');
+      // No panels exist yet - state will be used when panel is created
+      LoggingConfig.log('CFGViz', 'No panels exist yet, state stored for when panel is created');
     }
   }
 
@@ -622,29 +808,45 @@ export class CFGVisualizer {
    * Update webview content
    * @param panel Optional panel to update (defaults to current panel)
    */
+  /**
+   * Update webview content
+   * 
+   * Updates the webview HTML with current analysis state and visualization data.
+   * Handles data preparation (pre-prepared or on-demand) and HTML generation.
+   * 
+   * @param panel Optional panel to update (defaults to current panel)
+   */
   private async updateWebview(panel?: vscode.WebviewPanel): Promise<void> {
     LoggingConfig.raw(`[CFGViz] updateWebview called`);
-    console.log('[CFGVisualizer] updateWebview called');
+    LoggingConfig.detail('CFGViz', 'updateWebview called');
     const targetPanel = panel || this.panel;
     if (!targetPanel) {
+      // No panel available - cannot update webview
       LoggingConfig.raw(`[CFGViz] ERROR: No panel found, cannot update webview`);
-      console.log('[CFGVisualizer] No panel, returning');
+      LoggingConfig.warn('CFGViz', 'No panel, returning');
       return;
     }
 
     const state = this.currentState;
     if (!state) {
-      console.log('[CFGVisualizer] No state, showing empty HTML');
+      // No state available - show empty HTML with message
+      LoggingConfig.warn('CFGViz', 'No state, showing empty HTML');
       targetPanel.webview.html = this.getEmptyHtml('No analysis state available. Please run "Analyze Workspace" or "Analyze Active File" first.');
       return;
     }
 
-    console.log('[CFGVisualizer] State available, functions:', state.cfg.functions.size);
-    console.log('[CFGVisualizer] [DEBUG] State has visualizationData:', !!state.visualizationData);
+    /**
+     * STATE VALIDATION AND VISUALIZATION DATA CHECK
+     * 
+     * Validates state has functions and checks for pre-prepared visualization data.
+     * Pre-prepared data is faster but may need regeneration if sensitivity changed.
+     */
+    LoggingConfig.detail('CFGViz', `State available, functions: ${state.cfg.functions.size}`);
+    LoggingConfig.detail('CFGViz', `State has visualizationData: ${!!state.visualizationData}`);
     if (state.visualizationData) {
-      console.log('[CFGVisualizer] [DEBUG] Visualization data functions count:', state.visualizationData.interconnectedCFGData?.functions?.length || 'N/A');
-      console.log('[CFGVisualizer] [DEBUG] Visualization data nodes count:', state.visualizationData.interconnectedCFGData?.nodes?.length || 'N/A');
-      console.log('[CFGVisualizer] [DEBUG] Visualization data edges count:', state.visualizationData.interconnectedCFGData?.edges?.length || 'N/A');
+      LoggingConfig.detail('CFGViz', `Visualization data functions count: ${state.visualizationData.interconnectedCFGData?.functions?.length || 'N/A'}`);
+      LoggingConfig.detail('CFGViz', `Visualization data nodes count: ${state.visualizationData.interconnectedCFGData?.nodes?.length || 'N/A'}`);
+      LoggingConfig.detail('CFGViz', `Visualization data edges count: ${state.visualizationData.interconnectedCFGData?.edges?.length || 'N/A'}`);
     }
 
     // Prefer functions from the active editor's file if available
@@ -659,9 +861,18 @@ export class CFGVisualizer {
       });
     }
 
+    /**
+     * FUNCTION SELECTION AND VALIDATION
+     * 
+     * Selects function to display based on priority:
+     * 1. Preferred function (from active editor's file)
+     * 2. Current function (previously selected)
+     * 3. First function (default)
+     */
     // Check if any functions were found
     if (state.cfg.functions.size === 0) {
-      console.log('[CFGVisualizer] No functions in state, showing empty HTML');
+      // No functions found - show empty HTML with helpful message
+      LoggingConfig.warn('CFGViz', 'No functions in state, showing empty HTML');
       targetPanel.webview.html = this.getEmptyHtml(
         'No functions found in the analysis. Make sure your C++ files contain function definitions and that the analysis completed successfully.'
       );
@@ -673,34 +884,41 @@ export class CFGVisualizer {
     if (preferredFunction && state.cfg.functions.has(preferredFunction)) {
       funcCFG = state.cfg.functions.get(preferredFunction)!;
       this.currentFunction = preferredFunction;
-      console.log('[CFGVisualizer] Using preferred function:', preferredFunction);
+      LoggingConfig.detail('CFGViz', `Using preferred function: ${preferredFunction}`);
     } else if (this.currentFunction && state.cfg.functions.has(this.currentFunction)) {
       funcCFG = state.cfg.functions.get(this.currentFunction)!;
-      console.log('[CFGVisualizer] Using current function:', this.currentFunction);
+      LoggingConfig.detail('CFGViz', `Using current function: ${this.currentFunction}`);
     } else if (state.cfg.functions.size > 0) {
       // Show first function by default
       const firstFunc = Array.from(state.cfg.functions.keys())[0] as string;
       funcCFG = state.cfg.functions.get(firstFunc)!;
       this.currentFunction = firstFunc;
-      console.log('[CFGVisualizer] Using first function:', firstFunc);
+      LoggingConfig.detail('CFGViz', `Using first function: ${firstFunc}`);
     }
 
     if (!funcCFG) {
-      console.log('[CFGVisualizer] Could not find funcCFG, showing empty HTML');
+      // Function CFG not found - show error message
+      LoggingConfig.error('CFGViz', 'Could not find funcCFG, showing empty HTML');
       targetPanel.webview.html = this.getEmptyHtml('Could not find function CFG to display.');
       return;
     }
 
+    /**
+     * FUNCTION CFG VALIDATION
+     * 
+     * Validates function CFG has blocks before proceeding with visualization.
+     */
     // Check if function has blocks
     if (funcCFG.blocks.size === 0) {
-      console.log('[CFGVisualizer] Function has no blocks:', funcCFG.name);
+      // Function has no blocks - likely a parsing issue
+      LoggingConfig.warn('CFGViz', `Function has no blocks: ${funcCFG.name}`);
       targetPanel.webview.html = this.getEmptyHtml(
         `Function "${funcCFG.name}" has no basic blocks. This might indicate a parsing issue.`
       );
       return;
     }
 
-    console.log('[CFGVisualizer] Function', funcCFG.name, 'has', funcCFG.blocks.size, 'blocks');
+    LoggingConfig.log('CFGViz', `Function ${funcCFG.name} has ${funcCFG.blocks.size} blocks`);
 
     // Use pre-prepared visualization data if available (prepared during analysis)
     // Otherwise, prepare on-demand (fallback for backward compatibility)
@@ -720,21 +938,36 @@ export class CFGVisualizer {
     
     LoggingConfig.raw(`[CFGViz] Checking visualization data: hasData=${hasVisualizationData}, dataSensitivity=${dataSensitivity || 'none'}, currentSensitivity=${currentSensitivity}, needsRegen=${needsRegeneration}`);
     
+    /**
+     * VISUALIZATION DATA PREPARATION STRATEGY
+     * 
+     * Uses pre-prepared data from backend if available and sensitivity matches.
+     * Otherwise prepares data on-demand (fallback for backward compatibility).
+     * CRITICAL: Clears stale data if sensitivity changed to ensure correct visualization.
+     */
     if (needsRegeneration) {
+      // Sensitivity mismatch - clear stale data and regenerate
       LoggingConfig.raw(`[CFGViz] ⚠️ CLEARING STALE VISUALIZATION DATA: ${dataSensitivity || 'none'} -> ${currentSensitivity}`);
-      console.log(`[CFGVisualizer] [DEBUG] Visualization data sensitivity mismatch: ${dataSensitivity || 'none'} vs ${currentSensitivity}`);
-      console.log(`[CFGVisualizer] [DEBUG] Regenerating visualization data with new sensitivity`);
+      LoggingConfig.detail('CFGViz', `Visualization data sensitivity mismatch: ${dataSensitivity || 'none'} vs ${currentSensitivity}`);
+      LoggingConfig.log('CFGViz', 'Regenerating visualization data with new sensitivity');
       // CRITICAL FIX: Clear old visualization data AND regenerate it immediately
       state.visualizationData = undefined;
-      console.log(`[CFGVisualizer] [DEBUG] Cleared old visualization data, will regenerate on-demand`);
+      LoggingConfig.detail('CFGViz', 'Cleared old visualization data, will regenerate on-demand');
     } else if (hasVisualizationData) {
+      // Using cached data - sensitivity matches
       LoggingConfig.raw(`[CFGViz] ✅ Using cached visualization data (sensitivity matches: ${dataSensitivity})`);
     }
     
     if (state.visualizationData && !needsRegeneration) {
+      /**
+       * PRE-PREPARED DATA PATH
+       * 
+       * Uses data prepared during analysis (faster, preferred path).
+       * Falls back to on-demand preparation if any data is missing.
+       */
       // Use pre-prepared data from backend
-      console.log('[CFGVisualizer] Using pre-prepared visualization data');
-      console.log(`[CFGVisualizer] [DEBUG] Visualization data sensitivity: ${(state.visualizationData as any)?.taintSensitivity || 'unknown'}`);
+      LoggingConfig.detail('CFGViz', 'Using pre-prepared visualization data');
+      LoggingConfig.detail('CFGViz', `Visualization data sensitivity: ${(state.visualizationData as any)?.taintSensitivity || 'unknown'}`);
       // CRITICAL FIX: Add null checks for Map.get() calls
       graphData = state.visualizationData.cfgGraphData?.get(funcCFG.name) || null;
       callGraphData = state.visualizationData.callGraphData || null;
@@ -745,37 +978,49 @@ export class CFGVisualizer {
       // Still need to prepare IPA data (it's function-specific and not stored)
       ipaData = this.prepareIPAData(state, funcCFG.name);
       
+      /**
+       * FALLBACK: ON-DEMAND DATA PREPARATION
+       * 
+       * If any pre-prepared data is missing, prepare it on-demand.
+       * This ensures visualization works even if backend preparation was incomplete.
+       */
       // If data is missing, fall back to on-demand preparation
       if (!graphData) {
-        console.log('[CFGVisualizer] Pre-prepared graphData missing, preparing on-demand');
+        LoggingConfig.detail('CFGViz', 'Pre-prepared graphData missing, preparing on-demand');
         graphData = await this.prepareGraphData(funcCFG, state);
       }
       if (!taintData) {
-        console.log('[CFGVisualizer] Pre-prepared taintData missing, preparing on-demand');
+        LoggingConfig.detail('CFGViz', 'Pre-prepared taintData missing, preparing on-demand');
         taintData = this.prepareTaintData(state, funcCFG.name);
       }
       if (!interProceduralTaintData) {
-        console.log('[CFGVisualizer] Pre-prepared interProceduralTaintData missing, preparing on-demand');
+        LoggingConfig.detail('CFGViz', 'Pre-prepared interProceduralTaintData missing, preparing on-demand');
         interProceduralTaintData = this.prepareInterProceduralTaintData(state, funcCFG.name);
       }
       if (!interconnectedData) {
         LoggingConfig.raw(`[CFGViz] ⚠️ Pre-prepared interconnectedData missing, preparing on-demand with sensitivity: ${state.taintSensitivity}`);
-        console.log('[CFGVisualizer] Pre-prepared interconnectedData missing, preparing on-demand');
+        LoggingConfig.detail('CFGViz', 'Pre-prepared interconnectedData missing, preparing on-demand');
         interconnectedData = this.prepareInterconnectedCFGData(state);
         LoggingConfig.raw(`[CFGViz] ✅ Interconnected data prepared: ${interconnectedData.nodes?.length || 0} nodes, ${interconnectedData.edges?.length || 0} edges`);
       } else {
         LoggingConfig.raw(`[CFGViz] ✅ Using pre-prepared interconnectedData: ${interconnectedData.nodes?.length || 0} nodes, ${interconnectedData.edges?.length || 0} edges, sensitivity: ${interconnectedData.taintSensitivity || 'none'}`);
       }
       if (!callGraphData && state.callGraph) {
-        console.log('[CFGVisualizer] Pre-prepared callGraphData missing, preparing on-demand');
-        callGraphData = this.prepareCallGraphData(state.callGraph);
+        LoggingConfig.detail('CFGViz', 'Pre-prepared callGraphData missing, preparing on-demand');
+        callGraphData = this.prepareCallGraphData(state.callGraph, state);
       }
     } else {
+      /**
+       * ON-DEMAND DATA PREPARATION PATH
+       * 
+       * Fallback: prepare all data on-demand (backward compatibility).
+       * Used when no pre-prepared data exists or sensitivity changed.
+       */
       // Fallback: prepare on-demand (backward compatibility)
       LoggingConfig.raw(`[CFGViz] ⚠️ No pre-prepared data, preparing ALL data on-demand with sensitivity: ${state.taintSensitivity}`);
-      console.log('[CFGVisualizer] No pre-prepared data, preparing on-demand');
+      LoggingConfig.log('CFGViz', 'No pre-prepared data, preparing on-demand');
       graphData = await this.prepareGraphData(funcCFG, state);
-      callGraphData = state.callGraph ? this.prepareCallGraphData(state.callGraph) : null;
+      callGraphData = state.callGraph ? this.prepareCallGraphData(state.callGraph, state) : null;
       ipaData = this.prepareIPAData(state, funcCFG.name);
       taintData = this.prepareTaintData(state, funcCFG.name);
       interconnectedData = this.prepareInterconnectedCFGData(state);
@@ -783,17 +1028,23 @@ export class CFGVisualizer {
       LoggingConfig.raw(`[CFGViz] ✅ On-demand preparation complete: interconnectedData has ${interconnectedData.nodes?.length || 0} nodes`);
     }
     
+    /**
+     * HTML GENERATION AND WEBVIEW UPDATE
+     * 
+     * Generates HTML content with all visualization data and sets it to webview.
+     * Includes comprehensive logging for debugging visualization issues.
+     */
     // Only log visualization-specific information (not analysis data)
-    console.log('[CFGVisualizer] Setting webview HTML with graph data');
-    console.log('[CFGVisualizer] Graph data summary:', {
-      functionName: funcCFG.name,
-      nodesCount: graphData.nodes.length,
-      edgesCount: graphData.edges.length,
-      hasCallGraph: !!callGraphData,
-      hasIPAData: !!ipaData,
-      hasTaintData: taintData.totalTaintedVariables > 0 || taintData.totalVulnerabilities > 0,
-      hasInterProceduralTaintData: interProceduralTaintData.totalInterProceduralTaint > 0,
-      interProceduralTaintCount: interProceduralTaintData.totalInterProceduralTaint
+    LoggingConfig.detail('CFGViz', 'Setting webview HTML with graph data');
+    LoggingConfig.table('CFGViz', 'Graph Data Summary', {
+      'Function': funcCFG.name,
+      'Nodes': graphData.nodes.length,
+      'Edges': graphData.edges.length,
+      'Has Call Graph': !!callGraphData,
+      'Has IPA Data': !!ipaData,
+      'Has Taint Data': taintData.totalTaintedVariables > 0 || taintData.totalVulnerabilities > 0,
+      'Has Inter-Procedural Taint': interProceduralTaintData.totalInterProceduralTaint > 0,
+      'Inter-Procedural Taint Count': interProceduralTaintData.totalInterProceduralTaint
     });
 
     const htmlContent = this.getWebviewContent(
@@ -808,57 +1059,82 @@ export class CFGVisualizer {
       interProceduralTaintData
     );
 
-    console.log('[CFGVisualizer] Generated HTML length:', htmlContent.length);
-    console.log('[CFGVisualizer] Number of script tags:', (htmlContent.match(/<script/g) || []).length);
-    console.log('[CFGVisualizer] Number of JSON script tags:', (htmlContent.match(/<script[^>]*type="application\/json"/g) || []).length);
-    console.log('[CFGVisualizer] CSP Source:', targetPanel.webview.cspSource);
-    console.log('[CFGVisualizer] First 500 chars of HTML:', htmlContent.substring(0, 500));
-    console.log('[CFGVisualizer] Last 500 chars of HTML:', htmlContent.substring(htmlContent.length - 500));
+    /**
+     * HTML CONTENT VALIDATION AND LOGGING
+     * 
+     * Logs HTML generation details and checks for potential issues.
+     */
+    LoggingConfig.detail('CFGViz', `Generated HTML length: ${htmlContent.length}`);
+    LoggingConfig.detail('CFGViz', `Number of script tags: ${(htmlContent.match(/<script/g) || []).length}`);
+    LoggingConfig.detail('CFGViz', `Number of JSON script tags: ${(htmlContent.match(/<script[^>]*type="application\/json"/g) || []).length}`);
+    LoggingConfig.detail('CFGViz', `CSP Source: ${targetPanel.webview.cspSource}`);
 
     // Log current sensitivity and data counts for debugging
     const sensitivityInState = state.taintSensitivity || 'precise';
-    console.log(`[CFGVisualizer] [DEBUG] ========== WEBVIEW UPDATE ==========`);
-    console.log(`[CFGVisualizer] [DEBUG] Setting webview HTML with sensitivity: ${sensitivityInState}`);
-    console.log(`[CFGVisualizer] [DEBUG] State.taintSensitivity value: ${state.taintSensitivity}`);
-    console.log(`[CFGVisualizer] [DEBUG] State.taintSensitivity type: ${typeof state.taintSensitivity}`);
-    console.log(`[CFGVisualizer] [DEBUG] State.taintSensitivity === 'minimal': ${state.taintSensitivity === 'minimal'}`);
-    console.log(`[CFGVisualizer] [DEBUG] State.taintSensitivity === 'precise': ${state.taintSensitivity === 'precise'}`);
-    console.log(`[CFGVisualizer] [DEBUG] State functions count: ${state.cfg.functions.size}`);
+    LoggingConfig.subsection('CFGViz', '========== WEBVIEW UPDATE ==========');
+    LoggingConfig.detail('CFGViz', `Setting webview HTML with sensitivity: ${sensitivityInState}`);
+    LoggingConfig.detail('CFGViz', `State.taintSensitivity value: ${state.taintSensitivity}`);
+    LoggingConfig.detail('CFGViz', `State.taintSensitivity type: ${typeof state.taintSensitivity}`);
+    LoggingConfig.detail('CFGViz', `State functions count: ${state.cfg.functions.size}`);
     if (interconnectedData) {
-      console.log(`[CFGVisualizer] [DEBUG] Interconnected CFG functions count: ${interconnectedData.functions?.length || 'N/A'}`);
-      console.log(`[CFGVisualizer] [DEBUG] Interconnected CFG nodes count: ${interconnectedData.nodes?.length || 'N/A'}`);
-      console.log(`[CFGVisualizer] [DEBUG] Interconnected CFG edges count: ${interconnectedData.edges?.length || 'N/A'}`);
+      LoggingConfig.detail('CFGViz', `Interconnected CFG functions count: ${interconnectedData.functions?.length || 'N/A'}`);
+      LoggingConfig.detail('CFGViz', `Interconnected CFG nodes count: ${interconnectedData.nodes?.length || 'N/A'}`);
+      LoggingConfig.detail('CFGViz', `Interconnected CFG edges count: ${interconnectedData.edges?.length || 'N/A'}`);
     }
 
+    /**
+     * HTML CONTENT VALIDATION
+     * 
+     * Checks for potential issues in generated HTML (undefined/null values).
+     */
     // Check for any potential issues
     if (htmlContent.includes('undefined')) {
-      console.warn('[CFGVisualizer] WARNING: HTML contains "undefined" - possible template issue');
+      LoggingConfig.warn('CFGViz', 'WARNING: HTML contains "undefined" - possible template issue');
     }
     if (htmlContent.includes('null')) {
-      console.warn('[CFGVisualizer] WARNING: HTML contains "null" - possible data issue');
+      LoggingConfig.warn('CFGViz', 'WARNING: HTML contains "null" - possible data issue');
     }
 
+    /**
+     * SENSITIVITY VERIFICATION
+     * 
+     * CRITICAL: Verifies interconnected data sensitivity matches state sensitivity.
+     * Logs warnings if mismatch detected.
+     */
     // CRITICAL FIX: Log interconnected data sensitivity for verification
     if (interconnectedData && interconnectedData.taintSensitivity) {
-      console.log(`[CFGVisualizer] [DEBUG] Interconnected data sensitivity: ${interconnectedData.taintSensitivity}`);
-      console.log(`[CFGVisualizer] [DEBUG] Sensitivity match: ${sensitivityInState === interconnectedData.taintSensitivity}`);
+      LoggingConfig.detail('CFGViz', `Interconnected data sensitivity: ${interconnectedData.taintSensitivity}`);
+      LoggingConfig.detail('CFGViz', `Sensitivity match: ${sensitivityInState === interconnectedData.taintSensitivity}`);
       if (sensitivityInState !== interconnectedData.taintSensitivity) {
-        console.warn(`[CFGVisualizer] [WARNING] Sensitivity mismatch in interconnected data! State: ${sensitivityInState}, Data: ${interconnectedData.taintSensitivity}`);
+        LoggingConfig.warn('CFGViz', `Sensitivity mismatch in interconnected data! State: ${sensitivityInState}, Data: ${interconnectedData.taintSensitivity}`);
       }
     } else {
-      console.warn(`[CFGVisualizer] [WARNING] Interconnected data missing sensitivity metadata!`);
+      LoggingConfig.warn('CFGViz', 'Interconnected data missing sensitivity metadata!');
     }
 
+    /**
+     * WEBVIEW HTML SETTING
+     * 
+     * Sets HTML content to webview, forcing VS Code to reload the webview.
+     * This triggers JavaScript re-initialization with new data.
+     */
     // Force webview refresh by setting HTML (this should reload the webview completely)
     // Setting webview.html to a new value forces VS Code to reload the webview
     LoggingConfig.raw(`[CFGViz] ✅ SETTING WEBVIEW HTML - Sensitivity: ${state.taintSensitivity}, Functions: ${state.cfg.functions.size}, HTML Length: ${htmlContent.length}`);
-    console.log(`[CFGVisualizer] [DEBUG] Setting webview HTML with interconnected data sensitivity: ${interconnectedData?.taintSensitivity || 'not set'}`);
+    LoggingConfig.detail('CFGViz', `Setting webview HTML with interconnected data sensitivity: ${interconnectedData?.taintSensitivity || 'not set'}`);
     targetPanel.webview.html = htmlContent;
     LoggingConfig.raw(`[CFGViz] ✅ WEBVIEW HTML SET SUCCESSFULLY`);
-    console.log('[CFGVisualizer] [DEBUG] Webview HTML set - webview should reload with new data');
-    console.log('[CFGVisualizer] Webview HTML set successfully');
-    console.log('[CFGVisualizer] Panel visibility state:', targetPanel.visible);
+    LoggingConfig.detail('CFGViz', 'Webview HTML set - webview should reload with new data');
+    LoggingConfig.log('CFGViz', 'Webview HTML set successfully');
+    LoggingConfig.detail('CFGViz', `Panel visibility state: ${targetPanel.visible}`);
     
+    /**
+     * PENDING RE-ANALYSIS COMPLETION
+     * 
+     * CRITICAL: If there's a pending re-analysis for this panel, send success message now.
+     * This ensures "Analysis complete" only appears after visualization is actually updated.
+     * Checks all pending re-analyses and sends success for any that match this panel.
+     */
     // CRITICAL FIX: If there's a pending re-analysis for this panel, send success message now
     // This ensures "Analysis complete" only appears after visualization is actually updated
     // Check all pending re-analyses and send success for any that match this panel
@@ -871,7 +1147,9 @@ export class CFGVisualizer {
           LoggingConfig.raw(`[CFGViz] [RE-ANALYSIS] ✅ Success message sent to panel ${pendingPanelKey}`);
           pendingKeysToRemove.push(pendingPanelKey);
         } catch (error) {
+          // Panel might be disposed - remove from pending anyway
           LoggingConfig.raw(`[CFGViz] [RE-ANALYSIS] ❌ ERROR sending success message: ${error}`);
+          LoggingConfig.error('CFGViz', 'Error sending success message to panel', error);
           // Panel might be disposed, remove it anyway
           pendingKeysToRemove.push(pendingPanelKey);
         }
@@ -879,8 +1157,8 @@ export class CFGVisualizer {
     }
     // Remove completed pending re-analyses
     pendingKeysToRemove.forEach(key => this.pendingReAnalyses.delete(key));
-    console.log('[CFGVisualizer] Panel active state:', targetPanel.active);
-    console.log(`[CFGVisualizer] [DEBUG] Webview reloaded - JavaScript will re-initialize with new data (sensitivity: ${sensitivityInState})`);
+    LoggingConfig.detail('CFGViz', `Panel active state: ${targetPanel.active}`);
+    LoggingConfig.detail('CFGViz', `Webview reloaded - JavaScript will re-initialize with new data (sensitivity: ${sensitivityInState})`);
   }
 
   /**
@@ -951,7 +1229,8 @@ export class CFGVisualizer {
       ordered.push(exitBlockId);
     }
 
-    console.log(`[CFGVisualizer] Topological order for ${funcCFG.name}: [${ordered.join(', ')}]`);
+    // Log topological order (verbose level for debugging)
+    LoggingConfig.verbose('CFGViz', `Topological order for ${funcCFG.name}: [${ordered.join(', ')}]`);
     return ordered;
   }
 
@@ -1059,16 +1338,22 @@ export class CFGVisualizer {
       const block = funcCFG.blocks.get(blockId);
       if (!block) continue;
       // Get analysis info
+      /**
+       * ANALYSIS DATA LOOKUP
+       * 
+       * Retrieves liveness and reaching definitions data for this block.
+       * Used to populate node tooltips and visualization details.
+       */
       const livenessKey = `${funcCFG.name}_${blockId}`;
       const liveness = state.liveness.get(livenessKey);
-      console.log(`Looking up liveness for key: ${livenessKey}, found: ${!!liveness}`);
+      LoggingConfig.verbose('CFGViz', `Looking up liveness for key: ${livenessKey}, found: ${!!liveness}`);
       if (liveness) {
-        console.log(`Liveness data: in=[${Array.from(liveness.in).join(', ')}], out=[${Array.from(liveness.out).join(', ')}]`);
+        LoggingConfig.verbose('CFGViz', `Liveness data: in=[${Array.from(liveness.in).join(', ')}], out=[${Array.from(liveness.out).join(', ')}]`);
       }
       const rdKey = `${funcCFG.name}_${blockId}`;
       const rd = state.reachingDefinitions.get(rdKey);
       
-      console.log(`Preparing node for block ${blockId}, label: ${block.label}, statements: ${block.statements.length}`);
+      LoggingConfig.verbose('CFGViz', `Preparing node for block ${blockId}, label: ${block.label}, statements: ${block.statements.length}`);
 
       // Find tainted variables used/defined in this block
       // This identifies which variables in this block are tainted, either by:
@@ -1419,7 +1704,12 @@ export class CFGVisualizer {
       LoggingConfig.detail('VulnerabilityDetection', `Attack Path "${vulnId}": [${info.blocks.join(' -> ')}]`);
     });
     
-    console.log(`[CFGViz] Prepared graph data: ${nodes.length} nodes, ${edges.length} edges for function ${funcCFG.name}`);
+    /**
+     * GRAPH DATA PREPARATION COMPLETE
+     * 
+     * Summary of prepared graph data for this function.
+     */
+    LoggingConfig.log('CFGViz', `Prepared graph data: ${nodes.length} nodes, ${edges.length} edges for function ${funcCFG.name}`);
 
     return { 
       nodes, 
@@ -1780,11 +2070,17 @@ export class CFGVisualizer {
       });
     });
 
+    /**
+     * INTER-FUNCTION CALL EDGES (BLUE EDGES)
+     * 
+     * Adds blue edges representing function calls between different functions.
+     * These edges connect call sites in caller functions to entry blocks in callee functions.
+     */
     // Add inter-function call edges (blue) from call graph
     if (state.callGraph && state.callGraph.callsFrom) {
-      console.log('[CFGVisualizer] Adding inter-function call edges');
-      console.log('[CFGVisualizer] callsFrom type:', state.callGraph.callsFrom instanceof Map ? 'Map' : typeof state.callGraph.callsFrom);
-      console.log('[CFGVisualizer] callsFrom size:', state.callGraph.callsFrom instanceof Map ? state.callGraph.callsFrom.size : Object.keys(state.callGraph.callsFrom).length);
+      LoggingConfig.log('InterCFGViz', 'Adding inter-function call edges');
+      LoggingConfig.detail('InterCFGViz', `callsFrom type: ${state.callGraph.callsFrom instanceof Map ? 'Map' : typeof state.callGraph.callsFrom}`);
+      LoggingConfig.detail('InterCFGViz', `callsFrom size: ${state.callGraph.callsFrom instanceof Map ? state.callGraph.callsFrom.size : Object.keys(state.callGraph.callsFrom).length}`);
       
       // CRITICAL FIX (LOGIC.md #5): Standardize on Map type - callsFrom is always a Map
       // Convert to Map if it's been serialized as an object
@@ -1794,7 +2090,7 @@ export class CFGVisualizer {
       } else {
         // Convert plain object to Map (happens after JSON serialization/deserialization)
         callsFromMap = new Map(Object.entries(state.callGraph.callsFrom));
-        console.log('[CFGVisualizer] Converted callsFrom from Object to Map');
+        LoggingConfig.detail('InterCFGViz', 'Converted callsFrom from Object to Map');
       }
       
       const blueEdgeSet = new Set<string>(); // Track unique edges to avoid duplicates
@@ -1876,11 +2172,12 @@ export class CFGVisualizer {
                     }
                   });
                 } else {
+                  // Edge skipped - log reason for debugging
                   if (!fromExists) {
-                    console.log(`[CFGVisualizer] Blue edge skipped: from node ${fromNodeId} does not exist`);
+                    LoggingConfig.verbose('VizEdges', `Blue edge skipped: from node ${fromNodeId} does not exist`);
                   }
                   if (!toExists) {
-                    console.log(`[CFGVisualizer] Blue edge skipped: to node ${toNodeId} does not exist`);
+                    LoggingConfig.verbose('VizEdges', `Blue edge skipped: to node ${toNodeId} does not exist`);
                   }
                 }
               }
@@ -1889,14 +2186,25 @@ export class CFGVisualizer {
         }
       });
       
+      /**
+       * BLUE EDGES SUMMARY
+       * 
+       * Total function call edges created for interconnected CFG.
+       */
       const blueEdgeCount = edges.filter(e => e.metadata && e.metadata.type === 'function_call').length;
-      console.log('[CFGVisualizer] Total blue (function call) edges created:', blueEdgeCount);
+      LoggingConfig.log('VizEdges', `Total blue (function call) edges created: ${blueEdgeCount}`);
     }
 
+    /**
+     * DATA FLOW EDGES (ORANGE EDGES)
+     * 
+     * Adds orange edges representing data flow via reaching definitions.
+     * These edges show where variables are defined and where they reach.
+     */
     // Add data flow edges (orange) based on reaching definitions
     if (state.reachingDefinitions) {
-      console.log('[CFGVisualizer] Adding data flow edges');
-      console.log('[CFGVisualizer] Reaching definitions map size:', state.reachingDefinitions.size);
+      LoggingConfig.log('InterCFGViz', 'Adding data flow edges');
+      LoggingConfig.detail('InterCFGViz', `Reaching definitions map size: ${state.reachingDefinitions.size}`);
       
       // Reorganize reaching definitions by function name
       const rdByFunction = new Map<string, Map<string, ReachingDefinitionsInfo>>();
@@ -1904,7 +2212,7 @@ export class CFGVisualizer {
         // CRITICAL FIX: Split on LAST underscore only (function names can contain underscores)
         const lastUnderscoreIndex = key.lastIndexOf('_');
         if (lastUnderscoreIndex === -1) {
-          console.warn(`[CFGVisualizer] Invalid RD key format: ${key}`);
+          LoggingConfig.warn('InterCFGViz', `Invalid RD key format: ${key}`);
           return;
         }
         const funcName = key.substring(0, lastUnderscoreIndex);
@@ -1918,14 +2226,14 @@ export class CFGVisualizer {
         if (rdMap) {
           rdMap.set(blockId, rdInfo);
         } else {
-          console.warn(`[CFGVisualizer] No RD map found for function ${funcName}`);
+          LoggingConfig.warn('InterCFGViz', `No RD map found for function ${funcName}`);
         }
       });
       
-      console.log('[CFGVisualizer] Organized RD by function:', rdByFunction.size, 'functions');
+      LoggingConfig.log('InterCFGViz', `Organized RD by function: ${rdByFunction.size} functions`);
       
       rdByFunction.forEach((funcRD, funcName) => {
-        console.log(`[CFGVisualizer] Processing function ${funcName} for orange edges`);
+        LoggingConfig.detail('InterCFGViz', `Processing function ${funcName} for orange edges`);
         let funcOrangeEdges = 0;
         funcRD.forEach((rdInfo, blockId) => {
           if (rdInfo && rdInfo.out) {
@@ -1971,11 +2279,12 @@ export class CFGVisualizer {
                     });
                     }
                   } else {
+                    // Edge skipped - log reason for debugging
                     if (!fromExists) {
-                      console.log(`[CFGVisualizer] Orange edge skipped: from node ${fromNodeId} does not exist (def.blockId=${def.blockId}, var=${varName})`);
+                      LoggingConfig.verbose('VizEdges', `Orange edge skipped: from node ${fromNodeId} does not exist (def.blockId=${def.blockId}, var=${varName})`);
                     }
                     if (!toExists) {
-                      console.log(`[CFGVisualizer] Orange edge skipped: to node ${toNodeId} does not exist (blockId=${blockId}, var=${varName})`);
+                      LoggingConfig.verbose('VizEdges', `Orange edge skipped: to node ${toNodeId} does not exist (blockId=${blockId}, var=${varName})`);
                     }
                   }
                 }
@@ -1983,11 +2292,16 @@ export class CFGVisualizer {
             });
           }
         });
-        console.log(`[CFGVisualizer] Function ${funcName}: created ${funcOrangeEdges} orange edges`);
+        LoggingConfig.detail('VizEdges', `Function ${funcName}: created ${funcOrangeEdges} orange edges`);
       });
       
+      /**
+       * ORANGE EDGES SUMMARY
+       * 
+       * Total data flow edges created for interconnected CFG.
+       */
       const orangeEdgeCount = edges.filter(e => e.metadata && e.metadata.type === 'data_flow').length;
-      console.log('[CFGVisualizer] Total orange (data flow) edges created:', orangeEdgeCount);
+      LoggingConfig.log('VizEdges', `Total orange (data flow) edges created: ${orangeEdgeCount}`);
     }
 
     // ============================================================
@@ -2045,7 +2359,12 @@ export class CFGVisualizer {
       LoggingConfig.detail('VizEdges', `InterEdge[${idx}]: ${edge.from} -> ${edge.to} [${colorName}/${edgeType}]`);
     });
     
-    console.log(`[InterCFGViz] Interconnected CFG prepared: ${nodes.length} nodes, ${edges.length} edges`);
+    /**
+     * INTERCONNECTED CFG PREPARATION COMPLETE
+     * 
+     * Summary of prepared interconnected CFG data.
+     */
+    LoggingConfig.log('InterCFGViz', `Interconnected CFG prepared: ${nodes.length} nodes, ${edges.length} edges`);
 
     const result = {
       nodes,
@@ -2238,7 +2557,8 @@ export class CFGVisualizer {
         const content = await vscode.workspace.fs.readFile(uri);
         fileContents.set(filePath, content.toString());
       } catch (error) {
-        console.warn(`Could not read source file ${filePath}:`, error);
+        // File read error - log warning but continue
+        LoggingConfig.warn('CFGViz', `Could not read source file ${filePath}`, error);
       }
     }
 
@@ -2284,7 +2604,7 @@ export class CFGVisualizer {
   /**
    * Prepare call graph data for visualization
    */
-  private prepareCallGraphData(callGraph: any): any {
+  private prepareCallGraphData(callGraph: any, state?: AnalysisState): any {
     // ============================================================
     // COMPREHENSIVE LOGGING: Call Graph Data Preparation
     // ============================================================
@@ -2295,16 +2615,43 @@ export class CFGVisualizer {
     const nodes: any[] = [];
     const edges: any[] = [];
 
+    // Helper to get function start line from CFG
+    const getFunctionStartLine = (funcName: string): number | undefined => {
+      if (!state || !state.cfg) return undefined;
+      const funcCFG = state.cfg.functions.get(funcName);
+      if (!funcCFG) return undefined;
+      
+      // Try to get from entry block
+      const entryBlock = funcCFG.blocks.get(funcCFG.entry);
+      if (entryBlock) {
+        const startLine = this.getBlockStartLine(entryBlock);
+        if (startLine) return startLine;
+      }
+      
+      // Fallback: try first block
+      const firstBlock = Array.from(funcCFG.blocks.values())[0];
+      if (firstBlock) {
+        return this.getBlockStartLine(firstBlock);
+      }
+      
+      return undefined;
+    };
+
     // Add function nodes
     callGraph.functions.forEach((metadata: any, funcName: string) => {
-      LoggingConfig.detail('CallGraphViz', `Function Node: "${funcName}", external=${metadata.isExternal}, recursive=${metadata.isRecursive}, params=[${metadata.parameters.map((p: any) => p.name).join(', ')}]`);
+      const filePath = state ? this.getFilePathForFunction(state, funcName) : undefined;
+      const startLine = getFunctionStartLine(funcName);
+      
+      LoggingConfig.detail('CallGraphViz', `Function Node: "${funcName}", external=${metadata.isExternal}, recursive=${metadata.isRecursive}, params=[${metadata.parameters.map((p: any) => p.name).join(', ')}], filePath=${filePath || 'none'}, startLine=${startLine || 'none'}`);
       nodes.push({
         id: funcName,
         label: funcName,
         isExternal: metadata.isExternal,
         isRecursive: metadata.isRecursive,
         parameters: metadata.parameters.map((p: any) => p.name).join(', '),
-        callsCount: metadata.callsCount
+        callsCount: metadata.callsCount,
+        filePath: filePath,
+        startLine: startLine
       });
     });
 
@@ -2371,9 +2718,18 @@ export class CFGVisualizer {
       // Get taint analysis for this function
       const taintInfo = state.taintAnalysis.get(functionName) || [];
       
-      // Enhance return values with taint information
+      // Enhance return values with taint information and line numbers
+      const funcCFG = state.cfg.functions.get(functionName);
       const enhancedReturns = returnValues.map((ret: any) => {
         const retInfo: any = { ...ret };
+        
+        // Add line number from block
+        if (funcCFG && ret.blockId) {
+          const retBlock = funcCFG.blocks.get(ret.blockId);
+          if (retBlock) {
+            retInfo.line = this.getBlockStartLine(retBlock);
+          }
+        }
         
         // Check if this return statement is tainted
         // 1. Check if return value uses tainted variables
@@ -2454,25 +2810,37 @@ export class CFGVisualizer {
       LoggingConfig.log('InterProceduralRD', `Inter-procedural RD Found: ${funcRD?.size || 0} blocks`);
       // CRITICAL FIX (LOGIC.md #12): Add type guard instead of non-null assertion
       if (funcRD) {
-        ipaData.interProceduralRD = Array.from(funcRD.entries()).map(([blockId, rdInfo]: [string, any]) => ({
-        blockId,
-        in: Array.from(rdInfo.in.entries() as Iterable<[string, any[]]>).map(([varName, defs]: [string, any[]]) => ({
-          variable: varName,
-          definitions: defs.map((d: any) => ({
-            definitionId: d.definitionId,
-            sourceBlock: d.sourceBlock,
-            propagationPath: d.propagationPath || []
-          }))
-        })),
-        out: Array.from(rdInfo.out.entries() as Iterable<[string, any[]]>).map(([varName, defs]: [string, any[]]) => ({
-          variable: varName,
-          definitions: defs.map((d: any) => ({
-            definitionId: d.definitionId,
-            sourceBlock: d.sourceBlock,
-            propagationPath: d.propagationPath || []
-          }))
-        }))
-      }));
+        const funcCFG = state.cfg.functions.get(functionName);
+        ipaData.interProceduralRD = Array.from(funcRD.entries()).map(([blockId, rdInfo]: [string, any]) => {
+          // Get line number for this block
+          let blockLine: number | undefined = undefined;
+          if (funcCFG) {
+            const block = funcCFG.blocks.get(blockId);
+            if (block) {
+              blockLine = this.getBlockStartLine(block);
+            }
+          }
+          return {
+            blockId,
+            line: blockLine,
+            in: Array.from(rdInfo.in.entries() as Iterable<[string, any[]]>).map(([varName, defs]: [string, any[]]) => ({
+              variable: varName,
+              definitions: defs.map((d: any) => ({
+                definitionId: d.definitionId,
+                sourceBlock: d.sourceBlock,
+                propagationPath: d.propagationPath || []
+              }))
+            })),
+            out: Array.from(rdInfo.out.entries() as Iterable<[string, any[]]>).map(([varName, defs]: [string, any[]]) => ({
+              variable: varName,
+              definitions: defs.map((d: any) => ({
+                definitionId: d.definitionId,
+                sourceBlock: d.sourceBlock,
+                propagationPath: d.propagationPath || []
+              }))
+            }))
+          };
+        });
       }
     }
 
@@ -2550,31 +2918,66 @@ export class CFGVisualizer {
       }
     });
     
+    // Helper to get line number from source location
+    const funcCFG = state.cfg.functions.get(functionName);
+    const getLineFromSourceLocation = (sourceLocation: any): number | undefined => {
+      if (!sourceLocation || !funcCFG) return undefined;
+      if (sourceLocation.range?.start?.line) {
+        return sourceLocation.range.start.line;
+      }
+      if (sourceLocation.blockId) {
+        const block = funcCFG.blocks.get(sourceLocation.blockId);
+        if (block) {
+          return this.getBlockStartLine(block);
+        }
+      }
+      return undefined;
+    };
+
     const result = {
-      taintedVariables: Array.from(taintByVariable.entries()).map(([varName, taints]) => ({
-        variable: varName,
-        sources: taints.map(t => ({
-          source: t.source,
-          category: t.sourceCategory || 'unknown',
-          taintType: t.taintType || 'unknown',
-          sourceFunction: t.sourceFunction,
-          propagationPath: t.propagationPath,
-          sourceLocation: t.sourceLocation
-        })),
-        isTainted: true
-      })),
-      vulnerabilities: taintVulnerabilities.map((vuln: any) => ({
-        id: vuln.id,
-        type: vuln.type,
-        severity: vuln.severity,
-        source: vuln.source,
-        sink: vuln.sink,
-        propagationPath: vuln.propagationPath,
-        sanitized: vuln.sanitized,
-        sanitizationPoints: vuln.sanitizationPoints || [],
-        cweId: vuln.cweId,
-        description: vuln.description
-      })),
+      taintedVariables: Array.from(taintByVariable.entries()).map(([varName, taints]) => {
+        // Get line number from first taint entry's source location
+        const firstTaint = taints[0];
+        const lineNumber = getLineFromSourceLocation(firstTaint.sourceLocation);
+        
+        return {
+          variable: varName,
+          line: lineNumber,
+          sources: taints.map(t => ({
+            source: t.source,
+            category: t.sourceCategory || 'unknown',
+            taintType: t.taintType || 'unknown',
+            sourceFunction: t.sourceFunction,
+            propagationPath: t.propagationPath,
+            sourceLocation: t.sourceLocation,
+            line: getLineFromSourceLocation(t.sourceLocation)
+          })),
+          isTainted: true
+        };
+      }),
+      vulnerabilities: taintVulnerabilities.map((vuln: any) => {
+        // Get line number from source location
+        const sourceLine = vuln.source?.blockId && funcCFG 
+          ? (() => {
+              const block = funcCFG.blocks.get(vuln.source.blockId);
+              return block ? this.getBlockStartLine(block) : undefined;
+            })()
+          : undefined;
+        
+        return {
+          id: vuln.id,
+          type: vuln.type,
+          severity: vuln.severity,
+          source: vuln.source,
+          sink: vuln.sink,
+          propagationPath: vuln.propagationPath,
+          sanitized: vuln.sanitized,
+          sanitizationPoints: vuln.sanitizationPoints || [],
+          cweId: vuln.cweId,
+          description: vuln.description,
+          line: sourceLine
+        };
+      }),
       sourcesByCategory: Array.from(sourcesByCategory.entries()).map(([category, count]) => ({
         category,
         count
@@ -2813,6 +3216,22 @@ export class CFGVisualizer {
       crossFunctionPathCount: finalInterProceduralTaint.filter((t: TaintInfo) => t.propagationPath && t.propagationPath.length > 1).length
     });
     
+    // Helper to get line number from source location
+    const funcCFGForIP = state.cfg.functions.get(functionName);
+    const getLineFromSourceLocationIP = (sourceLocation: any): number | undefined => {
+      if (!sourceLocation || !funcCFGForIP) return undefined;
+      if (sourceLocation.range?.start?.line) {
+        return sourceLocation.range.start.line;
+      }
+      if (sourceLocation.blockId) {
+        const block = funcCFGForIP.blocks.get(sourceLocation.blockId);
+        if (block) {
+          return this.getBlockStartLine(block);
+        }
+      }
+      return undefined;
+    };
+
     // Group by source function
     const taintBySourceFunction = new Map<string, TaintInfo[]>();
     finalInterProceduralTaint.forEach((taint: TaintInfo) => {
@@ -2844,7 +3263,8 @@ export class CFGVisualizer {
         sourceFunction: t.sourceFunction,
         propagationPath: t.propagationPath || [],
         sourceLocation: t.sourceLocation,
-        labels: t.labels || []
+        labels: t.labels || [],
+        line: getLineFromSourceLocationIP(t.sourceLocation)
       })),
       taintBySourceFunction: Array.from(taintBySourceFunction.entries()).map(([funcName, taints]) => ({
         functionName: funcName,
@@ -2852,7 +3272,8 @@ export class CFGVisualizer {
         taints: taints.map((t: TaintInfo) => ({
           variable: t.variable,
           source: t.source,
-          propagationPath: t.propagationPath || []
+          propagationPath: t.propagationPath || [],
+          line: getLineFromSourceLocationIP(t.sourceLocation)
         }))
       })),
       parameterTaint: parameterTaint.length,
@@ -3286,12 +3707,12 @@ export class CFGVisualizer {
             <h3 style="color: #333333;">Return Value Analysis</h3>
             <div id="return-analysis">
                 ${ipaData.returnValueAnalysis.map((ret: any) => `
-                    <div style="padding: 10px; margin: 5px 0; background: ${ret.isTainted ? (ret.taintType === 'synthetic' ? '#f3e5f5' : ret.taintType === 'control-dependent' ? '#ffe0b2' : '#ffe0e0') : '#e8f4f8'}; border-radius: 5px; color: #333333; border-left: ${ret.isTainted ? '4px solid' : 'none'} ${ret.isTainted ? (ret.taintType === 'synthetic' ? '#9d4edd' : ret.taintType === 'control-dependent' ? '#ff8800' : '#dc3545') : ''};">
+                    <div style="padding: 10px; margin: 5px 0; background: ${ret.isTainted ? (ret.taintType === 'synthetic' ? '#f3e5f5' : ret.taintType === 'control-dependent' ? '#ffe0b2' : '#ffe0e0') : '#e8f4f8'}; border-radius: 5px; color: #333333; border-left: ${ret.isTainted ? '4px solid' : 'none'} ${ret.isTainted ? (ret.taintType === 'synthetic' ? '#9d4edd' : ret.taintType === 'control-dependent' ? '#ff8800' : '#dc3545') : ''};" data-line="${ret.line || ''}" data-block-id="${ret.blockId || ''}">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <strong style="color: #333333;">Return:</strong> <span style="color: #333333;">${ret.value || '(void)'}</span>
                             ${ret.isTainted ? `<span style="padding: 2px 6px; background: ${ret.taintType === 'synthetic' ? '#9d4edd' : ret.taintType === 'control-dependent' ? '#ff8800' : '#dc3545'}; color: white; border-radius: 3px; font-size: 0.75em;">${ret.taintType === 'synthetic' ? 'SYNTHETIC TAINT' : ret.taintType === 'control-dependent' ? 'CONTROL-DEPENDENT TAINT' : 'DATA-FLOW TAINT'}</span>` : ''}
                         </div>
-                        <br><small style="color: #666666;">Type: ${ret.type}, Block: ${ret.blockId}</small>
+                        <br><small style="color: #666666;">Type: ${ret.type}, Block: ${ret.blockId}${ret.line ? `, Line: ${ret.line}` : ''}</small>
                         ${ret.usedVariables && ret.usedVariables.length > 0 ? `<br><small style="color: #666666;">Variables: ${ret.usedVariables.join(', ')}</small>` : ''}
                         ${ret.isTainted && ret.taintType === 'synthetic' ? `<br><small style="color: #666666; font-style: italic;">This return statement is control-dependent (synthetic taint) - no explicit variables but tainted by control flow</small>` : ''}
                     </div>
@@ -3308,8 +3729,8 @@ export class CFGVisualizer {
         <h3 style="color: #333333;">Inter-Procedural Reaching Definitions</h3>
         <div id="ipa-rd-info">
             ${ipaData.interProceduralRD.map((blockRD: any) => `
-                <div style="padding: 10px; margin: 5px 0; background: #e8f4f8; border-radius: 5px; color: #333333;">
-                    <strong style="color: #333333;">Block: ${blockRD.blockId}</strong>
+                <div style="padding: 10px; margin: 5px 0; background: #e8f4f8; border-radius: 5px; color: #333333;" data-block-id="${blockRD.blockId}" ${blockRD.line ? `data-line="${blockRD.line}"` : ''}>
+                    <strong style="color: #333333;">Block: ${blockRD.blockId}${blockRD.line ? ` (Line ${blockRD.line})` : ''}</strong>
                     ${blockRD.out && blockRD.out.length > 0 ? `
                         <div style="margin-top: 5px;">
                             <strong style="color: #333333;">OUT:</strong>
@@ -3373,9 +3794,9 @@ export class CFGVisualizer {
                     const displayValue = blockMatch ? blockMatch[1] : varInfo.variable;
                     
                     return `
-                    <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;">
+                    <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;" data-line="${varInfo.line || ''}" data-variable="${varInfo.variable || ''}">
                         <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                            <strong style="color: #333333; font-size: 0.95em;">${displayLabel}: ${displayValue}</strong>
+                            <strong style="color: #333333; font-size: 0.95em;">${displayLabel}: ${displayValue}${varInfo.line ? ` (Line ${varInfo.line})` : ''}</strong>
                             <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.75em;">TAINTED</span>
                             ${isSynthetic ? '<span style="margin-left: 10px; padding: 2px 8px; background: #9d4edd; color: white; border-radius: 3px; font-size: 0.75em;">SYNTHETIC</span>' : ''}
                         </div>
@@ -3383,10 +3804,11 @@ export class CFGVisualizer {
                         <div style="margin-top: 10px;">
                             <strong style="color: #333333;">Sources:</strong>
                             ${varInfo.sources.map((source: any) => `
-                                <div style="margin-left: 15px; margin-top: 8px; padding: 8px; background: #fff; border-radius: 3px;">
+                                <div style="margin-left: 15px; margin-top: 8px; padding: 8px; background: #fff; border-radius: 3px;" ${source.line ? `data-line="${source.line}"` : ''}>
                                     <div style="color: #333333;">
                                         <strong>${source.source}</strong>
                                         ${source.sourceFunction ? `<span style="color: #666666; margin-left: 10px;">(${source.sourceFunction})</span>` : ''}
+                                        ${source.line ? `<span style="color: #666666; margin-left: 10px;">Line ${source.line}</span>` : ''}
                                     </div>
                                     <div style="margin-top: 5px; font-size: 0.8em; color: #666666;">
                                         <span style="padding: 2px 6px; background: #e8f4f8; border-radius: 3px; margin-right: 5px;">
@@ -3418,7 +3840,7 @@ export class CFGVisualizer {
             <h3 style="color: #333333;">Detected Vulnerabilities</h3>
             <div id="taint-vulnerabilities">
                 ${taintData.vulnerabilities.map((vuln: any) => `
-                    <div class="vulnerability-item ${vuln.severity}" style="padding: 15px; margin: 10px 0; background: ${vuln.severity === 'critical' ? '#ffe0e0' : vuln.severity === 'high' ? '#ffe8e8' : '#fff3cd'}; border-radius: 5px; cursor: pointer;" onclick="highlightVulnerabilityPath('${vuln.id}')">
+                    <div class="vulnerability-item ${vuln.severity}" style="padding: 15px; margin: 10px 0; background: ${vuln.severity === 'critical' ? '#ffe0e0' : vuln.severity === 'high' ? '#ffe8e8' : '#fff3cd'}; border-radius: 5px; cursor: pointer;" onclick="highlightVulnerabilityPath('${vuln.id}')" ${vuln.line ? `data-line="${vuln.line}"` : ''}>
                         <div style="display: flex; justify-content: space-between; align-items: start;">
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; margin-bottom: 8px;">
@@ -3518,10 +3940,14 @@ export class CFGVisualizer {
         ${interProceduralTaintData.taintBySourceFunction && interProceduralTaintData.taintBySourceFunction.length > 0 ? `
         <div style="margin-bottom: 30px;">
             <h3 style="color: #333333;">Taint Flow by Source Function</h3>
-            ${interProceduralTaintData.taintBySourceFunction.map((funcInfo: any) => `
-                <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;">
+            ${interProceduralTaintData.taintBySourceFunction.map((funcInfo: any) => {
+                // Get line number from first taint entry if available
+                const firstTaintLine = funcInfo.taints && funcInfo.taints.length > 0 ? funcInfo.taints[0].line : undefined;
+                
+                return `
+                <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;" ${firstTaintLine ? `data-line="${firstTaintLine}"` : ''}>
                     <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                        <strong style="color: #333333; font-size: 0.95em;">From Function: ${funcInfo.functionName}</strong>
+                        <strong style="color: #333333; font-size: 0.95em;">From Function: ${funcInfo.functionName}${firstTaintLine ? ` (Line ${firstTaintLine})` : ''}</strong>
                         <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.75em;">
                             ${funcInfo.taintCount} taint entries
                         </span>
@@ -3535,10 +3961,11 @@ export class CFGVisualizer {
                             const displayValue = blockMatch ? blockMatch[1] : taint.variable;
                             
                             return `
-                            <div style="margin-left: 15px; margin-top: 8px; padding: 8px; background: #fff; border-radius: 3px;">
+                            <div style="margin-left: 15px; margin-top: 8px; padding: 8px; background: #fff; border-radius: 3px; cursor: pointer;" ${taint.line ? `data-line="${taint.line}"` : ''}>
                                 <div style="color: #333333;">
                                     <strong>${displayLabel}:</strong> ${displayValue}
                                     ${isSynthetic ? '<span style="margin-left: 10px; padding: 2px 6px; background: #9d4edd; color: white; border-radius: 3px; font-size: 0.75em;">SYNTHETIC</span>' : ''}
+                                    ${taint.line ? `<span style="color: #666666; margin-left: 10px;">Line ${taint.line}</span>` : ''}
                                 </div>
                                 <div style="margin-top: 5px; font-size: 0.9em; color: #666666;">
                                     <strong>Source:</strong> ${taint.source}
@@ -3553,7 +3980,8 @@ export class CFGVisualizer {
                         }).join('')}
                     </div>
                 </div>
-            `).join('')}
+            `;
+            }).join('')}
         </div>
         ` : ''}
         
@@ -3584,9 +4012,9 @@ export class CFGVisualizer {
         <div style="margin-bottom: 30px;">
             <h3 style="color: #333333;">Detailed Inter-Procedural Taint Entries</h3>
             ${interProceduralTaintData.interProceduralTaint.map((taint: any, index: number) => `
-                <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;">
+                <div style="padding: 15px; margin: 10px 0; background: #ffe0e0; border-left: 4px solid #dc3545; border-radius: 5px;" ${taint.line ? `data-line="${taint.line}"` : ''}>
                     <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                        <strong style="color: #333333; font-size: 0.95em;">Entry ${index + 1}: ${taint.variable}</strong>
+                        <strong style="color: #333333; font-size: 0.95em;">Entry ${index + 1}: ${taint.variable}${taint.line ? ` (Line ${taint.line})` : ''}</strong>
                         <span style="margin-left: 10px; padding: 2px 8px; background: #dc3545; color: white; border-radius: 3px; font-size: 0.75em;">
                             TAINTED
                         </span>
@@ -3795,7 +4223,11 @@ ${JSON.stringify(graphData, (key, value) => {
     
     <script type="application/json" id="callgraph-data-json">
 ${callGraphData ? JSON.stringify(callGraphData, (key, value) => {
-        // Replace null/undefined with empty values to prevent "null" in HTML
+        // Keep null/undefined for filePath and startLine (needed for double-click)
+        if (key === 'filePath' || key === 'startLine') {
+            return value !== null && value !== undefined ? value : null;
+        }
+        // Replace null/undefined with empty values for other fields to prevent "null" in HTML
         if (value === null || value === undefined) {
             return '';
         }
@@ -3864,6 +4296,129 @@ ${JSON.stringify({
         // This must be done before any event listeners that use it
         const vscode = acquireVsCodeApi();
         logDebug('VS Code API acquired');
+        
+        // Helper function to get file path for current function
+        function getCurrentFunctionFilePath() {
+            try {
+                const graphDataElement = document.getElementById('graph-data-json');
+                if (graphDataElement) {
+                    const graphData = JSON.parse(graphDataElement.textContent);
+                    if (graphData && graphData.nodes && graphData.nodes.length > 0) {
+                        const firstNode = graphData.nodes[0];
+                        if (firstNode && firstNode.filePath) {
+                            return firstNode.filePath;
+                        }
+                    }
+                }
+                // Fallback: try interconnected data
+                const interconnectedDataElement = document.getElementById('interconnected-data-json');
+                if (interconnectedDataElement) {
+                    const interconnectedData = JSON.parse(interconnectedDataElement.textContent);
+                    if (interconnectedData && interconnectedData.nodes && interconnectedData.nodes.length > 0) {
+                        const firstNode = interconnectedData.nodes[0];
+                        if (firstNode && firstNode.metadata && firstNode.metadata.filePath) {
+                            return firstNode.metadata.filePath;
+                        }
+                    }
+                }
+            } catch (e) {
+                logDebug('WARNING: Failed to get file path: ' + e);
+            }
+            return null;
+        }
+        
+        // Helper to extract line number from text (e.g., "Block: B5", "Line 42", etc.)
+        function extractLineNumber(text) {
+            if (!text) return null;
+            // Try to find "Line X" pattern
+            const lineMatch = text.match(/Line\s+(\d+)/i);
+            if (lineMatch) {
+                return parseInt(lineMatch[1], 10);
+            }
+            // Try to find block ID and get line from block data
+            const blockMatch = text.match(/Block[:\s]+(B\d+|block_\d+)/i);
+            if (blockMatch) {
+                const blockId = blockMatch[1];
+                // Try to get line from graph data
+                try {
+                    const graphDataElement = document.getElementById('graph-data-json');
+                    if (graphDataElement) {
+                        const graphData = JSON.parse(graphDataElement.textContent);
+                        if (graphData && graphData.nodes) {
+                            const blockNode = graphData.nodes.find(function(n) {
+                                return n.id === blockId || n.id === blockId.replace('B', 'block_');
+                            });
+                            if (blockNode && blockNode.startLine) {
+                                return blockNode.startLine;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // Ignore
+                }
+            }
+            return null;
+        }
+        
+        // Add double-click handlers for HTML-based tabs (Taint, IPA, Parameters)
+        function setupHTMLTabDoubleClick() {
+            const filePath = getCurrentFunctionFilePath();
+            if (!filePath) {
+                logDebug('WARNING: No file path available for HTML tab double-click');
+                return;
+            }
+            
+            // Helper to get line number from element
+            function getLineFromElement(element) {
+                // Check data attribute first
+                if (element.dataset && element.dataset.line) {
+                    return parseInt(element.dataset.line, 10);
+                }
+                // Check text content for line number
+                const lineNum = extractLineNumber(element.textContent);
+                if (lineNum) return lineNum;
+                // Check parent elements
+                let parent = element.parentElement;
+                for (let i = 0; i < 3 && parent; i++) {
+                    if (parent.dataset && parent.dataset.line) {
+                        return parseInt(parent.dataset.line, 10);
+                    }
+                    const parentLineNum = extractLineNumber(parent.textContent);
+                    if (parentLineNum) return parentLineNum;
+                    parent = parent.parentElement;
+                }
+                return null;
+            }
+            
+            // Add double-click handler to all divs in taint/IPA/params tabs
+            const tabContents = ['taint-tab', 'ip-taint-tab', 'params-tab', 'ipa-tab'];
+            tabContents.forEach(function(tabId) {
+                const tab = document.getElementById(tabId);
+                if (tab) {
+                    // Add double-click handler to all clickable divs
+                    // Select divs with padding style OR divs with data-line attribute
+                    const divs = tab.querySelectorAll('div[style*="padding"], div[data-line]');
+                    divs.forEach(function(div) {
+                        // Skip if already has cursor style set
+                        if (div.style.cursor === 'pointer') return;
+                        
+                        div.style.cursor = 'pointer';
+                        const lineNum = getLineFromElement(div);
+                        div.title = 'Double-click to open file' + (lineNum ? ' at line ' + lineNum : '');
+                        div.addEventListener('dblclick', function() {
+                            const line = getLineFromElement(div) || 1;
+                            logDebug('Double-click on HTML element in ' + tabId + ', opening file: ' + filePath + ' at line ' + line);
+                            vscode.postMessage({
+                                type: 'openFileAtLine',
+                                filePath: filePath,
+                                line: line
+                            });
+                        });
+                    });
+                }
+            });
+            logDebug('HTML tab double-click handlers set up');
+        }
 
         // Debug panel toggle functionality
         let debugVisible = true;
@@ -4511,6 +5066,14 @@ ${JSON.stringify({
                         initCallGraph();
                     }
                     
+                    // Setup double-click handlers for HTML-based tabs
+                    if (targetTab === 'taint' || targetTab === 'ip-taint' || targetTab === 'params' || targetTab === 'ipa') {
+                        // Small delay to ensure DOM is ready
+                        setTimeout(function() {
+                            setupHTMLTabDoubleClick();
+                        }, 100);
+                    }
+                    
                     // Initialize interconnected CFG if switching to interconnected tab
                     if (targetTab === 'ip-taint') {
                         // Inter-Procedural Taint tab - no special initialization needed
@@ -4660,7 +5223,7 @@ ${JSON.stringify({
                     }
                 }, 200);
             } catch (e) {
-                console.error('Error highlighting vulnerability path:', e);
+                LoggingConfig.error('CFGViz', 'Error highlighting vulnerability path', e);
             }
         }
         
@@ -4679,6 +5242,10 @@ ${JSON.stringify({
                 let callGraphData;
                 try {
                     callGraphData = JSON.parse(callGraphDataElement.textContent);
+                    logDebug('Call graph data parsed successfully. Nodes: ' + (callGraphData.nodes ? callGraphData.nodes.length : 0));
+                    if (callGraphData.nodes && callGraphData.nodes.length > 0) {
+                        logDebug('First node sample: id=' + callGraphData.nodes[0].id + ', filePath=' + (callGraphData.nodes[0].filePath || 'null') + ', startLine=' + (callGraphData.nodes[0].startLine || 'null'));
+                    }
                 } catch (parseError) {
                     logDebug('ERROR: Failed to parse call graph data JSON: ' + parseError);
                     return;
@@ -4689,7 +5256,7 @@ ${JSON.stringify({
                 return;
             }
             
-            logDebug('Initializing call graph visualization...');
+            logDebug('Initializing call graph visualization with ' + callGraphData.nodes.length + ' nodes...');
             
             const cgNodes = new vis.DataSet(callGraphData.nodes.map(function(node) {
                 return {
@@ -4707,7 +5274,13 @@ ${JSON.stringify({
                     },
                     title: 'Function: ' + node.label + '\\nParameters: ' + node.parameters + 
                            '\\nRecursive: ' + (node.isRecursive ? 'Yes' : 'No') +
-                           '\\nExternal: ' + (node.isExternal ? 'Yes' : 'No')
+                           '\\nExternal: ' + (node.isExternal ? 'Yes' : 'No') +
+                           (node.filePath ? '\\nFile: ' + node.filePath : '') +
+                           (node.startLine ? '\\nLine: ' + node.startLine : '') +
+                           '\\nDouble-click to open function definition',
+                    // Store original node data for double-click handler
+                    filePath: node.filePath,
+                    startLine: node.startLine
                 };
             }));
             
@@ -4774,6 +5347,9 @@ ${JSON.stringify({
                 const cgNetwork = new vis.Network(cgContainer, cgData, cgOptions);
                 logDebug('Call graph network created successfully');
                 
+                // Store callGraphData in a scope-accessible variable for double-click handler
+                window.callGraphDataForDoubleClick = callGraphData;
+                
                 // Handle node click on call graph
                 cgNetwork.on('click', function(params) {
                     try {
@@ -4789,6 +5365,10 @@ ${JSON.stringify({
                                 html += '<p style="color: #333333;"><strong>Recursive:</strong> ' + (node.isRecursive ? 'Yes' : 'No') + '</p>';
                                 html += '<p style="color: #333333;"><strong>External:</strong> ' + (node.isExternal ? 'Yes' : 'No') + '</p>';
                                 html += '<p style="color: #333333;"><strong>Calls Count:</strong> ' + (node.callsCount || 0) + '</p>';
+                                if (node.filePath && node.startLine) {
+                                    html += '<p style="color: #333333;"><strong>Location:</strong> ' + node.filePath + ':' + node.startLine + '</p>';
+                                }
+                                html += '<p style="color: #666666; font-size: 0.85em; margin-top: 10px; font-style: italic;">Double-click to open function definition</p>';
                                 detailsDiv.innerHTML = html;
                             }
                         }
@@ -4801,6 +5381,70 @@ ${JSON.stringify({
                     }
                     } catch (clickError) {
                         logDebug('ERROR: Failed to handle call graph node click: ' + clickError);
+                    }
+                });
+                
+                // Handle double-click: open file at function definition
+                cgNetwork.on('doubleClick', function(params) {
+                    try {
+                        console.log('[CallGraph] Double-click event received:', params);
+                        logDebug('[CallGraph] Double-click event received, params: ' + JSON.stringify(params));
+                        
+                        // Use callGraphData from window scope or local scope
+                        const cgData = window.callGraphDataForDoubleClick || callGraphData;
+                        
+                        if (!cgData || !cgData.nodes) {
+                            console.error('[CallGraph] callGraphData not available!');
+                            logDebug('ERROR: callGraphData not available for double-click');
+                            return;
+                        }
+                        
+                        if (params.nodes && params.nodes.length > 0) {
+                            const nodeId = params.nodes[0];
+                            console.log('[CallGraph] Double-click on node ID:', nodeId);
+                            logDebug('Call graph double-click detected on node: ' + nodeId);
+                            
+                            // Get the node from callGraphData (source of truth)
+                            const node = cgData.nodes.find(function(n) { return n.id === nodeId; });
+                            
+                            console.log('[CallGraph] Node lookup result:', node ? 'found' : 'not found');
+                            console.log('[CallGraph] callGraphData.nodes length:', cgData.nodes ? cgData.nodes.length : 0);
+                            if (cgData.nodes && cgData.nodes.length > 0) {
+                                console.log('[CallGraph] First node sample:', JSON.stringify(cgData.nodes[0], null, 2));
+                            }
+                            
+                            if (node) {
+                                console.log('[CallGraph] Node data:', JSON.stringify(node, null, 2));
+                                logDebug('Found node in callGraphData: id=' + node.id + ', label=' + node.label + ', filePath=' + (node.filePath || 'null') + ', startLine=' + (node.startLine || 'null'));
+                                
+                                const filePath = node.filePath || null;
+                                const startLine = node.startLine || 1;
+                                
+                                if (filePath) {
+                                    console.log('[CallGraph] Opening file:', filePath, 'at line', startLine);
+                                    logDebug('Double-click on call graph node: ' + nodeId + ' (' + node.label + '), opening file: ' + filePath + ' at line ' + startLine);
+                                    vscode.postMessage({
+                                        type: 'openFileAtLine',
+                                        filePath: filePath,
+                                        line: startLine
+                                    });
+                                } else {
+                                    console.warn('[CallGraph] No file path for node:', nodeId, 'Node:', JSON.stringify(node, null, 2));
+                                    logDebug('Double-click on call graph node ' + nodeId + ' but no file path available. Node data: ' + JSON.stringify(node));
+                                }
+                            } else {
+                                console.warn('[CallGraph] Node not found:', nodeId);
+                                const availableIds = cgData.nodes ? cgData.nodes.map(function(n) { return n.id; }).join(', ') : 'none';
+                                logDebug('Double-click on call graph node ' + nodeId + ' but node not found in callGraphData. Available nodes: ' + availableIds);
+                            }
+                        } else {
+                            console.log('[CallGraph] Double-click but no nodes selected, params:', JSON.stringify(params));
+                            logDebug('Call graph double-click detected but no nodes selected');
+                        }
+                    } catch (dblClickError) {
+                        console.error('[CallGraph] Double-click error:', dblClickError);
+                        logDebug('ERROR: Failed to handle call graph double-click: ' + dblClickError);
+                        console.error('Call graph double-click error:', dblClickError);
                     }
                 });
             } catch (cgError) {
@@ -5590,8 +6234,14 @@ ${JSON.stringify({
    * CRITICAL FIX (LOGIC.md #9): Explicitly clear panels Map to prevent memory leaks
    * Ensures all panels are disposed and references are removed
    */
+  /**
+   * Dispose of all resources
+   * 
+   * CRITICAL FIX (LOGIC.md #9): Explicitly clear panels Map to prevent memory leaks
+   * Ensures all panels are disposed and references are removed.
+   */
   dispose(): void {
-    console.log(`[CFGVisualizer] Disposing visualizer. Cleaning up ${this.panels.size} panels`);
+    LoggingConfig.log('CFGViz', `Disposing visualizer. Cleaning up ${this.panels.size} panels`);
     
     if (this.panel) {
       this.panel.dispose();
@@ -5599,16 +6249,29 @@ ${JSON.stringify({
     }
     // Dispose all tracked panels
     this.panels.forEach((panel, key) => {
-      console.log(`[CFGVisualizer] Disposing panel: ${key}`);
+      LoggingConfig.detail('CFGViz', `Disposing panel: ${key}`);
       panel.dispose();
     });
     // CRITICAL FIX (LOGIC.md #9): Clear Map to release all references
     this.panels.clear();
-    console.log('[CFGVisualizer] Visualizer disposed successfully');
+    LoggingConfig.log('CFGViz', 'Visualizer disposed successfully');
   }
 
   /**
    * Log all tab visual data for automated validation
+   */
+  /**
+   * Log all tab visual data for automated validation
+   * 
+   * Comprehensive logging of visualization data for all tabs.
+   * Used for automated testing and validation of visualization correctness.
+   * 
+   * @param functionName - Function being visualized
+   * @param graphData - CFG graph data
+   * @param callGraphData - Call graph data
+   * @param taintData - Taint analysis data
+   * @param interProceduralTaintData - Inter-procedural taint data
+   * @param interconnectedData - Interconnected CFG data
    */
   private logAllTabData(
     functionName: string,
@@ -5616,12 +6279,18 @@ ${JSON.stringify({
     callGraphData: any,
     taintData: any,
     interProceduralTaintData: any,
-    interconnectedData: any
+    interconnectedData: any,
+    ipaData?: any
   ): void {
-    console.log('\n========== TAB VISUAL DATA LOG ==========');
-    console.log(`[TAB_LOG] Function: ${functionName}`);
-    console.log(`[TAB_LOG] Timestamp: ${new Date().toISOString()}`);
+    LoggingConfig.section('VizTabs', '========== TAB VISUAL DATA LOG ==========');
+    LoggingConfig.log('VizTabs', `Function: ${functionName}`);
+    LoggingConfig.detail('VizTabs', `Timestamp: ${new Date().toISOString()}`);
     
+    /**
+     * TAB 1: CFG DATA LOGGING
+     * 
+     * Logs CFG tab statistics: nodes, edges, tainted nodes, tainted variables.
+     */
     // Tab 1: CFG
     const redNodes = graphData.nodes.filter((n: any) => n.taintInfo?.isTainted).length;
     const taintedVarsInCFG = new Set<string>();
@@ -5630,49 +6299,156 @@ ${JSON.stringify({
         n.taintInfo.taintedVariables.forEach((v: string) => taintedVarsInCFG.add(v));
       }
     });
-    console.log(`[TAB_LOG] CFG Tab:`);
-    console.log(`  - Total Nodes: ${graphData.nodes.length}`);
-    console.log(`  - Red/Tainted Nodes: ${redNodes}`);
-    console.log(`  - Tainted Variables: [${Array.from(taintedVarsInCFG).join(', ') || 'none'}]`);
-    console.log(`  - Total Edges: ${graphData.edges.length}`);
+    LoggingConfig.table('VizTabs', 'CFG Tab', {
+      'Total Nodes': graphData.nodes.length,
+      'Red/Tainted Nodes': redNodes,
+      'Tainted Variables': Array.from(taintedVarsInCFG).join(', ') || 'none',
+      'Total Edges': graphData.edges.length
+    });
     
+    /**
+     * TAB 2: CALL GRAPH DATA LOGGING
+     * 
+     * Logs call graph tab statistics: nodes, edges, edge labels.
+     */
     // Tab 2: Call Graph
     if (callGraphData) {
       const edgesWithLabels = callGraphData.edges.filter((e: any) => e.label && !e.label.includes('unused')).length;
-      console.log(`[TAB_LOG] Call Graph Tab:`);
-      console.log(`  - Total Nodes: ${callGraphData.nodes.length}`);
-      console.log(`  - Total Edges: ${callGraphData.edges.length}`);
-      console.log(`  - Edges with Labels: ${edgesWithLabels}`);
-      console.log(`  - Edge Labels: [${callGraphData.edges.map((e: any) => e.label || 'no label').join(', ')}]`);
+      LoggingConfig.table('VizTabs', 'Call Graph Tab', {
+        'Total Nodes': callGraphData.nodes.length,
+        'Total Edges': callGraphData.edges.length,
+        'Edges with Labels': edgesWithLabels,
+        'Edge Labels': callGraphData.edges.map((e: any) => e.label || 'no label').join(', ')
+      });
     } else {
-      console.log(`[TAB_LOG] Call Graph Tab: Not available`);
+      LoggingConfig.detail('VizTabs', 'Call Graph Tab: Not available');
     }
     
-    // Tab 3: Taint Analysis
-    console.log(`[TAB_LOG] Taint Analysis Tab:`);
-    console.log(`  - Total Tainted Variables: ${taintData.totalTaintedVariables}`);
-    console.log(`  - Total Vulnerabilities: ${taintData.totalVulnerabilities}`);
-    console.log(`  - Tainted Variable Names: [${taintData.taintedVariables?.map((v: any) => v.variable).join(', ') || 'none'}]`);
-    console.log(`  - Vulnerability Types: [${taintData.vulnerabilities?.map((v: any) => v.type).join(', ') || 'none'}]`);
+    /**
+     * TAB 3: PARAMETERS & RETURNS DATA LOGGING
+     * 
+     * Logs Parameters & Returns tab statistics: parameter mappings, return values.
+     */
+    // Tab 3: Parameters & Returns
+    if (ipaData && (ipaData.parameterAnalysis || ipaData.returnValueAnalysis)) {
+      const paramCount = ipaData.parameterAnalysis ? ipaData.parameterAnalysis.length : 0;
+      const returnCount = ipaData.returnValueAnalysis ? ipaData.returnValueAnalysis.length : 0;
+      const taintedReturns = ipaData.returnValueAnalysis ? ipaData.returnValueAnalysis.filter((r: any) => r.isTainted).length : 0;
+      
+      LoggingConfig.table('VizTabs', 'Parameters & Returns Tab', {
+        'Parameter Mappings': paramCount,
+        'Return Values': returnCount,
+        'Tainted Returns': taintedReturns,
+        'Parameter Details': ipaData.parameterAnalysis ? ipaData.parameterAnalysis.map((p: any) => `${p.formalParam}←${p.actualArg}(${p.derivation?.type})`).join(', ') || 'none' : 'none',
+        'Return Details': ipaData.returnValueAnalysis ? ipaData.returnValueAnalysis.map((r: any) => `${r.value}(${r.type}${r.isTainted ? ',TAINTED' : ''})`).join(', ') || 'none' : 'none'
+      });
+      
+      // Log detailed parameter mappings
+      if (ipaData.parameterAnalysis && ipaData.parameterAnalysis.length > 0) {
+        LoggingConfig.detail('VizTabs', 'Parameter Mappings:');
+        ipaData.parameterAnalysis.forEach((mapping: any, idx: number) => {
+          LoggingConfig.verbose('VizTabs', `  ${idx + 1}. ${mapping.formalParam} ← ${mapping.actualArg} (${mapping.derivation?.type}, base: ${mapping.derivation?.base})`);
+        });
+      }
+      
+      // Log detailed return values
+      if (ipaData.returnValueAnalysis && ipaData.returnValueAnalysis.length > 0) {
+        LoggingConfig.detail('VizTabs', 'Return Values:');
+        ipaData.returnValueAnalysis.forEach((ret: any, idx: number) => {
+          const taintInfo = ret.isTainted ? ` [${ret.taintType || 'tainted'}]` : '';
+          LoggingConfig.verbose('VizTabs', `  ${idx + 1}. ${ret.value || '(void)'} (${ret.type}${taintInfo}, block: ${ret.blockId}${ret.line ? `, line: ${ret.line}` : ''})`);
+        });
+      }
+    } else {
+      LoggingConfig.detail('VizTabs', 'Parameters & Returns Tab: Not available');
+    }
     
-    // Tab 4: Inter-Procedural Taint
-    console.log(`[TAB_LOG] Inter-Procedural Taint Tab:`);
-    console.log(`  - Total Entries: ${interProceduralTaintData.totalInterProceduralTaint}`);
-    console.log(`  - Parameter Taint: ${interProceduralTaintData.parameterTaint}`);
-    console.log(`  - Return Value Taint: ${interProceduralTaintData.returnTaint}`);
-    console.log(`  - Library Function Taint: ${interProceduralTaintData.libraryTaint}`);
+    /**
+     * TAB 4: INTER-PROCEDURAL REACHING DEFINITIONS DATA LOGGING
+     * 
+     * Logs Inter-Procedural tab statistics: reaching definitions across functions.
+     */
+    // Tab 4: Inter-Procedural Reaching Definitions
+    if (ipaData && ipaData.interProceduralRD) {
+      const rdBlocks = ipaData.interProceduralRD.length;
+      const rdVariables = new Set<string>();
+      ipaData.interProceduralRD.forEach((blockRD: any) => {
+        if (blockRD.out) {
+          blockRD.out.forEach((varInfo: any) => {
+            rdVariables.add(varInfo.variable);
+          });
+        }
+      });
+      
+      LoggingConfig.table('VizTabs', 'Inter-Procedural Tab', {
+        'Blocks with RD': rdBlocks,
+        'Variables Tracked': rdVariables.size,
+        'Variable Names': Array.from(rdVariables).join(', ') || 'none'
+      });
+      
+      // Log detailed RD information
+      if (ipaData.interProceduralRD.length > 0) {
+        LoggingConfig.detail('VizTabs', 'Inter-Procedural RD Details:');
+        ipaData.interProceduralRD.forEach((blockRD: any, idx: number) => {
+          const varCount = blockRD.out ? blockRD.out.length : 0;
+          const defCount = blockRD.out ? blockRD.out.reduce((sum: number, v: any) => sum + (v.definitions?.length || 0), 0) : 0;
+          LoggingConfig.verbose('VizTabs', `  Block ${blockRD.blockId}${blockRD.line ? ` (line ${blockRD.line})` : ''}: ${varCount} variables, ${defCount} definitions`);
+        });
+      }
+    } else {
+      LoggingConfig.detail('VizTabs', 'Inter-Procedural Tab: Not available');
+    }
+    
+    /**
+     * TAB 5: TAINT ANALYSIS DATA LOGGING
+     * 
+     * Logs taint analysis tab statistics: tainted variables, vulnerabilities.
+     */
+    // Tab 5: Taint Analysis
+    LoggingConfig.table('VizTabs', 'Taint Analysis Tab', {
+      'Total Tainted Variables': taintData.totalTaintedVariables,
+      'Total Vulnerabilities': taintData.totalVulnerabilities,
+      'Tainted Variable Names': taintData.taintedVariables?.map((v: any) => v.variable).join(', ') || 'none',
+      'Vulnerability Types': taintData.vulnerabilities?.map((v: any) => v.type).join(', ') || 'none'
+    });
+    
+    // Log detailed vulnerability information
+    if (taintData.vulnerabilities && taintData.vulnerabilities.length > 0) {
+      LoggingConfig.detail('VizTabs', 'Vulnerability Details:');
+      taintData.vulnerabilities.forEach((vuln: any, idx: number) => {
+        LoggingConfig.verbose('VizTabs', `  ${idx + 1}. ${vuln.type} (${vuln.severity}): ${vuln.source.variable} → ${vuln.sink.function}${vuln.sanitized ? ' [SANITIZED]' : ' [NOT SANITIZED]'}`);
+      });
+    }
+    
+    /**
+     * TAB 6: INTER-PROCEDURAL TAINT DATA LOGGING
+     * 
+     * Logs inter-procedural taint tab statistics: parameter taint, return taint, library taint.
+     */
+    // Tab 6: Inter-Procedural Taint
+    LoggingConfig.table('VizTabs', 'Inter-Procedural Taint Tab', {
+      'Total Entries': interProceduralTaintData.totalInterProceduralTaint,
+      'Parameter Taint': interProceduralTaintData.parameterTaint,
+      'Return Value Taint': interProceduralTaintData.returnTaint,
+      'Library Function Taint': interProceduralTaintData.libraryTaint
+    });
     if (interProceduralTaintData.interProceduralTaint && interProceduralTaintData.interProceduralTaint.length > 0) {
-      console.log(`  - Entry Details:`);
+      LoggingConfig.detail('VizTabs', 'Entry Details:');
       interProceduralTaintData.interProceduralTaint.forEach((entry: any, idx: number) => {
         const badges = [];
         if (entry.source?.startsWith('parameter:')) badges.push('PARAMETER');
         if (entry.source?.startsWith('return_value:')) badges.push('RETURN');
         if (entry.source?.startsWith('library_function:') || entry.source?.startsWith('file_io:') || entry.source?.startsWith('user_input:')) badges.push('LIBRARY');
-        console.log(`    Entry ${idx + 1}: ${entry.variable} - Source: ${entry.source} [${badges.join(', ') || 'none'}]`);
+        LoggingConfig.verbose('VizTabs', `Entry ${idx + 1}: ${entry.variable} - Source: ${entry.source} [${badges.join(', ') || 'none'}]`);
       });
     }
     
-    // Tab 5: Interconnected CFG
+    /**
+     * TAB 7: INTERCONNECTED CFG DATA LOGGING
+     * 
+     * Logs interconnected CFG tab statistics: functions, nodes, edges by type.
+     */
+    // Tab 7: Interconnected CFG
     const redBlocks = interconnectedData.nodes.filter((n: any) => {
       const bg = n.color?.background;
       return bg === '#ffe0e0' || bg === '#ffcccc' || (n.metadata && n.metadata.isTainted);
@@ -5689,49 +6465,73 @@ ${JSON.stringify({
       const edgeColor = e.color?.color;
       return edgeColor === '#ffa94d' || edgeColor === '#ff9500' || edgeColor === '#ff8800' || (e.metadata && e.metadata.type === 'data_flow');
     }).length;
-    console.log(`[TAB_LOG] Interconnected CFG Tab:`);
-    console.log(`  - Total Functions: ${interconnectedData.functions.length}`);
-    console.log(`  - Function Names: [${interconnectedData.functions.join(', ')}]`);
-    console.log(`  - Total Nodes: ${interconnectedData.nodes.length}`);
-    console.log(`  - Red/Tainted Blocks: ${redBlocks}`);
-    console.log(`  - Normal Blocks: ${interconnectedData.nodes.length - redBlocks}`);
-    console.log(`  - Total Edges: ${interconnectedData.edges.length}`);
-    console.log(`  - Green (Control Flow): ${greenEdges}`);
-    console.log(`  - Blue (Function Calls): ${blueEdges}`);
-    console.log(`  - Orange (Data Flow): ${orangeEdges}`);
+    LoggingConfig.table('VizTabs', 'Interconnected CFG Tab', {
+      'Total Functions': interconnectedData.functions.length,
+      'Function Names': interconnectedData.functions.join(', '),
+      'Total Nodes': interconnectedData.nodes.length,
+      'Red/Tainted Blocks': redBlocks,
+      'Normal Blocks': interconnectedData.nodes.length - redBlocks,
+      'Total Edges': interconnectedData.edges.length,
+      'Green (Control Flow)': greenEdges,
+      'Blue (Function Calls)': blueEdges,
+      'Orange (Data Flow)': orangeEdges
+    });
     
-    console.log('========== END TAB VISUAL DATA LOG ==========\n');
+    LoggingConfig.section('VizTabs', '========== END TAB VISUAL DATA LOG ==========');
   }
 
   /**
    * Log tab visual data for ALL functions (for complete validation)
    */
+  /**
+   * Log tab visual data for ALL functions (for complete validation)
+   * 
+   * Logs comprehensive visualization data statistics for all functions.
+   * Used for automated testing and validation of visualization correctness.
+   * 
+   * @param state - Complete analysis state
+   * @param interconnectedData - Interconnected CFG data
+   */
   private logAllFunctionsTabData(state: AnalysisState, interconnectedData: any): void {
-    console.log('\n========== ALL FUNCTIONS TAB LOG ==========');
-    console.log(`[ALL_FUNCTIONS_LOG] Timestamp: ${new Date().toISOString()}`);
+    LoggingConfig.section('VizTabs', '========== ALL FUNCTIONS TAB LOG ==========');
+    LoggingConfig.detail('VizTabs', `Timestamp: ${new Date().toISOString()}`);
     
+    /**
+     * PER-FUNCTION DATA LOGGING
+     * 
+     * Logs taint analysis and inter-procedural taint data for each function.
+     */
     // Log for each function
     state.cfg.functions.forEach((funcCFG: FunctionCFG, funcName: string) => {
       const taintData = this.prepareTaintData(state, funcName);
       const interProceduralTaintData = this.prepareInterProceduralTaintData(state, funcName);
       
-      console.log(`\n[ALL_FUNCTIONS_LOG] Function: ${funcName}`);
-      console.log(`  - Taint Analysis: ${taintData.totalTaintedVariables} tainted variables, ${taintData.totalVulnerabilities} vulnerabilities`);
-      console.log(`  - Inter-Procedural Taint: ${interProceduralTaintData.totalInterProceduralTaint} entries`);
-      console.log(`    - Parameter Taint: ${interProceduralTaintData.parameterTaint}`);
-      console.log(`    - Return Value Taint: ${interProceduralTaintData.returnTaint}`);
-      console.log(`    - Library Function Taint: ${interProceduralTaintData.libraryTaint}`);
+      LoggingConfig.subsection('VizTabs', `Function: ${funcName}`);
+      LoggingConfig.table('VizTabs', 'Function Data', {
+        'Taint Analysis': `${taintData.totalTaintedVariables} tainted variables, ${taintData.totalVulnerabilities} vulnerabilities`,
+        'Inter-Procedural Taint': `${interProceduralTaintData.totalInterProceduralTaint} entries`,
+        'Parameter Taint': interProceduralTaintData.parameterTaint,
+        'Return Value Taint': interProceduralTaintData.returnTaint,
+        'Library Function Taint': interProceduralTaintData.libraryTaint
+      });
       if (interProceduralTaintData.interProceduralTaint && interProceduralTaintData.interProceduralTaint.length > 0) {
+        LoggingConfig.detail('VizTabs', 'Entry Details:');
         interProceduralTaintData.interProceduralTaint.forEach((entry: any, idx: number) => {
           const badges = [];
           if (entry.source?.startsWith('parameter:')) badges.push('PARAMETER');
           if (entry.source?.startsWith('return_value:')) badges.push('RETURN');
           if (entry.source?.startsWith('library_function:') || entry.source?.startsWith('file_io:') || entry.source?.startsWith('user_input:')) badges.push('LIBRARY');
-          console.log(`      Entry ${idx + 1}: ${entry.variable} - ${entry.source} [${badges.join(', ') || 'none'}]`);
+          LoggingConfig.verbose('VizTabs', `Entry ${idx + 1}: ${entry.variable} - ${entry.source} [${badges.join(', ') || 'none'}]`);
         });
       }
     });
     
+    /**
+     * INTERCONNECTED CFG SUMMARY LOGGING
+     * 
+     * Logs aggregated statistics for interconnected CFG across all functions.
+     * Includes edge type counts and node type counts (legend).
+     */
     // Log interconnected CFG summary (same for all functions)
     const redBlocks = interconnectedData.nodes.filter((n: any) => {
       const bg = n.color?.background || n.color?.background;
@@ -5772,24 +6572,29 @@ ${JSON.stringify({
       }
     });
     
-    console.log(`\n[ALL_FUNCTIONS_LOG] Interconnected CFG Summary:`);
-    console.log(`  - Total Functions: ${interconnectedData.functions.length}`);
-    console.log(`  - Function Names: [${interconnectedData.functions.join(', ')}]`);
-    console.log(`  - Total Nodes: ${interconnectedData.nodes.length}`);
-    console.log(`  - Total Edges: ${interconnectedData.edges.length}`);
-    console.log(`\n[ALL_FUNCTIONS_LOG] Edge Type Counts:`);
-    console.log(`  - Green (Control Flow): ${greenEdges}`);
-    console.log(`  - Blue (Function Calls): ${blueEdges}`);
-    console.log(`  - Orange (Data Flow): ${orangeEdges}`);
-    console.log(`\n[ALL_FUNCTIONS_LOG] Node Type Counts (Legend):`);
-    console.log(`  - Data-flow Taint Blocks: ${dataFlowTaintBlocks}`);
-    console.log(`  - Control-dependent Taint Blocks: ${controlDependentTaintBlocks}`);
-    console.log(`  - Mixed Taint Blocks: ${dataFlowTaintBlocks + controlDependentTaintBlocks > 0 ? mixedTaintBlocks : 0}`);
-    console.log(`  - Normal Blocks: ${normalBlocks}`);
-    console.log(`  - Total Tainted Blocks: ${dataFlowTaintBlocks + controlDependentTaintBlocks + mixedTaintBlocks}`);
-    console.log(`  - Red/Tainted Blocks (legacy): ${redBlocks}`);
+    LoggingConfig.table('VizTabs', 'Interconnected CFG Summary', {
+      'Total Functions': interconnectedData.functions.length,
+      'Function Names': interconnectedData.functions.join(', '),
+      'Total Nodes': interconnectedData.nodes.length,
+      'Total Edges': interconnectedData.edges.length
+    });
     
-    console.log('========== END ALL FUNCTIONS TAB LOG ==========\n');
+    LoggingConfig.table('VizTabs', 'Edge Type Counts', {
+      'Green (Control Flow)': greenEdges,
+      'Blue (Function Calls)': blueEdges,
+      'Orange (Data Flow)': orangeEdges
+    });
+    
+    LoggingConfig.table('VizTabs', 'Node Type Counts (Legend)', {
+      'Data-flow Taint Blocks': dataFlowTaintBlocks,
+      'Control-dependent Taint Blocks': controlDependentTaintBlocks,
+      'Mixed Taint Blocks': dataFlowTaintBlocks + controlDependentTaintBlocks > 0 ? mixedTaintBlocks : 0,
+      'Normal Blocks': normalBlocks,
+      'Total Tainted Blocks': dataFlowTaintBlocks + controlDependentTaintBlocks + mixedTaintBlocks,
+      'Red/Tainted Blocks (legacy)': redBlocks
+    });
+    
+    LoggingConfig.section('VizTabs', '========== END ALL FUNCTIONS TAB LOG ==========');
   }
 
   /**
@@ -5799,18 +6604,38 @@ ${JSON.stringify({
    * @param state - Complete analysis state
    * @returns Visualization data object with all prepared data
    */
+  /**
+   * Prepare all visualization data for all functions during analysis (backend preparation)
+   * 
+   * This is called from DataflowAnalyzer after analysis completes to pre-prepare all data.
+   * Pre-prepared data is faster than on-demand preparation and ensures consistency.
+   * 
+   * CRITICAL: Stores sensitivity in visualization data to detect when regeneration is needed.
+   * 
+   * @param state - Complete analysis state
+   * @returns Visualization data object with all prepared data
+   */
   static async prepareAllVisualizationData(state: AnalysisState): Promise<any> {
-    console.log('[CFGVisualizer] Preparing all visualization data for backend...');
-    console.log(`[CFGVisualizer] [DEBUG] Preparing visualization data with sensitivity: ${state.taintSensitivity || 'precise'}`);
+    LoggingConfig.section('CFGViz', '========== BACKEND VISUALIZATION DATA PREPARATION ==========');
+    LoggingConfig.log('CFGViz', 'Preparing all visualization data for backend...');
+    LoggingConfig.detail('CFGViz', `Preparing visualization data with sensitivity: ${state.taintSensitivity || 'precise'}`);
     const visualizer = new CFGVisualizer();
     
     const cfgGraphData = new Map<string, any>();
     const taintData = new Map<string, any>();
     const interProceduralTaintData = new Map<string, any>();
     
+    /**
+     * PER-FUNCTION DATA PREPARATION
+     * 
+     * Prepares visualization data for each function:
+     * - CFG graph data (nodes, edges, taint highlighting)
+     * - Taint analysis data (tainted variables, vulnerabilities)
+     * - Inter-procedural taint data (parameter/return/library taint)
+     */
     // Prepare data for each function
     for (const [funcName, funcCFG] of state.cfg.functions) {
-      console.log(`[CFGVisualizer] Preparing data for function: ${funcName}`);
+      LoggingConfig.detail('CFGViz', `Preparing data for function: ${funcName}`);
       
       // Prepare CFG graph data
       const graphData = await visualizer.prepareGraphData(funcCFG, state);
@@ -5825,16 +6650,28 @@ ${JSON.stringify({
       interProceduralTaintData.set(funcName, interProceduralTaintDataForFunc);
     }
     
+    /**
+     * SHARED DATA PREPARATION
+     * 
+     * Prepares data shared across all functions:
+     * - Call graph data (function call relationships)
+     * - Interconnected CFG data (unified view with all edge types)
+     */
     // Prepare call graph data (same for all functions)
-    const callGraphData = state.callGraph ? visualizer.prepareCallGraphData(state.callGraph) : null;
+    const callGraphData = state.callGraph ? visualizer.prepareCallGraphData(state.callGraph, state) : null;
     
     // Prepare interconnected CFG data (same for all functions)
     const interconnectedCFGData = visualizer.prepareInterconnectedCFGData(state);
     
+    /**
+     * COMPREHENSIVE DATA LOGGING
+     * 
+     * Logs all tab data for automated validation and debugging.
+     */
     // Log all tab data for automated validation
-    console.log('\n========== BACKEND VISUALIZATION DATA PREPARATION ==========');
-    console.log(`[BACKEND_PREP] Timestamp: ${new Date().toISOString()}`);
-    console.log(`[BACKEND_PREP] Total Functions: ${state.cfg.functions.size}`);
+    LoggingConfig.section('VizTabs', '========== BACKEND VISUALIZATION DATA PREPARATION ==========');
+    LoggingConfig.detail('VizTabs', `Timestamp: ${new Date().toISOString()}`);
+    LoggingConfig.log('VizTabs', `Total Functions: ${state.cfg.functions.size}`);
     
     for (const [funcName, funcCFG] of state.cfg.functions) {
       // CRITICAL FIX: Add null checks to prevent null variable errors
@@ -5842,23 +6679,32 @@ ${JSON.stringify({
       const taintDataForFunc = taintData.get(funcName);
       const interProceduralTaintDataForFunc = interProceduralTaintData.get(funcName);
       
+      // Prepare IPA data for this function (Parameters & Returns, Inter-Procedural RD)
+      const ipaDataForFunc = visualizer.prepareIPAData(state, funcName);
+      
       // Only log if data exists
       if (graphData && taintDataForFunc && interProceduralTaintDataForFunc) {
-      visualizer.logAllTabData(funcName, graphData, callGraphData, taintDataForFunc, interProceduralTaintDataForFunc, interconnectedCFGData);
+      visualizer.logAllTabData(funcName, graphData, callGraphData, taintDataForFunc, interProceduralTaintDataForFunc, interconnectedCFGData, ipaDataForFunc);
       } else {
-        console.log(`[CFGVisualizer] [WARN] Missing visualization data for function: ${funcName}`);
+        // Missing visualization data - log warning
+        LoggingConfig.warn('CFGViz', `Missing visualization data for function: ${funcName}`);
       }
     }
     
     // Log interconnected CFG summary
     visualizer.logAllFunctionsTabData(state, interconnectedCFGData);
     
+    /**
+     * COMPREHENSIVE SUMMARY LOGGING
+     * 
+     * Logs aggregated statistics across all functions for validation.
+     */
     // CRITICAL FIX: Log comprehensive summary with all counts
-    console.log('\n========== COMPREHENSIVE VISUALIZATION DATA SUMMARY ==========');
-    console.log(`[SUMMARY] Sensitivity: ${state.taintSensitivity || 'precise'}`);
-    console.log(`[SUMMARY] Total Functions Analyzed: ${state.cfg.functions.size}`);
-    console.log(`[SUMMARY] Call Graph Nodes: ${callGraphData?.nodes?.length || 0}`);
-    console.log(`[SUMMARY] Call Graph Edges: ${callGraphData?.edges?.length || 0}`);
+    LoggingConfig.section('VizTabs', '========== COMPREHENSIVE VISUALIZATION DATA SUMMARY ==========');
+    LoggingConfig.log('VizTabs', `Sensitivity: ${state.taintSensitivity || 'precise'}`);
+    LoggingConfig.log('VizTabs', `Total Functions Analyzed: ${state.cfg.functions.size}`);
+    LoggingConfig.log('VizTabs', `Call Graph Nodes: ${callGraphData?.nodes?.length || 0}`);
+    LoggingConfig.log('VizTabs', `Call Graph Edges: ${callGraphData?.edges?.length || 0}`);
     
     if (interconnectedCFGData) {
       // Calculate detailed counts
@@ -5893,21 +6739,28 @@ ${JSON.stringify({
         e.metadata?.type === 'data_flow'
       ).length;
       
-      console.log(`[SUMMARY] Interconnected CFG:`);
-      console.log(`  - Total Nodes: ${interconnectedCFGData.nodes.length}`);
-      console.log(`  - Total Edges: ${interconnectedCFGData.edges.length}`);
-      console.log(`[SUMMARY] Edge Breakdown:`);
-      console.log(`  - Control Flow (Green): ${greenEdges}`);
-      console.log(`  - Function Calls (Blue): ${blueEdges}`);
-      console.log(`  - Data Flow (Orange): ${orangeEdges}`);
-      console.log(`[SUMMARY] Node Breakdown (Legend):`);
-      console.log(`  - Data-flow Taint Only: ${dataFlowTaintBlocks}`);
-      console.log(`  - Control-dependent Taint Only: ${controlDependentTaintBlocks}`);
-      console.log(`  - Mixed Taint (Both): ${mixedTaintBlocks}`);
-      console.log(`  - Normal Blocks: ${normalBlocks}`);
-      console.log(`  - Total Tainted: ${dataFlowTaintBlocks + controlDependentTaintBlocks + mixedTaintBlocks}`);
+      LoggingConfig.table('VizTabs', 'Interconnected CFG', {
+        'Total Nodes': interconnectedCFGData.nodes.length,
+        'Total Edges': interconnectedCFGData.edges.length,
+        'Control Flow (Green)': greenEdges,
+        'Function Calls (Blue)': blueEdges,
+        'Data Flow (Orange)': orangeEdges
+      });
+      
+      LoggingConfig.table('VizTabs', 'Node Breakdown (Legend)', {
+        'Data-flow Taint Only': dataFlowTaintBlocks,
+        'Control-dependent Taint Only': controlDependentTaintBlocks,
+        'Mixed Taint (Both)': mixedTaintBlocks,
+        'Normal Blocks': normalBlocks,
+        'Total Tainted': dataFlowTaintBlocks + controlDependentTaintBlocks + mixedTaintBlocks
+      });
     }
     
+    /**
+     * PER-FUNCTION AGGREGATE STATISTICS
+     * 
+     * Calculates and logs aggregate statistics across all functions.
+     */
     // Log per-function summary
     let totalCFGNodes = 0;
     let totalCFGEdges = 0;
@@ -5926,16 +6779,22 @@ ${JSON.stringify({
       }
     }
     
-    console.log(`[SUMMARY] Per-Function Aggregates:`);
-    console.log(`  - Total CFG Nodes (all functions): ${totalCFGNodes}`);
-    console.log(`  - Total CFG Edges (all functions): ${totalCFGEdges}`);
-    console.log(`  - Total Tainted Variables: ${totalTaintVars}`);
-    console.log(`  - Total Vulnerabilities: ${totalVulnerabilities}`);
+    LoggingConfig.table('VizTabs', 'Per-Function Aggregates', {
+      'Total CFG Nodes (all functions)': totalCFGNodes,
+      'Total CFG Edges (all functions)': totalCFGEdges,
+      'Total Tainted Variables': totalTaintVars,
+      'Total Vulnerabilities': totalVulnerabilities
+    });
     
-    console.log('========== END COMPREHENSIVE VISUALIZATION DATA SUMMARY ==========\n');
+    LoggingConfig.section('VizTabs', '========== END COMPREHENSIVE VISUALIZATION DATA SUMMARY ==========');
+    LoggingConfig.section('VizTabs', '========== END BACKEND VISUALIZATION DATA PREPARATION ==========');
     
-    console.log('========== END BACKEND VISUALIZATION DATA PREPARATION ==========\n');
-    
+    /**
+     * VISUALIZATION DATA RESULT ASSEMBLY
+     * 
+     * Assembles final visualization data object with all prepared data.
+     * CRITICAL: Stores sensitivity to detect when regeneration is needed.
+     */
     const result = {
       cfgGraphData,
       callGraphData,
@@ -5946,7 +6805,7 @@ ${JSON.stringify({
       taintSensitivity: state.taintSensitivity || 'precise'
     };
     
-    console.log(`[CFGVisualizer] [DEBUG] Visualization data prepared with sensitivity: ${result.taintSensitivity}`);
+    LoggingConfig.detail('CFGViz', `Visualization data prepared with sensitivity: ${result.taintSensitivity}`);
     return result;
   }
 }

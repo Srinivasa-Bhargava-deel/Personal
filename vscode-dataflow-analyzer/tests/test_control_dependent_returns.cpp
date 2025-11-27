@@ -167,6 +167,112 @@ int test_multiple_return_types() {
     return result;  // DATA-FLOW taint return
 }
 
+// =============================================================================
+// COUNTEREXAMPLE 1: Control-Dependent Return Through Function Pointer
+// =============================================================================
+// COUNTEREXAMPLE: Control-dependent return through function pointer
+// This tests if control-dependent taint propagates through function pointer returns
+// EXPECTED: Return value should be control-dependent tainted
+// EDGE CASE: Function pointer control-dependent return
+typedef int (*ReturnFunc)(int);
+
+int return_positive(int x) {
+    if (x > 0) return x;  // Control-dependent
+    return 0;
+}
+
+int return_negative(int x) {
+    if (x < 0) return -x;  // Control-dependent
+    return 0;
+}
+
+int test_counterexample_funcptr_control_return() {
+    int input;
+    scanf("%d", &input);  // TAINT SOURCE
+    
+    ReturnFunc func = input > 0 ? return_positive : return_negative;
+    return func(input);  // Control-dependent return through function pointer
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Control-Dependent Return Through Global Variable
+// =============================================================================
+// COUNTEREXAMPLE: Control-dependent return based on global variable
+// This tests if control-dependent taint propagates through global variables
+// EXPECTED: Return value should be control-dependent tainted
+// EDGE CASE: Global variable control-dependent return
+int global_control_flag;
+
+int test_counterexample_global_control_return() {
+    scanf("%d", &global_control_flag);  // TAINT SOURCE
+    
+    if (global_control_flag > 0) {
+        return 100;  // Control-dependent
+    }
+    return -100;  // Control-dependent
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Control-Dependent Return Through Struct Field
+// =============================================================================
+// COUNTEREXAMPLE: Control-dependent return based on struct field
+// This tests if control-dependent taint propagates through struct fields
+// EXPECTED: Return value should be control-dependent tainted
+// EDGE CASE: Struct field control-dependent return
+struct ControlStruct {
+    int flag;
+};
+
+int test_counterexample_struct_control_return(struct ControlStruct* s) {
+    scanf("%d", &s->flag);  // TAINT SOURCE
+    
+    if (s->flag > 0) {
+        return 1;  // Control-dependent
+    }
+    return 0;  // Control-dependent
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Control-Dependent Return Through Array Element
+// =============================================================================
+// COUNTEREXAMPLE: Control-dependent return based on array element
+// This tests if control-dependent taint propagates through array elements
+// EXPECTED: Return value should be control-dependent tainted
+// EDGE CASE: Array element control-dependent return
+int test_counterexample_array_control_return() {
+    int arr[10];
+    int index;
+    scanf("%d", &index);  // TAINT SOURCE
+    scanf("%d", &arr[index]);  // TAINT SOURCE
+    
+    if (arr[index] > 0) {
+        return arr[index];  // Control-dependent
+    }
+    return 0;  // Control-dependent
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Control-Dependent Return Through Nested Function Call
+// =============================================================================
+// COUNTEREXAMPLE: Control-dependent return through nested function calls
+// This tests if control-dependent taint propagates through nested calls
+// EXPECTED: Return value should be control-dependent tainted
+// EDGE CASE: Nested call control-dependent return
+int nested_get_flag() {
+    int flag;
+    scanf("%d", &flag);  // TAINT SOURCE
+    return flag;
+}
+
+int test_counterexample_nested_control_return() {
+    int flag = nested_get_flag();  // Get flag through nested call
+    
+    if (flag > 0) {
+        return flag * 2;  // Control-dependent
+    }
+    return 0;  // Control-dependent
+}
+
 int main() {
     // Call all test functions
     test_early_return_control_dependent();
@@ -180,6 +286,14 @@ int main() {
     test_complex_nested();
     test_normal_function();
     test_multiple_return_types();
+    
+    // Counterexamples
+    printf("FuncPtr: %d\n", test_counterexample_funcptr_control_return());
+    printf("Global: %d\n", test_counterexample_global_control_return());
+    struct ControlStruct s;
+    printf("Struct: %d\n", test_counterexample_struct_control_return(&s));
+    printf("Array: %d\n", test_counterexample_array_control_return());
+    printf("Nested: %d\n", test_counterexample_nested_control_return());
     
     return 0;
 }

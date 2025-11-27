@@ -57,6 +57,14 @@ Each validation file (`test_*.md`) documents:
 - `test_control_dependent_taint.md` - Control-dependent taint scenarios
 - `test_liveness_convergence.md` - Liveness analysis convergence
 
+### Parameter & Return Value Analysis
+- `test_parameter_analysis.md` - Parameter analyzer with all derivation types
+- `test_return_value_analysis.md` - Return value analyzer with all return types
+
+### Function Call Extraction & Registry Edge Cases
+- `test_function_call_extractor.md` - Function call extractor edge cases
+- `test_registry_edge_cases.md` - Registry edge cases (sources, sinks, sanitizers)
+
 ## How to Use
 
 1. **Run Analysis**: Open a test file in VS Code and run "Analyze Active File" or "Analyze Workspace"

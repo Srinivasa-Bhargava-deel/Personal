@@ -168,8 +168,13 @@ export class InterProceduralReachingDefinitions {
       LoggingConfig.raw(`[IPA] Iteration ${iteration} complete. Changed: ${changed}`);
     }
 
+    /**
+     * FIXED-POINT CONVERGENCE CHECK
+     * 
+     * Logs warning if maximum iterations reached without convergence.
+     */
     if (iteration >= this.MAX_ITERATIONS) {
-      console.warn(`[IPA] Warning: Reached maximum iterations (${this.MAX_ITERATIONS})`);
+      LoggingConfig.warn('InterProceduralRD', `Warning: Reached maximum iterations (${this.MAX_ITERATIONS})`);
     } else {
       LoggingConfig.raw(`[IPA] Fixed point reached after ${iteration} iterations`);
     }
@@ -215,7 +220,7 @@ export class InterProceduralReachingDefinitions {
     const funcRD = this.intraReachingDefs.get(funcId);
 
     if (!funcRD) {
-      console.warn(`[IPA] No intra-procedural RD for function: ${funcId}`);
+      LoggingConfig.warn('InterProceduralRD', `No intra-procedural RD for function: ${funcId}`);
       return false;
     }
 
@@ -334,10 +339,7 @@ export class InterProceduralReachingDefinitions {
 
       if (actualArg !== undefined) {
         mapping.set(formalParam.name, actualArg.trim());
-        console.log(
-          `[IPA] Map param: ${formalParam.name} <- ${actualArg} ` +
-          `(at call ${call.callerId} -> ${call.calleeId})`
-        );
+        LoggingConfig.verbose('InterProceduralRD', `Map param: ${formalParam.name} <- ${actualArg} (at call ${call.callerId} -> ${call.calleeId})`);
       }
     }
 
@@ -404,12 +406,14 @@ export class InterProceduralReachingDefinitions {
   private propagateDefinitionsAtCall(
     context: CallSiteContext
   ): boolean {
+    /**
+     * INTER-PROCEDURAL DEFINITION PROPAGATION
+     * 
+     * Propagates definitions through function calls, mapping parameters and return values.
+     */
     const { callerId, calleeId, argumentMapping, returnValueVariable } = context;
 
-    console.log(
-      `[IPA] Propagating definitions: ${callerId} -> ${calleeId} ` +
-      `(params: ${Array.from(argumentMapping.keys()).join(', ')})`
-    );
+    LoggingConfig.detail('InterProceduralRD', `Propagating definitions: ${callerId} -> ${calleeId} (params: ${Array.from(argumentMapping.keys()).join(', ')})`);
 
     // STEP 1: Get reaching definitions for caller at call site
     const callerRD = this.intraReachingDefs.get(callerId);
@@ -473,10 +477,7 @@ export class InterProceduralReachingDefinitions {
 
             // For now, we mark that definitions flowed through the call
             // Full implementation would track this more precisely
-            console.log(
-              `[IPA] Parameter flow: ${actualArg} -> ${formalParam.name} ` +
-              `(${actualArgDefs.length} definitions)`
-            );
+            LoggingConfig.verbose('InterProceduralRD', `Parameter flow: ${actualArg} -> ${formalParam.name} (${actualArgDefs.length} definitions)`);
           }
         }
       }
@@ -509,10 +510,7 @@ export class InterProceduralReachingDefinitions {
           existingDefs.push(newDef);
           changed = true;
 
-          console.log(
-            `[IPA] Return value flow: ${calleeId} -> ${returnValueVariable} ` +
-            `in ${callerId}`
-          );
+          LoggingConfig.verbose('InterProceduralRD', `Return value flow: ${calleeId} -> ${returnValueVariable} in ${callerId}`);
         }
       }
     }
@@ -541,9 +539,7 @@ export class InterProceduralReachingDefinitions {
             callerDefs.push(propagatedDef);
             changed = true;
 
-            console.log(
-              `[IPA] Global flow: ${varName} via ${calleeId} -> ${callerId}`
-            );
+            LoggingConfig.verbose('InterProceduralRD', `Global flow: ${varName} via ${calleeId} -> ${callerId}`);
           }
         }
       }

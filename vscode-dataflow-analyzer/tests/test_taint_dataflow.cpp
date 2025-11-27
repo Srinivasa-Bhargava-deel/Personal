@@ -299,6 +299,135 @@ void test_taint_through_return() {
 }
 
 // =============================================================================
+// COUNTEREXAMPLE 1: Taint Through Function Pointer
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagates through function pointer call
+// This tests if taint analysis handles function pointers correctly
+// EXPECTED:
+// - 'input' is TAINTED from scanf
+// - Taint propagates through function pointer call
+// - 'result' becomes TAINTED
+// EDGE CASE: Function pointer calls
+typedef void (*process_func_t)(char*, char*);
+
+void process_tainted(char* src, char* dest) {
+    strcpy(dest, src);  // PROPAGATION: dest <- src
+}
+
+void test_counterexample_function_pointer() {
+    char input[100];
+    char output[100];
+    char buffer[200];
+    
+    scanf("%s", input);  // TAINT SOURCE
+    
+    process_func_t func = process_tainted;
+    func(input, output);  // PROPAGATION through function pointer
+    
+    sprintf(buffer, "%s", output);  // TAINT SINK: output is tainted
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Taint Through Union Type Aliasing
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagates through union type aliasing
+// This tests if taint analysis handles union types correctly
+// EXPECTED:
+// - Taint in one union member propagates to other members
+// EDGE CASE: Union type aliasing
+union DataUnion {
+    char str[100];
+    int num;
+};
+
+void test_counterexample_union_taint() {
+    union DataUnion data;
+    char buffer[200];
+    
+    scanf("%s", data.str);  // TAINT SOURCE: data.str is tainted
+    
+    // Union aliasing: data.num shares memory with data.str
+    // Taint should propagate to data.num
+    int value = data.num;  // PROPAGATION: value <- data.num (tainted through union)
+    
+    sprintf(buffer, "%d", value);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Taint Through Struct Field Propagation
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagates through struct field assignments
+// This tests if taint analysis handles struct field propagation
+// EXPECTED:
+// - Taint in struct field propagates to other fields through assignment
+// EDGE CASE: Struct field propagation
+struct UserData {
+    char name[100];
+    char email[100];
+    int id;
+};
+
+void test_counterexample_struct_field_taint() {
+    struct UserData user;
+    char query[500];
+    
+    scanf("%s", user.name);  // TAINT SOURCE: user.name is tainted
+    
+    strcpy(user.email, user.name);  // PROPAGATION: user.email <- user.name
+    
+    sprintf(query, "SELECT * FROM users WHERE email = '%s'", user.email);  // TAINT SINK
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Taint Through Array Index Aliasing
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagates when array indices alias
+// This tests if taint analysis handles array index aliasing
+// EXPECTED:
+// - When i == j, arr[i] and arr[j] alias same element
+// - Taint should propagate correctly
+// EDGE CASE: Array index aliasing
+void test_counterexample_array_aliasing() {
+    char arr[100];
+    char buffer[200];
+    int i, j;
+    
+    scanf("%d %d", &i, &j);  // TAINT SOURCE: i, j are tainted
+    
+    scanf("%s", arr[i]);     // TAINT SOURCE: arr[i] is tainted
+    
+    if (i == j) {
+        // arr[i] and arr[j] alias same element
+        sprintf(buffer, "%s", arr[j]);  // TAINT SINK: arr[j] is tainted (aliases arr[i])
+    }
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Taint Through Indirect Function Call
+// =============================================================================
+// COUNTEREXAMPLE: Taint propagates through indirect function calls
+// This tests if taint analysis handles indirect calls correctly
+// EXPECTED:
+// - Taint propagates through function called indirectly
+// EDGE CASE: Indirect function calls
+void process_data(char* input, char* output) {
+    strcpy(output, input);  // PROPAGATION
+}
+
+void test_counterexample_indirect_call() {
+    char input[100];
+    char output[100];
+    
+    scanf("%s", input);  // TAINT SOURCE
+    
+    // Indirect call through function name resolution
+    void (*func)(char*, char*) = process_data;
+    func(input, output);  // PROPAGATION through indirect call
+    
+    system(output);  // TAINT SINK: output is tainted
+}
+
+// =============================================================================
 // MAIN - Entry Point for Testing
 // =============================================================================
 int main() {
@@ -329,6 +458,13 @@ int main() {
     // Sanitization tests
     // test_sanitization();
     // test_partial_sanitization();
+    
+    // Counterexamples
+    // test_counterexample_function_pointer();
+    // test_counterexample_union_taint();
+    // test_counterexample_struct_field_taint();
+    // test_counterexample_array_aliasing();
+    // test_counterexample_indirect_call();
     
     printf("\n=== Tests Complete ===\n");
     

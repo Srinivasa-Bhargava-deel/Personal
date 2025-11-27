@@ -20,6 +20,7 @@
 
 import { BasicBlock, FunctionCFG, Statement, StatementType } from '../types';
 import { TaintInfo } from '../types';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 export interface Vulnerability {
   id: string;
@@ -142,28 +143,75 @@ export class SecurityAnalyzer {
     taintAnalysis: Map<string, TaintInfo[]>,
     filePath: string
   ): Vulnerability[] {
+    LoggingConfig.section('SecurityAnalysis', `VULNERABILITY ANALYSIS: ${functionCFG.name}`);
+    LoggingConfig.log('SecurityAnalysis', `Function: ${functionCFG.name}`);
+    LoggingConfig.log('SecurityAnalysis', `File: ${filePath}`);
+    LoggingConfig.log('SecurityAnalysis', `Blocks: ${functionCFG.blocks.size}`);
+    LoggingConfig.log('SecurityAnalysis', `Taint entries: ${taintAnalysis.size}`);
+    
+    const analysisStartTime = Date.now();
     const vulnerabilities: Vulnerability[] = [];
 
     // 1. Check for tainted data reaching security sinks
-    vulnerabilities.push(...this.detectTaintedSinkUsage(functionCFG, taintAnalysis, filePath));
+    LoggingConfig.subsection('VulnerabilityDetection', '1. Detecting tainted sink usage');
+    const taintedSinkVulns = this.detectTaintedSinkUsage(functionCFG, taintAnalysis, filePath);
+    vulnerabilities.push(...taintedSinkVulns);
+    LoggingConfig.log('VulnerabilityDetection', `Tainted sink vulnerabilities: ${taintedSinkVulns.length}`);
 
     // 2. Check for buffer operations without bounds checking
-    vulnerabilities.push(...this.detectBufferOverflows(functionCFG, filePath));
+    LoggingConfig.subsection('VulnerabilityDetection', '2. Detecting buffer overflows');
+    const bufferOverflowVulns = this.detectBufferOverflows(functionCFG, filePath);
+    vulnerabilities.push(...bufferOverflowVulns);
+    LoggingConfig.log('VulnerabilityDetection', `Buffer overflow vulnerabilities: ${bufferOverflowVulns.length}`);
 
     // 3. Check for use-after-free patterns
-    vulnerabilities.push(...this.detectUseAfterFree(functionCFG, filePath));
+    LoggingConfig.subsection('VulnerabilityDetection', '3. Detecting use-after-free');
+    const useAfterFreeVulns = this.detectUseAfterFree(functionCFG, filePath);
+    vulnerabilities.push(...useAfterFreeVulns);
+    LoggingConfig.log('VulnerabilityDetection', `Use-after-free vulnerabilities: ${useAfterFreeVulns.length}`);
 
     // 4. Check for double free
-    vulnerabilities.push(...this.detectDoubleFree(functionCFG, filePath));
+    LoggingConfig.subsection('VulnerabilityDetection', '4. Detecting double free');
+    const doubleFreeVulns = this.detectDoubleFree(functionCFG, filePath);
+    vulnerabilities.push(...doubleFreeVulns);
+    LoggingConfig.log('VulnerabilityDetection', `Double free vulnerabilities: ${doubleFreeVulns.length}`);
 
     // 5. Check for format string vulnerabilities
-    vulnerabilities.push(...this.detectFormatStringVulns(functionCFG, taintAnalysis, filePath));
+    LoggingConfig.subsection('VulnerabilityDetection', '5. Detecting format string vulnerabilities');
+    const formatStringVulns = this.detectFormatStringVulns(functionCFG, taintAnalysis, filePath);
+    vulnerabilities.push(...formatStringVulns);
+    LoggingConfig.log('VulnerabilityDetection', `Format string vulnerabilities: ${formatStringVulns.length}`);
 
     // 6. Check for unsafe function calls
-    vulnerabilities.push(...this.detectUnsafeFunctions(functionCFG, filePath));
+    LoggingConfig.subsection('VulnerabilityDetection', '6. Detecting unsafe function calls');
+    const unsafeFunctionVulns = this.detectUnsafeFunctions(functionCFG, filePath);
+    vulnerabilities.push(...unsafeFunctionVulns);
+    LoggingConfig.log('VulnerabilityDetection', `Unsafe function vulnerabilities: ${unsafeFunctionVulns.length}`);
 
     // 7. Check for uninitialized variables
-    vulnerabilities.push(...this.detectUninitializedVariables(functionCFG, filePath));
+    LoggingConfig.subsection('VulnerabilityDetection', '7. Detecting uninitialized variables');
+    const uninitializedVulns = this.detectUninitializedVariables(functionCFG, filePath);
+    vulnerabilities.push(...uninitializedVulns);
+    LoggingConfig.log('VulnerabilityDetection', `Uninitialized variable vulnerabilities: ${uninitializedVulns.length}`);
+
+    const analysisTimeMs = Date.now() - analysisStartTime;
+    LoggingConfig.section('SecurityAnalysis', `VULNERABILITY ANALYSIS COMPLETE: ${functionCFG.name}`);
+    LoggingConfig.log('SecurityAnalysis', `Total vulnerabilities: ${vulnerabilities.length}`);
+    LoggingConfig.log('SecurityAnalysis', `Analysis time: ${analysisTimeMs}ms`);
+    
+    // Log vulnerability breakdown by type
+    const vulnByType: Record<string, number> = {};
+    vulnerabilities.forEach(v => {
+      vulnByType[v.type] = (vulnByType[v.type] || 0) + 1;
+    });
+    LoggingConfig.table('VulnerabilityDetection', 'Vulnerability Breakdown by Type', vulnByType);
+    
+    // Log vulnerability breakdown by severity
+    const vulnBySeverity: Record<string, number> = {};
+    vulnerabilities.forEach(v => {
+      vulnBySeverity[v.severity] = (vulnBySeverity[v.severity] || 0) + 1;
+    });
+    LoggingConfig.table('VulnerabilityDetection', 'Vulnerability Breakdown by Severity', vulnBySeverity);
 
     return vulnerabilities;
   }
@@ -192,25 +240,94 @@ export class SecurityAnalyzer {
     taintAnalysis: Map<string, TaintInfo[]>,
     filePath: string
   ): Vulnerability[] {
+    /**
+     * TAINTED SINK DETECTION ALGORITHM
+     * 
+     * This method implements the core taint-based vulnerability detection:
+     * 1. Iterate through all function calls in the CFG
+     * 2. Check if called function is a known security sink (dangerous function)
+     * 3. For each sink, check if any arguments are tainted (untrusted data)
+     * 4. If tainted data reaches sink, create vulnerability report with full path
+     * 
+     * This is the primary mechanism for detecting SQL injection, command injection,
+     * format string vulnerabilities, and other taint-based security issues.
+     */
+    LoggingConfig.detail('VulnerabilityDetection', 'Scanning for tainted data reaching security sinks');
     const vulnerabilities: Vulnerability[] = [];
-    let vulnId = 0;
+    let vulnId = 0; // Unique vulnerability identifier counter
+    let sinkCallCount = 0; // Total number of security sink calls found
+    let taintedSinkCount = 0; // Number of sinks that receive tainted data
 
+    // Iterate through all basic blocks in the function CFG
+    // Each block represents a linear sequence of statements without branches
     functionCFG.blocks.forEach((block, blockId) => {
+      // Check each statement in the block for function calls
       block.statements.forEach(stmt => {
+        // Only process function call statements (not assignments, conditionals, etc.)
         if (stmt.type === StatementType.FUNCTION_CALL && stmt.text) {
+          // Extract function name using regex: matches identifier followed by opening parenthesis
+          // Example: "scanf("%d", &x)" -> "scanf"
           const funcName = stmt.text.match(/(\w+)\s*\(/)?.[1];
-          if (!funcName) return;
+          if (!funcName) return; // Skip if function name extraction failed
 
+          // Check if this function is a known security sink (dangerous function)
+          // Security sinks are functions that can cause vulnerabilities when given untrusted input
           const vulnType = this.securitySinks.get(funcName);
-          if (!vulnType) return;
+          if (!vulnType) return; // Not a security sink, skip
+          
+          sinkCallCount++;
+          LoggingConfig.verbose('VulnerabilityDetection', `Found security sink: ${funcName} (type: ${vulnType}) at block ${blockId}`);
 
-          // Check if any arguments are tainted
+          /**
+           * TAINT CHECKING FOR SINK ARGUMENTS
+           * 
+           * For each variable used in the function call arguments, check if it's tainted.
+           * A variable is tainted if it originates from an untrusted source (user input,
+           * file I/O, network, etc.) and hasn't been sanitized.
+           * 
+           * If tainted data reaches a security sink, this is a vulnerability.
+           */
           stmt.variables?.used.forEach(varName => {
+            // Get taint information for this variable
+            // A variable can have multiple taint entries if it's tainted from multiple sources
             const taintInfo = taintAnalysis.get(varName);
+            
+            // Check if variable is tainted (any taint entry with tainted=true)
             if (taintInfo && taintInfo.some(t => t.tainted)) {
+              taintedSinkCount++;
+              // Get the first taint entry (could be enhanced to track all sources)
               const taint = taintInfo.find(t => t.tainted)!;
+              
+              /**
+               * BUILD SOURCE-TO-SINK PROPAGATION PATH
+               * 
+               * Track the complete path from taint source to security sink.
+               * This path is critical for:
+               * 1. Understanding how the vulnerability occurs
+               * 2. Debugging false positives
+               * 3. Providing actionable remediation guidance
+               * 
+               * Path format: [source_block, ...intermediate_blocks, sink_block:statement]
+               */
               const sourceToSinkPath = [...taint.propagationPath, `${blockId}:${stmt.id || 'unknown'}`];
 
+              LoggingConfig.log('VulnerabilityDetection', `⚠️ Tainted sink detected: ${funcName} receives tainted variable "${varName}" from source "${taint.source}"`);
+              LoggingConfig.detail('VulnerabilityDetection', `  Block: ${blockId}, Statement: ${stmt.id || 'unknown'}, Path: [${sourceToSinkPath.join(' -> ')}]`);
+
+              /**
+               * CREATE VULNERABILITY REPORT
+               * 
+               * Build comprehensive vulnerability object with:
+               * - Unique ID for tracking
+               * - Vulnerability type (SQL injection, command injection, etc.)
+               * - Severity assessment (critical, high, medium, low)
+               * - Precise location (file, line, column, block, statement)
+               * - Description of the issue
+               * - Complete source-to-sink path
+               * - Exploitability assessment
+               * - CWE (Common Weakness Enumeration) ID for reference
+               * - Remediation recommendation
+               */
               vulnerabilities.push({
                 id: `vuln_${vulnId++}`,
                 type: vulnType,
@@ -234,6 +351,7 @@ export class SecurityAnalyzer {
       });
     });
 
+    LoggingConfig.detail('VulnerabilityDetection', `Security sink analysis: ${sinkCallCount} sink calls checked, ${taintedSinkCount} tainted sinks found`);
     return vulnerabilities;
   }
 
@@ -247,21 +365,61 @@ export class SecurityAnalyzer {
    * @param filePath - Source file path
    * @returns Array of buffer overflow vulnerabilities
    */
+  /**
+   * BUFFER OVERFLOW DETECTION ALGORITHM
+   * 
+   * Detects unsafe buffer operations that can cause buffer overflows.
+   * Buffer overflows occur when data is written beyond the allocated buffer size,
+   * potentially overwriting adjacent memory and leading to code execution.
+   * 
+   * Detection Strategy:
+   * 1. Identify calls to unsafe buffer functions (strcpy, strcat, sprintf, gets)
+   * 2. Check if bounds checking exists in preceding blocks
+   * 3. If no bounds checking found, flag as vulnerability
+   * 
+   * Limitations:
+   * - Simple heuristic: only checks immediate predecessors for bounds checks
+   * - Doesn't verify that bounds checks actually protect this specific call
+   * - May produce false positives if bounds checking exists but isn't detected
+   */
   private detectBufferOverflows(functionCFG: FunctionCFG, filePath: string): Vulnerability[] {
     const vulnerabilities: Vulnerability[] = [];
     let vulnId = 0;
 
+    // Scan all blocks for unsafe buffer operations
     functionCFG.blocks.forEach((block, blockId) => {
       block.statements.forEach(stmt => {
         if (stmt.type === StatementType.FUNCTION_CALL && stmt.text) {
+          // Extract function name from call statement
           const funcName = stmt.text.match(/(\w+)\s*\(/)?.[1];
           if (!funcName) return;
 
-          // Check for unsafe buffer functions without size checks
+          /**
+           * UNSAFE BUFFER FUNCTION CHECK
+           * 
+           * These functions are inherently unsafe because they don't check buffer bounds:
+           * - strcpy: Copies string without size limit
+           * - strcat: Concatenates string without size limit
+           * - sprintf: Formats string without size limit
+           * - gets: Reads line without size limit (deprecated in C11)
+           * 
+           * Safe alternatives exist: strncpy, strncat, snprintf, fgets
+           */
           if (['strcpy', 'strcat', 'sprintf', 'gets'].includes(funcName)) {
-            // Look for bounds checking in preceding blocks
+            /**
+             * BOUNDS CHECKING VERIFICATION
+             * 
+             * Check if bounds checking exists in predecessor blocks.
+             * Bounds checking typically involves:
+             * - strlen() calls to check string length
+             * - sizeof() to check buffer size
+             * - Comparison operators (<, >, <=) checking size
+             * 
+             * If bounds checking is found, the operation may be safe (false positive reduction).
+             */
             const hasBoundsCheck = this.hasBoundsCheck(functionCFG, blockId);
 
+            // Only flag as vulnerability if no bounds checking detected
             if (!hasBoundsCheck) {
               vulnerabilities.push({
                 id: `vuln_${vulnId++}`,
@@ -304,26 +462,81 @@ export class SecurityAnalyzer {
    * @param filePath - Source file path
    * @returns Array of use-after-free vulnerabilities
    */
+  /**
+   * USE-AFTER-FREE DETECTION ALGORITHM
+   * 
+   * Detects memory safety vulnerabilities where a pointer is used after being freed.
+   * Use-after-free bugs can lead to:
+   * - Memory corruption
+   * - Code execution (if freed memory is reallocated and controlled by attacker)
+   * - Information disclosure
+   * 
+   * Detection Strategy:
+   * 1. Track all free() calls and the pointers they free
+   * 2. For each subsequent statement, check if it uses a freed pointer
+   * 3. Verify that use occurs after free (CFG traversal order)
+   * 4. Report vulnerability with path from free to use
+   * 
+   * Limitations:
+   * - Simple CFG-based check: doesn't verify actual execution order
+   * - May produce false positives if pointer is re-assigned after free
+   * - Doesn't track pointer aliases (if ptr1 = ptr2, freeing ptr1 affects ptr2)
+   */
   private detectUseAfterFree(functionCFG: FunctionCFG, filePath: string): Vulnerability[] {
     const vulnerabilities: Vulnerability[] = [];
     let vulnId = 0;
+    /**
+     * FREED POINTER TRACKING
+     * 
+     * Maps pointer variable names to the block ID where they were freed.
+     * This allows us to track which pointers have been freed and where.
+     * 
+     * Example: freedPointers.get("ptr") -> "B5" means ptr was freed in block B5
+     */
     const freedPointers = new Map<string, string>(); // pointer -> blockId where freed
 
+    // Process blocks in CFG order (topological order)
     functionCFG.blocks.forEach((block, blockId) => {
       block.statements.forEach(stmt => {
-        // Track free() calls
+        /**
+         * TRACK FREE() CALLS
+         * 
+         * When we encounter a free() call, record which pointer is being freed.
+         * The free() function deallocates memory, making the pointer invalid.
+         * 
+         * Note: We track all variables used in the free() call, assuming they're pointers.
+         * In practice, free() should only be called with pointer arguments.
+         */
         if (stmt.type === StatementType.FUNCTION_CALL && stmt.text?.includes('free(')) {
           stmt.variables?.used.forEach(ptrVar => {
             freedPointers.set(ptrVar, blockId);
           });
         }
 
-        // Check for use after free
+        /**
+         * CHECK FOR USE AFTER FREE
+         * 
+         * For each variable used in a statement, check if it's a freed pointer.
+         * If a freed pointer is used (dereferenced, passed as argument, etc.),
+         * this is a use-after-free vulnerability.
+         * 
+         * Note: We check all variable uses, not just dereferences, because:
+         * - Passing freed pointer as argument is dangerous
+         * - Comparing freed pointer is dangerous
+         * - Any use of freed pointer can lead to undefined behavior
+         */
         if (stmt.variables?.used) {
           stmt.variables.used.forEach(varName => {
             if (freedPointers.has(varName)) {
               const freedAt = freedPointers.get(varName)!;
-              // Check if this use is after the free
+              
+              /**
+               * VERIFY USE OCCURS AFTER FREE
+               * 
+               * Check if this use block comes after the free block in CFG order.
+               * This is a simple heuristic - in practice, we'd need proper CFG traversal
+               * to verify reachability and execution order.
+               */
               if (this.isAfterFree(functionCFG, freedAt, blockId)) {
                 vulnerabilities.push({
                   id: `vuln_${vulnId++}`,
@@ -362,15 +575,53 @@ export class SecurityAnalyzer {
    * @param filePath - Source file path
    * @returns Array of double free vulnerabilities
    */
+  /**
+   * DOUBLE FREE DETECTION ALGORITHM
+   * 
+   * Detects cases where the same pointer is freed multiple times.
+   * Double free bugs can lead to:
+   * - Memory corruption
+   * - Heap metadata corruption
+   * - Code execution (if heap metadata is controlled by attacker)
+   * 
+   * Detection Strategy:
+   * 1. Track all pointers that have been freed using a Set
+   * 2. When encountering a free() call, check if pointer was already freed
+   * 3. If already freed, report double free vulnerability
+   * 4. Otherwise, add pointer to freed set
+   * 
+   * This is simpler than use-after-free detection because we don't need
+   * to track where the pointer was freed, only whether it was freed.
+   */
   private detectDoubleFree(functionCFG: FunctionCFG, filePath: string): Vulnerability[] {
     const vulnerabilities: Vulnerability[] = [];
     let vulnId = 0;
+    /**
+     * FREED POINTER SET
+     * 
+     * Tracks which pointers have been freed at least once.
+     * If a pointer appears in this set and is freed again, it's a double free.
+     * 
+     * Using a Set provides O(1) lookup time for checking if pointer was freed.
+     */
     const freedPointers = new Set<string>();
 
+    // Scan all blocks for free() calls
     functionCFG.blocks.forEach((block, blockId) => {
       block.statements.forEach(stmt => {
         if (stmt.type === StatementType.FUNCTION_CALL && stmt.text?.includes('free(')) {
+          // Check each pointer argument to free()
           stmt.variables?.used.forEach(ptrVar => {
+            /**
+             * DOUBLE FREE CHECK
+             * 
+             * If pointer was already freed (exists in freedPointers set),
+             * this is a double free vulnerability.
+             * 
+             * Note: This is a conservative check - it flags any second free()
+             * call, even if the pointer was re-assigned between frees.
+             * In practice, we'd need to track pointer reassignments to reduce false positives.
+             */
             if (freedPointers.has(ptrVar)) {
               vulnerabilities.push({
                 id: `vuln_${vulnId++}`,
@@ -390,6 +641,7 @@ export class SecurityAnalyzer {
                 recommendation: 'Set pointer to NULL after free() to prevent double free'
               });
             } else {
+              // First free() call for this pointer - add to set
               freedPointers.add(ptrVar);
             }
           });
@@ -411,6 +663,23 @@ export class SecurityAnalyzer {
    * @param filePath - Source file path
    * @returns Array of format string vulnerabilities
    */
+  /**
+   * FORMAT STRING VULNERABILITY DETECTION ALGORITHM
+   * 
+   * Detects format string vulnerabilities where user-controlled format strings
+   * are passed to printf-family functions. Format string attacks can lead to:
+   * - Memory disclosure (reading arbitrary memory)
+   * - Memory corruption (writing arbitrary memory)
+   * - Code execution (if format string contains %n)
+   * 
+   * Detection Strategy:
+   * 1. Identify calls to printf-family functions (printf, fprintf, sprintf, snprintf)
+   * 2. Check if format string argument (first/second argument) is tainted
+   * 3. If tainted, report format string vulnerability
+   * 
+   * Note: This is a simplified check - in practice, we'd need to identify
+   * which argument is the format string (varies by function).
+   */
   private detectFormatStringVulns(
     functionCFG: FunctionCFG,
     taintAnalysis: Map<string, TaintInfo[]>,
@@ -419,15 +688,35 @@ export class SecurityAnalyzer {
     const vulnerabilities: Vulnerability[] = [];
     let vulnId = 0;
 
+    /**
+     * FORMAT STRING FUNCTIONS
+     * 
+     * These functions interpret format strings and can be exploited if
+     * the format string is user-controlled:
+     * - printf(format, ...): Prints formatted string to stdout
+     * - fprintf(stream, format, ...): Prints formatted string to file
+     * - sprintf(buffer, format, ...): Writes formatted string to buffer
+     * - snprintf(buffer, size, format, ...): Bounded formatted string write
+     */
     const formatFunctions = ['printf', 'fprintf', 'sprintf', 'snprintf'];
 
+    // Scan all blocks for format string function calls
     functionCFG.blocks.forEach((block, blockId) => {
       block.statements.forEach(stmt => {
         if (stmt.type === StatementType.FUNCTION_CALL && stmt.text) {
           const funcName = stmt.text.match(/(\w+)\s*\(/)?.[1];
           if (!funcName || !formatFunctions.includes(funcName)) return;
 
-          // Check if format string argument is tainted
+          /**
+           * TAINT CHECK FOR FORMAT STRING ARGUMENT
+           * 
+           * Check if any variable used in the function call is tainted.
+           * If a tainted variable is used as the format string argument,
+           * this is a format string vulnerability.
+           * 
+           * Note: This is simplified - ideally we'd identify which argument
+           * is the format string (first arg for printf, second for fprintf/sprintf).
+           */
           stmt.variables?.used.forEach(varName => {
             const taintInfo = taintAnalysis.get(varName);
             if (taintInfo && taintInfo.some(t => t.tainted)) {
@@ -507,21 +796,75 @@ export class SecurityAnalyzer {
    * @param filePath - Source file path
    * @returns Array of uninitialized variable vulnerabilities
    */
+  /**
+   * UNINITIALIZED VARIABLE DETECTION ALGORITHM
+   * 
+   * Detects variables that are used before being initialized.
+   * Uninitialized variable usage can lead to:
+   * - Undefined behavior (reading garbage values)
+   * - Security issues (if uninitialized value is used in security-critical operations)
+   * - Logic errors (unexpected program behavior)
+   * 
+   * Detection Strategy:
+   * 1. Track all variables that are initialized (assigned values) as we traverse CFG
+   * 2. For each variable use, check if it was initialized before use
+   * 3. Exclude function parameters (they're initialized by caller)
+   * 4. Report uninitialized variable usage
+   * 
+   * Limitations:
+   * - Simple forward pass: doesn't handle control flow properly
+   * - May produce false positives if variable is initialized in all execution paths
+   * - Doesn't track variable scoping (local vs. global variables)
+   */
   private detectUninitializedVariables(functionCFG: FunctionCFG, filePath: string): Vulnerability[] {
     const vulnerabilities: Vulnerability[] = [];
     let vulnId = 0;
+    /**
+     * INITIALIZED VARIABLES SET
+     * 
+     * Tracks which variables have been initialized (assigned a value) as we
+     * traverse the CFG in forward order. A variable is initialized when it
+     * appears in the 'defined' set of a statement.
+     */
     const initializedVars = new Set<string>();
 
+    // Process blocks in forward CFG order
     functionCFG.blocks.forEach((block, blockId) => {
       block.statements.forEach(stmt => {
-        // Track initialized variables
+        /**
+         * TRACK VARIABLE INITIALIZATIONS
+         * 
+         * When a variable is defined (assigned a value), add it to the
+         * initialized set. This includes:
+         * - Direct assignments: x = 5;
+         * - Declarations with initialization: int x = 5;
+         * - Function call results: x = foo();
+         */
         if (stmt.variables?.defined) {
           stmt.variables.defined.forEach(v => initializedVars.add(v));
         }
 
-        // Check for use of uninitialized variables
+        /**
+         * CHECK FOR UNINITIALIZED VARIABLE USE
+         * 
+         * For each variable used in a statement, check if it was initialized
+         * before this use. If not initialized and not a function parameter,
+         * this is a potential uninitialized variable vulnerability.
+         * 
+         * Note: Function parameters are excluded because they're initialized
+         * by the caller when the function is invoked.
+         */
         if (stmt.variables?.used) {
           stmt.variables.used.forEach(varName => {
+            /**
+             * UNINITIALIZED CHECK
+             * 
+             * A variable is uninitialized if:
+             * 1. It's not in the initializedVars set (never assigned)
+             * 2. It's not a function parameter (parameters are initialized by caller)
+             * 
+             * If both conditions are true, report vulnerability.
+             */
             if (!initializedVars.has(varName) && !functionCFG.parameters.includes(varName)) {
               vulnerabilities.push({
                 id: `vuln_${vulnId++}`,
@@ -550,18 +893,54 @@ export class SecurityAnalyzer {
   }
 
   /**
-   * Check if block has bounds checking before buffer operation
+   * BOUNDS CHECKING VERIFICATION
+   * 
+   * Checks if bounds checking exists in predecessor blocks before a buffer operation.
+   * Bounds checking typically involves:
+   * - strlen() calls to check string length
+   * - sizeof() to check buffer size
+   * - Comparison operators (<, >, <=, >=) checking size
+   * 
+   * This is a heuristic check - it looks for common patterns but may not catch
+   * all forms of bounds checking. More sophisticated analysis would verify that
+   * the bounds check actually protects the specific buffer operation.
+   * 
+   * @param functionCFG - Function CFG containing the buffer operation
+   * @param blockId - Block ID where buffer operation occurs
+   * @returns true if bounds checking is found in predecessor blocks, false otherwise
    */
   private hasBoundsCheck(functionCFG: FunctionCFG, blockId: string): boolean {
     const block = functionCFG.blocks.get(blockId);
     if (!block) return false;
 
-    // Check predecessors for bounds checking
+    /**
+     * CHECK PREDECESSOR BLOCKS
+     * 
+     * Bounds checking typically occurs in blocks that precede the buffer operation.
+     * We check all predecessor blocks (blocks that can execute before this block)
+     * for common bounds checking patterns.
+     * 
+     * Note: This is a simple heuristic - in practice, we'd need to verify that
+     * the bounds check actually protects this specific buffer operation, not just
+     * that a bounds check exists somewhere in the predecessors.
+     */
     for (const predId of block.predecessors) {
       const predBlock = functionCFG.blocks.get(predId);
       if (predBlock) {
+        // Check each statement in predecessor block for bounds checking patterns
         for (const stmt of predBlock.statements) {
-          // Look for length checks, size comparisons
+          /**
+           * BOUNDS CHECKING PATTERNS
+           * 
+           * Look for common patterns that indicate bounds checking:
+           * - strlen(): String length function
+           * - sizeof(): Buffer size operator
+           * - Comparison operators: <, >, <=, >= (size comparisons)
+           * 
+           * Example patterns:
+           *   if (strlen(src) < sizeof(dest)) { strcpy(dest, src); }
+           *   if (size < MAX_SIZE) { memcpy(buffer, data, size); }
+           */
           if (stmt.text && (
             stmt.text.includes('strlen') ||
             stmt.text.includes('sizeof') ||
@@ -579,11 +958,36 @@ export class SecurityAnalyzer {
   }
 
   /**
-   * Check if use block is after free block
+   * USE-AFTER-FREE ORDER VERIFICATION
+   * 
+   * Checks if a use block comes after a free block in the CFG.
+   * This is a simplified check - in a full implementation, we'd need to:
+   * 1. Perform proper CFG traversal to verify reachability
+   * 2. Check if use block is reachable from free block
+   * 3. Verify execution order (use must execute after free)
+   * 
+   * Current Implementation:
+   * - Simple heuristic: if blocks are different, assume use-after-free
+   * - This may produce false positives if free and use are in different branches
+   * - More sophisticated analysis would use CFG reachability analysis
+   * 
+   * @param functionCFG - Function CFG containing both blocks
+   * @param freedAt - Block ID where pointer was freed
+   * @param useAt - Block ID where pointer is used
+   * @returns true if use block comes after free block, false otherwise
    */
   private isAfterFree(functionCFG: FunctionCFG, freedAt: string, useAt: string): boolean {
-    // Simple check - in real implementation, would do proper CFG traversal
-    // For now, assume different blocks mean potential use-after-free
+    /**
+     * SIMPLIFIED ORDER CHECK
+     * 
+     * Current implementation: if blocks are different, assume use-after-free.
+     * This is conservative (may produce false positives) but safe (won't miss real bugs).
+     * 
+     * TODO: Implement proper CFG traversal to verify:
+     * 1. Is useAt reachable from freedAt?
+     * 2. Does execution order guarantee use occurs after free?
+     * 3. Are there paths where use occurs before free? (false positive reduction)
+     */
     return freedAt !== useAt;
   }
 

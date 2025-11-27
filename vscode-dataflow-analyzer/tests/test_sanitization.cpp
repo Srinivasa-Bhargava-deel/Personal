@@ -182,6 +182,163 @@ void test_partial_sanitization() {
     printf("%s\n", result);  // May be vulnerable if unsanitized path taken
 }
 
+// =============================================================================
+// COUNTEREXAMPLE 1: Sanitization Through Function Call
+// =============================================================================
+// COUNTEREXAMPLE: Sanitization function called indirectly
+// This tests if sanitization is detected through function calls
+// EXPECTED: Sanitization should be detected even through function calls
+// EDGE CASE: Indirect sanitization
+void sanitize_input(char* input, char* output) {
+    int j = 0;
+    for (int i = 0; input[i] != '\0'; i++) {
+        if (isalnum(input[i])) {
+            output[j++] = input[i];
+        }
+    }
+    output[j] = '\0';
+}
+
+void test_counterexample_function_sanitization() {
+    char input[100];
+    char output[100];
+    
+    scanf("%s", input);  // TAINT SOURCE
+    
+    sanitize_input(input, output);  // Sanitization through function call
+    
+    printf("%s\n", output);  // Should NOT be vulnerable
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Conditional Sanitization (Some Paths)
+// =============================================================================
+// COUNTEREXAMPLE: Sanitization only on some paths
+// This tests if analyzer handles conditional sanitization correctly
+// EXPECTED: Should detect sanitization only on sanitized paths
+// EDGE CASE: Conditional sanitization
+void test_counterexample_conditional_sanitization() {
+    char input[100];
+    char result[100];
+    int mode;
+    
+    scanf("%s", input);  // TAINT SOURCE
+    scanf("%d", &mode);
+    
+    if (mode == 1) {
+        // Sanitized path
+        int j = 0;
+        for (int i = 0; input[i] != '\0'; i++) {
+            if (isalnum(input[i])) {
+                result[j++] = input[i];
+            }
+        }
+        result[j] = '\0';
+        // result should NOT be tainted
+    } else {
+        // Unsanitized path
+        strcpy(result, input);
+        // result SHOULD be tainted
+    }
+    
+    printf("%s\n", result);  // May be vulnerable if unsanitized path
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Sanitization Through Pointer Parameter
+// =============================================================================
+// COUNTEREXAMPLE: Sanitization function modifies through pointer
+// This tests if sanitization through pointer parameters is detected
+// EXPECTED: Sanitization should be detected through pointer parameters
+// EDGE CASE: Pointer parameter sanitization
+void sanitize_through_ptr(char* data) {
+    int j = 0;
+    char temp[200];
+    for (int i = 0; data[i] != '\0'; i++) {
+        if (isalnum(data[i])) {
+            temp[j++] = data[i];
+        }
+    }
+    temp[j] = '\0';
+    strcpy(data, temp);  // Modify through pointer
+}
+
+void test_counterexample_pointer_sanitization() {
+    char input[200];
+    
+    scanf("%s", input);  // TAINT SOURCE
+    
+    sanitize_through_ptr(input);  // Sanitization through pointer
+    
+    printf("%s\n", input);  // Should NOT be vulnerable
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Multiple Sanitization Steps
+// =============================================================================
+// COUNTEREXAMPLE: Multiple sanitization functions applied
+// This tests if multiple sanitization steps are handled correctly
+// EXPECTED: Should detect sanitization after all steps
+// EDGE CASE: Multiple sanitization steps
+void sanitize_step1(char* input, char* output) {
+    // Step 1: Remove non-alphanumeric
+    int j = 0;
+    for (int i = 0; input[i] != '\0'; i++) {
+        if (isalnum(input[i])) {
+            output[j++] = input[i];
+        }
+    }
+    output[j] = '\0';
+}
+
+void sanitize_step2(char* input, char* output) {
+    // Step 2: Limit length
+    strncpy(output, input, 10);
+    output[10] = '\0';
+}
+
+void test_counterexample_multiple_sanitization() {
+    char input[200];
+    char temp[200];
+    char final[200];
+    
+    scanf("%s", input);  // TAINT SOURCE
+    
+    sanitize_step1(input, temp);  // First sanitization
+    sanitize_step2(temp, final);  // Second sanitization
+    
+    printf("%s\n", final);  // Should NOT be vulnerable
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Sanitization Through Return Value
+// =============================================================================
+// COUNTEREXAMPLE: Sanitization function returns sanitized value
+// This tests if sanitization through return values is detected
+// EXPECTED: Return value should be recognized as sanitized
+// EDGE CASE: Return value sanitization
+char* sanitize_and_return(char* input) {
+    static char output[200];
+    int j = 0;
+    for (int i = 0; input[i] != '\0'; i++) {
+        if (isalnum(input[i])) {
+            output[j++] = input[i];
+        }
+    }
+    output[j] = '\0';
+    return output;  // Return sanitized value
+}
+
+void test_counterexample_return_sanitization() {
+    char input[200];
+    
+    scanf("%s", input);  // TAINT SOURCE
+    
+    char* sanitized = sanitize_and_return(input);  // Sanitization through return
+    
+    printf("%s\n", sanitized);  // Should NOT be vulnerable
+}
+
 int main() {
     test_input_validation();
     test_encoding_sanitization();
@@ -190,6 +347,14 @@ int main() {
     test_type_conversion();
     test_whitelist();
     test_partial_sanitization();
+    
+    // Counterexamples
+    test_counterexample_function_sanitization();
+    test_counterexample_conditional_sanitization();
+    test_counterexample_pointer_sanitization();
+    test_counterexample_multiple_sanitization();
+    test_counterexample_return_sanitization();
+    
     return 0;
 }
 

@@ -92,9 +92,11 @@ export class LivenessAnalyzer {
     LoggingConfig.log('LivenessAnalysis', `Entry Block: ${functionCFG.entry}`);
     LoggingConfig.log('LivenessAnalysis', `Exit Block: ${functionCFG.exit}`);
     
-    console.log(`[LivenessAnalyzer] [INFO] Starting liveness analysis for function: ${functionCFG.name}`);
-    console.log(`[LivenessAnalyzer] [DEBUG] Function has ${functionCFG.blocks.size} blocks`);
-    
+    /**
+     * LIVENESS ANALYSIS START
+     * 
+     * Logs function analysis start. Comprehensive logging already done above.
+     */
     const livenessMap = new Map<string, LivenessInfo>();
     
     // STEP 1: Initialize all blocks with empty IN/OUT sets
@@ -106,8 +108,13 @@ export class LivenessAnalyzer {
       });
     });
     LoggingConfig.detail('LivenessAnalysis', `Initialized ${livenessMap.size} blocks with empty IN/OUT sets`);
-    console.log(`[LivenessAnalyzer] [DEBUG] Initialized ${livenessMap.size} blocks with empty IN/OUT sets`);
 
+    /**
+     * ITERATIVE DATAFLOW ANALYSIS
+     * 
+     * Processes blocks in reverse order (backward analysis) until reaching fixed point.
+     * Uses atomic updates to prevent order-dependent incorrect results.
+     */
     // STEP 2: Iterative dataflow analysis until reaching fixed point
     // Fixed point: when IN and OUT sets don't change from one iteration to the next
     // CRITICAL FIX (LOGIC.md #1): Add MAX_ITERATIONS safety check for algorithm termination
@@ -133,7 +140,7 @@ export class LivenessAnalyzer {
         const liveness = livenessMap.get(blockId);
         
         if (!block || !liveness) {
-          console.warn(`[Liveness Analysis] WARNING: Block ${blockId} not found in CFG or liveness map. Skipping.`);
+          LoggingConfig.warn('LivenessAnalysis', `Block ${blockId} not found in CFG or liveness map. Skipping.`);
           continue;
         }
         
@@ -185,14 +192,18 @@ export class LivenessAnalyzer {
     }
     
     // CRITICAL FIX (LOGIC.md #1): Warn if convergence not reached
+    /**
+     * ANALYSIS COMPLETE
+     * 
+     * Logs convergence status and analysis summary.
+     */
     const analysisTimeMs = Date.now() - analysisStartTime;
     if (iteration >= MAX_ITERATIONS) {
-      console.warn(`[LivenessAnalyzer] [WARN] Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence for function ${functionCFG.name}!`);
-      console.warn(`[LivenessAnalyzer] [WARN] This may indicate a bug in the CFG structure or analysis algorithm.`);
-      LoggingConfig.warn('LivenessAnalysis', `Reached MAX_ITERATIONS without convergence for ${functionCFG.name}`);
+      LoggingConfig.warn('LivenessAnalysis', `Reached MAX_ITERATIONS (${MAX_ITERATIONS}) without convergence for function ${functionCFG.name}!`);
+      LoggingConfig.warn('LivenessAnalysis', 'This may indicate a bug in the CFG structure or analysis algorithm.');
     } else {
-      console.log(`[LivenessAnalyzer] [INFO] Converged after ${iteration} iterations for function ${functionCFG.name} in ${analysisTimeMs}ms`);
-      console.log(`[LivenessAnalyzer] [DEBUG] Analysis completed: ${livenessMap.size} blocks analyzed`);
+      LoggingConfig.log('LivenessAnalysis', `Converged after ${iteration} iterations for function ${functionCFG.name} in ${analysisTimeMs}ms`);
+      LoggingConfig.detail('LivenessAnalysis', `Analysis completed: ${livenessMap.size} blocks analyzed`);
     }
     
     // ============================================================

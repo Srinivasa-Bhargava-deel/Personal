@@ -345,6 +345,105 @@ void generate_call_graph_stats() {
 }
 
 // =============================================================================
+// COUNTEREXAMPLE 1: Function Pointer Through Array
+// =============================================================================
+// COUNTEREXAMPLE: Function pointers stored in array
+// This tests if call graph handles function pointer arrays
+// EXPECTED: Should detect all possible targets in array
+// EDGE CASE: Function pointer arrays
+typedef int (*OpFunc)(int, int);
+
+int multiply(int a, int b) { return a * b; }
+int divide(int a, int b) { return b != 0 ? a / b : 0; }
+
+void test_counterexample_funcptr_array() {
+    OpFunc ops[] = {add, subtract, multiply, divide};
+    
+    for (int i = 0; i < 4; i++) {
+        int result = ops[i](10, 5);  // Indirect call through array
+        printf("Result: %d\n", result);
+    }
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 2: Recursive Function Pointer
+// =============================================================================
+// COUNTEREXAMPLE: Function pointer that points to recursive function
+// This tests if call graph handles recursive function pointers
+// EXPECTED: Should detect recursion through function pointer
+// EDGE CASE: Recursive function pointers
+int (*recursive_ptr)(int);
+
+int recursive_func(int n) {
+    if (n <= 1) return 1;
+    return n * recursive_ptr(n - 1);  // Recursive call through pointer
+}
+
+void test_counterexample_recursive_ptr() {
+    recursive_ptr = recursive_func;
+    int result = recursive_ptr(5);  // Indirect recursive call
+    printf("Result: %d\n", result);
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 3: Function Pointer Through Struct
+// =============================================================================
+// COUNTEREXAMPLE: Function pointer stored in struct
+// This tests if call graph handles function pointers in structs
+// EXPECTED: Should detect calls through struct members
+// EDGE CASE: Function pointers in structs
+struct Calculator {
+    int (*operation)(int, int);
+};
+
+void test_counterexample_struct_funcptr() {
+    struct Calculator calc;
+    calc.operation = add;
+    
+    int result = calc.operation(5, 3);  // Call through struct member
+    printf("Result: %d\n", result);
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 4: Conditional Function Pointer Assignment
+// =============================================================================
+// COUNTEREXAMPLE: Function pointer assigned conditionally
+// This tests if call graph tracks conditional assignments
+// EXPECTED: Should detect both possible targets
+// EDGE CASE: Conditional function pointer assignment
+void test_counterexample_conditional_funcptr(int choice) {
+    Operation op;
+    
+    if (choice > 0) {
+        op = add;  // Conditional assignment
+    } else {
+        op = subtract;  // Conditional assignment
+    }
+    
+    int result = op(10, 5);  // Call with conditionally assigned pointer
+    printf("Result: %d\n", result);
+}
+
+// =============================================================================
+// COUNTEREXAMPLE 5: Function Pointer Returned from Function
+// =============================================================================
+// COUNTEREXAMPLE: Function that returns function pointer
+// This tests if call graph handles function pointer returns
+// EXPECTED: Should track function pointer through return value
+// EDGE CASE: Function pointer returns
+Operation get_operation(char op) {
+    if (op == '+') return add;
+    if (op == '-') return subtract;
+    return add;  // Default
+}
+
+void test_counterexample_funcptr_return() {
+    Operation op = get_operation('+');  // Get function pointer from function
+    int result = op(10, 5);  // Call returned function pointer
+    printf("Result: %d\n", result);
+}
+
+// =============================================================================
 // MAIN - Entry Point for Testing
 // =============================================================================
 int main() {
@@ -366,6 +465,13 @@ int main() {
     
     // Run all for full call graph
     // generate_call_graph_stats();
+    
+    // Counterexamples
+    test_counterexample_funcptr_array();
+    test_counterexample_recursive_ptr();
+    test_counterexample_struct_funcptr();
+    test_counterexample_conditional_funcptr(1);
+    test_counterexample_funcptr_return();
     
     printf("\n=== Call Graph Test Complete ===\n");
     

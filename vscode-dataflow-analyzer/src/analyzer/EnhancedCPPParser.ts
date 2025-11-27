@@ -61,6 +61,7 @@ import { Statement, StatementType, BasicBlock, CFG, FunctionCFG, Position, Range
 import { ClangASTParser } from './ClangASTParser';
 import { ASTNode, CXCursorKind } from './ClangASTParser';
 import { logError, logWarning, logInfo } from '../utils/ErrorLogger';
+import { LoggingConfig } from '../utils/LoggingConfig';
 
 /**
  * Represents a complete function for analysis.
@@ -90,14 +91,18 @@ export class EnhancedCPPParser {
    * @throws Error if clang is not available on the system
    */
   constructor() {
+    LoggingConfig.section('Parser', 'Initializing Enhanced C++ Parser');
+    LoggingConfig.log('Parser', 'Creating ClangASTParser instance');
+    
     this.clangParser = new ClangASTParser();
     
     // Require clang for this parser
     if (!this.clangParser.isAvailable()) {
+      LoggingConfig.error('Parser', 'Clang is required but not found. Please install clang/clang++ to use this extension.');
       throw new Error('Clang is required but not found. Please install clang/clang++ to use this extension.');
     }
     
-    console.log('Using clang command-line tool for CFG parsing');
+    LoggingConfig.log('Parser', 'Clang is available - using clang command-line tool for CFG parsing');
   }
 
   /**
@@ -108,7 +113,31 @@ export class EnhancedCPPParser {
    * @throws Error if file cannot be parsed
    */
   async parseFile(filePath: string): Promise<{ functions: FunctionInfo[]; globalVars: string[] }> {
-    return this.parseWithClangAST(filePath);
+    LoggingConfig.section('Parser', `Parsing File: ${filePath}`);
+    LoggingConfig.log('Parser', `File path: ${filePath}`);
+    
+    const parseStartTime = Date.now();
+    try {
+      const result = await this.parseWithClangAST(filePath);
+      const parseTimeMs = Date.now() - parseStartTime;
+      
+      LoggingConfig.log('Parser', `Parsing complete: ${result.functions.length} functions, ${result.globalVars.length} global vars`);
+      LoggingConfig.log('Parser', `Parse time: ${parseTimeMs}ms`);
+      
+      if (result.functions.length > 0) {
+        LoggingConfig.subsection('Parser', 'Extracted Functions');
+        result.functions.forEach((func, idx) => {
+          LoggingConfig.detail('Parser', `Function[${idx}]: ${func.name} (${func.cfg.blocks.size} blocks, ${func.cfg.parameters.length} params)`);
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      const parseTimeMs = Date.now() - parseStartTime;
+      LoggingConfig.error('Parser', `Failed to parse file: ${filePath}`, error);
+      LoggingConfig.log('Parser', `Parse failed after ${parseTimeMs}ms`);
+      throw error;
+    }
   }
 
   /**
@@ -119,13 +148,26 @@ export class EnhancedCPPParser {
    * @throws Error if clang parsing fails
    */
   private async parseWithClangAST(filePath: string): Promise<{ functions: FunctionInfo[]; globalVars: string[] }> {
+    LoggingConfig.subsection('Parser', 'STEP 1: Parsing file with Clang AST');
+    LoggingConfig.detail('Parser', `Calling ClangASTParser.parseFile(${filePath})`);
+    
     // STEP 1: Parse file with clang to generate CFG
     const ast = await this.clangParser.parseFile(filePath);
     if (!ast) {
+      LoggingConfig.error('Parser', `Clang AST parsing returned null for ${filePath}`);
       throw new Error(`Failed to parse ${filePath} with clang. Please ensure clang is properly installed and the file is valid C++ code.`);
     }
 
+    LoggingConfig.log('Parser', 'Clang AST parsing successful');
+    LoggingConfig.verbose('Parser', 'AST structure', { 
+      kind: ast.kind, 
+      name: ast.name,
+      hasInner: !!ast.inner,
+      innerType: ast.inner ? (Array.isArray(ast.inner) ? 'array' : 'object') : 'none'
+    });
+
     // STEP 2: Extract functions from CFG AST
+    LoggingConfig.subsection('Parser', 'STEP 2: Extracting functions from AST');
     return this.extractFunctionsFromAST(ast, filePath);
   }
 
@@ -144,19 +186,30 @@ export class EnhancedCPPParser {
     const functions: FunctionInfo[] = [];
     const globalVars: string[] = [];
 
-    console.log(`Extracting functions from CFG-based AST for ${filePath}`);
+    LoggingConfig.log('Parser', `Extracting functions from CFG-based AST for ${filePath}`);
 
+    /**
+     * FUNCTION EXTRACTION FROM AST
+     * 
+     * Iterates through AST nodes to extract function definitions and their CFGs.
+     */
     // STEP 1: Iterate through all functions in AST
     // Functions are stored as named keys in ast.inner (from cfg-exporter)
+    const innerKeys = ast.inner ? Object.keys(ast.inner) : [];
+    LoggingConfig.detail('Parser', `AST inner keys count: ${innerKeys.length}`);
+    
     for (const funcName in ast.inner || {}) {
       const funcNode = (ast.inner as any)[funcName];
+      
+      LoggingConfig.detail('Parser', `Processing AST node: ${funcName} (kind: ${funcNode?.kind || 'unknown'})`);
       
       // STEP 2: Validate that this is indeed a function node
       // Check for FunctionDecl kind or presence of inner CFG blocks
       if (funcNode && (funcNode.kind === 'FunctionDecl' || (funcNode.inner && funcNode.name))) {
-        console.log(`Found function: ${funcName}`);
+        LoggingConfig.log('Parser', `Found function: ${funcName}`);
 
         // STEP 3: Extract CFG blocks from function node
+        LoggingConfig.detail('Parser', `Extracting CFG for function: ${funcName}`);
         const cfg = this.extractCFGFromFunctionNode(funcNode, filePath);
         if (cfg) {
           const funcInfo: FunctionInfo = {
@@ -167,12 +220,16 @@ export class EnhancedCPPParser {
           };
 
           functions.push(funcInfo);
-          console.log(`✓ Extracted function: ${funcName} with ${cfg.blocks.size} blocks`);
+          LoggingConfig.log('Parser', `✓ Extracted function: ${funcName} with ${cfg.blocks.size} blocks, ${cfg.parameters.length} parameters`);
+        } else {
+          LoggingConfig.warn('Parser', `Failed to extract CFG for function: ${funcName}`);
         }
+      } else {
+        LoggingConfig.detail('Parser', `Skipping non-function node: ${funcName} (kind: ${funcNode?.kind || 'unknown'})`);
       }
     }
 
-    console.log(`Extracted ${functions.length} functions from CFG structure`);
+    LoggingConfig.log('Parser', `Extracted ${functions.length} functions from CFG structure`);
     return { functions, globalVars };
   }
 
@@ -211,18 +268,24 @@ export class EnhancedCPPParser {
    * @returns Array of parameter names, or empty array if no parameters or extraction failed
    */
   private extractParametersFromSource(funcName: string, filePath: string): string[] {
+    LoggingConfig.detail('Parser', `Extracting parameters for function: ${funcName} from ${filePath}`);
+    
     try {
       // CRITICAL FIX (LOGIC.md #7): Validate file exists and is readable
       if (!fs.existsSync(filePath)) {
+        LoggingConfig.warn('Parser', `File not found for parameter extraction: ${filePath}`);
         logWarning('Parser', `File not found for parameter extraction: ${filePath}`, { funcName, filePath });
         return [];
       }
 
       const sourceCode = fs.readFileSync(filePath, 'utf-8');
       if (!sourceCode || sourceCode.trim().length === 0) {
+        LoggingConfig.warn('Parser', `Empty file for parameter extraction: ${filePath}`);
         logWarning('Parser', `Empty file for parameter extraction: ${filePath}`, { funcName, filePath });
         return [];
       }
+      
+      LoggingConfig.detail('Parser', `Source file read: ${sourceCode.length} characters`);
 
       const lines = sourceCode.split('\n');
       
@@ -254,7 +317,7 @@ export class EnhancedCPPParser {
           
           // Handle empty parameter list (distinct from extraction failure)
           if (!paramList) {
-            console.log(`[Parser] Function ${funcName} has no parameters`);
+            LoggingConfig.detail('Parser', `Function ${funcName} has no parameters`);
             return [];
           }
           
@@ -290,13 +353,14 @@ export class EnhancedCPPParser {
             }
           }
           
-          console.log(`[Parser] Extracted ${params.length} parameters for ${funcName}: ${params.join(', ')}`);
+          LoggingConfig.detail('Parser', `Extracted ${params.length} parameters for ${funcName}: ${params.join(', ')}`);
           return params;
         }
       }
       
       // CRITICAL FIX (LOGIC.md #7): Distinguish between "no signature found" and "error"
       if (!foundSignature) {
+        LoggingConfig.warn('Parser', `Function signature not found for ${funcName} in ${filePath}`);
         logWarning('Parser', `Function signature not found for ${funcName} in ${filePath}`, {
           funcName,
           filePath,
@@ -311,6 +375,7 @@ export class EnhancedCPPParser {
       return [];
     } catch (error) {
       // CRITICAL FIX (LOGIC.md #7): Better error reporting
+      LoggingConfig.error('Parser', `Failed to extract parameters for ${funcName} from ${filePath}`, error);
       logError('Parser', `Failed to extract parameters for ${funcName} from ${filePath}`, error, {
         funcName,
         filePath,
@@ -339,14 +404,19 @@ export class EnhancedCPPParser {
     // Remove leading/trailing whitespace
     const trimmed = paramDecl.trim();
     
+    /**
+     * PARAMETER NAME EXTRACTION
+     * 
+     * Handles various parameter declaration formats including function pointers.
+     */
     // Debug: Log all parameter declarations to understand formats
-    console.log(`[Parser] [DEBUG] extractParameterName input: "${trimmed}"`);
+    LoggingConfig.verbose('Parser', `extractParameterName input: "${trimmed}"`);
     
     // Handle function pointer syntax: "int (*callback)(int)" -> "callback"
     // Pattern matches: type (*name)(params)
     const funcPtrMatch = trimmed.match(/\(\s*\*\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)\s*\([^)]*\)/);
     if (funcPtrMatch) {
-      console.log(`[Parser] Extracted function pointer parameter: ${funcPtrMatch[1]} from "${trimmed}"`);
+      LoggingConfig.verbose('Parser', `Extracted function pointer parameter: ${funcPtrMatch[1]} from "${trimmed}"`);
       return funcPtrMatch[1];
     }
     
@@ -354,7 +424,7 @@ export class EnhancedCPPParser {
     // Sometimes Clang format is slightly different
     const funcPtrMatch2 = trimmed.match(/\*\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)\s*\(/);
     if (funcPtrMatch2) {
-      console.log(`[Parser] Extracted function pointer (alt): ${funcPtrMatch2[1]} from "${trimmed}"`);
+      LoggingConfig.verbose('Parser', `Extracted function pointer (alt): ${funcPtrMatch2[1]} from "${trimmed}"`);
       return funcPtrMatch2[1];
     }
     
@@ -362,7 +432,7 @@ export class EnhancedCPPParser {
     // Also handles array of function pointers: "void (*callbacks[])(int)"
     const funcPtrArrayMatch = trimmed.match(/\(\s*\*\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\[\]\s*\)\s*\([^)]*\)/);
     if (funcPtrArrayMatch) {
-      console.log(`[Parser] Extracted function pointer array parameter: ${funcPtrArrayMatch[1]} from "${trimmed}"`);
+      LoggingConfig.verbose('Parser', `Extracted function pointer array parameter: ${funcPtrArrayMatch[1]} from "${trimmed}"`);
       return funcPtrArrayMatch[1];
     }
     
@@ -379,7 +449,7 @@ export class EnhancedCPPParser {
     // Clean up any leading ( from function pointer syntax that wasn't matched
     cleanName = cleanName.replace(/^\(+/, '').replace(/\)+$/, '');
     
-    console.log(`[Parser] [DEBUG] extractParameterName result: "${cleanName}" from "${trimmed}"`);
+    LoggingConfig.verbose('Parser', `extractParameterName result: "${cleanName}" from "${trimmed}"`);
     
     return cleanName;
   }
@@ -388,48 +458,63 @@ export class EnhancedCPPParser {
    * Extract CFG from function node
    */
   private extractCFGFromFunctionNode(funcNode: ASTNode, filePath?: string): FunctionCFG | null {
+    const funcName = funcNode.name || 'unknown';
+    LoggingConfig.detail('Parser', `Extracting CFG from function node: ${funcName}`);
+    
     if (!funcNode.inner) {
-      console.log(`  ✗ No inner property for function ${funcNode.name}`);
+      LoggingConfig.warn('Parser', `No inner property for function ${funcName}`);
       return null;
     }
 
-    console.log(`  - Extracting CFG from ${funcNode.name}, inner is ${Array.isArray(funcNode.inner) ? 'array' : 'object'}`);
+    LoggingConfig.detail('Parser', `Function ${funcName}: inner is ${Array.isArray(funcNode.inner) ? 'array' : 'object'}`);
 
     let cfgBlocks: ASTNode[] = [];
 
     if (Array.isArray(funcNode.inner)) {
+      /**
+       * CFG BLOCK EXTRACTION FROM ARRAY FORMAT
+       * 
+       * Handles cases where inner is an array of CFGBlocks or wrapped in CompoundStmt.
+       */
       // From cfg-exporter: inner is directly [CFGBlock, CFGBlock, ...]
       // The blocks are generated at ClangASTParser.ts lines 357-381
-      console.log(`  - funcNode.inner is array with ${funcNode.inner.length} items`);
+      LoggingConfig.detail('Parser', `Function ${funcName}: funcNode.inner is array with ${funcNode.inner.length} items`);
       
       // First, check if items are directly CFGBlock
       const directBlocks = funcNode.inner.filter(node => node.kind === 'CFGBlock');
       if (directBlocks.length > 0) {
         cfgBlocks = directBlocks;
-        console.log(`  - Found ${cfgBlocks.length} CFGBlocks directly in inner array`);
+        LoggingConfig.detail('Parser', `Function ${funcName}: Found ${cfgBlocks.length} CFGBlocks directly in inner array`);
       } else {
         // Fallback: look for CompoundStmt wrapping the blocks
         for (const item of funcNode.inner) {
           if (item.kind === 'CompoundStmt' && item.inner) {
             const innerItems = Array.isArray(item.inner) ? item.inner : Object.values(item.inner);
             cfgBlocks = innerItems.filter(node => node.kind === 'CFGBlock');
-            console.log(`  - Found ${cfgBlocks.length} CFGBlocks in CompoundStmt`);
+            LoggingConfig.detail('Parser', `Function ${funcName}: Found ${cfgBlocks.length} CFGBlocks in CompoundStmt`);
             break;
           }
         }
       }
     } else {
+      /**
+       * CFG BLOCK EXTRACTION FROM OBJECT FORMAT
+       * 
+       * Handles cases where inner is an object with CFGBlock nodes as values.
+       */
       // Handle object format - look for CFGBlock nodes directly
       const innerValues = Object.values(funcNode.inner);
       cfgBlocks = innerValues.filter(node => node.kind === 'CFGBlock');
-      console.log(`  - funcNode.inner is object with ${cfgBlocks.length} CFGBlock items`);
+      LoggingConfig.detail('Parser', `Function ${funcName}: funcNode.inner is object with ${cfgBlocks.length} CFGBlock items`);
     }
 
     if (cfgBlocks.length === 0) {
-      console.log(`  ✗ No CFGBlocks found in ${funcNode.name}`);
-      console.log(`  DEBUG: funcNode.inner items are:`, Array.isArray(funcNode.inner) ? funcNode.inner.map((n: any) => n.kind) : 'not an array');
+      const innerKinds = Array.isArray(funcNode.inner) ? funcNode.inner.map((n: any) => n.kind) : 'not an array';
+      LoggingConfig.warn('Parser', `No CFGBlocks found in ${funcName}. Inner items: ${JSON.stringify(innerKinds)}`);
       return null;
     }
+    
+    LoggingConfig.detail('Parser', `Function ${funcName}: Processing ${cfgBlocks.length} CFG blocks`);
 
     const blocks = new Map<string, BasicBlock>();
 
@@ -444,7 +529,7 @@ export class EnhancedCPPParser {
       };
 
       blocks.set(block.id, block);
-      console.log(`  - Added block ${block.id} (${block.label}) - successors: [${block.successors.join(',')}], predecessors: [${block.predecessors.join(',')}]`);
+      LoggingConfig.verbose('Parser', `Function ${funcName}: Added block ${block.id} (${block.label}) - ${block.statements.length} statements, successors: [${block.successors.join(',')}], predecessors: [${block.predecessors.join(',')}]`);
     }
 
     // Find entry and exit blocks
@@ -494,7 +579,7 @@ export class EnhancedCPPParser {
     }
 
     // Extract parameters from source code
-    const funcName = funcNode.name || 'unknown';
+    // Note: funcName is already declared at the start of this function
     const parameters = filePath ? this.extractParametersFromSource(funcName, filePath) : [];
 
     // Build the CFG structure
@@ -507,16 +592,24 @@ export class EnhancedCPPParser {
     };
 
     // CRITICAL FIX (LOGIC.md #14): Validate CFG structure before returning
+    LoggingConfig.detail('Parser', `Validating CFG structure for ${funcName}`);
     const validationErrors = this.validateCFGStructure(cfg);
+    /**
+     * CFG VALIDATION
+     * 
+     * Validates CFG structure integrity before returning.
+     */
     if (validationErrors.length > 0) {
-      console.warn(`[Parser] WARNING: CFG structure validation failed for ${funcName}:`);
-      validationErrors.forEach(error => console.warn(`[Parser]   - ${error}`));
+      LoggingConfig.warn('Parser', `CFG structure validation failed for ${funcName}: ${validationErrors.length} errors`);
+      validationErrors.forEach(error => {
+        LoggingConfig.warn('Parser', `  Validation error: ${error}`);
+      });
       // Continue anyway - some errors may be recoverable
     } else {
-      console.log(`[Parser] CFG structure validation passed for ${funcName}`);
+      LoggingConfig.detail('Parser', `CFG structure validation passed for ${funcName}`);
     }
 
-    console.log(`  ✓ Built CFG for ${cfg.name} with ${blocks.size} blocks (entry: ${entryBlock}, exit: ${exitBlock}), ${parameters.length} parameters`);
+    LoggingConfig.log('Parser', `✓ Built CFG for ${cfg.name} with ${blocks.size} blocks (entry: ${entryBlock}, exit: ${exitBlock}), ${parameters.length} parameters`);
     return cfg;
   }
 
