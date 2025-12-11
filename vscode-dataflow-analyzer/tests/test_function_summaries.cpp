@@ -143,6 +143,7 @@ void call_strcpy_indirect(char* dest, char* src) {
 void test_counterexample_summary_indirect() {
     char source[100];
     char dest[100];
+    char buffer[200];
     scanf("%s", source);  // TAINT SOURCE
     
     call_strcpy_indirect(dest, source);  // Indirect call - summary should apply
@@ -181,13 +182,13 @@ void test_counterexample_summary_variadic() {
 // EDGE CASE: Struct function pointer summary
 struct FunctionTable {
     int (*printf_func)(const char*, ...);
-    void (*system_func)(const char*);
+    int (*system_func)(const char*);
 };
 
 void test_counterexample_summary_struct_funcptr() {
     struct FunctionTable table;
     table.printf_func = printf;
-    table.system_func = system;
+    table.system_func = (int (*)(const char*))system;
     
     char format[100];
     scanf("%s", format);  // TAINT SOURCE
@@ -202,10 +203,10 @@ void test_counterexample_summary_struct_funcptr() {
 // This tests if function summaries work through returned function pointers
 // EXPECTED: Function summary should apply to returned function pointers
 // EDGE CASE: Returned function pointer summary
-typedef void (*SystemFunc)(const char*);
+typedef int (*SystemFunc)(const char*);
 
 SystemFunc get_system_func() {
-    return system;  // Return function pointer
+    return (SystemFunc)system;  // Return function pointer
 }
 
 void test_counterexample_summary_returned_funcptr() {

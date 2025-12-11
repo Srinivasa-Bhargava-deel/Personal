@@ -18,6 +18,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <cctype>
 #include <string.h>
 #include <unistd.h>
 
@@ -112,6 +113,7 @@ void test_sanitization_removal() {
     // shell_escape(input) -> escaped (escaped should NOT be tainted)
     
     // Validation functions (removesTaint = false)
+    char buffer[200];
     if (isalnum(input[0])) {                      // Validation doesn't remove taint
         // input is still tainted here
         sprintf(buffer, "%s", input);             // Should detect vulnerability
@@ -300,7 +302,7 @@ void test_sanitization_types() {
     scanf("%s", input);                           // TAINT SOURCE
     
     // Validation (removesTaint = false)
-    if (isalnum(input[0])) {                      // Validation type
+    if (std::isalnum(input[0])) {                      // Validation type
         // input still tainted
     }
     

@@ -3,6 +3,16 @@
 
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+
+// Forward declarations
+void test_counterexample_nested_interprocedural();
+void test_counterexample_circular_taint();
+void test_counterexample_global_interprocedural();
+void test_counterexample_function_pointer_interprocedural();
+void test_counterexample_variadic_interprocedural();
+char* level2_process(char* input);
+char* level3_process(char* input);
 
 char buffer[200];
 

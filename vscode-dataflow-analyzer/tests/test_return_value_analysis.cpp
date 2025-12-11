@@ -356,7 +356,7 @@ void test_composite_return() {
 // EDGE CASES
 int return_edge_case(int x) {
     if (x == 0) {
-        return;  // Missing return value (should be void or error)
+        return 0;  // Return default value
     }
     return x;
 }

@@ -9,6 +9,14 @@
 
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+
+// Forward declarations
+void test_counterexample_context_through_funcptr();
+void test_counterexample_context_through_global();
+void test_counterexample_context_through_struct();
+void test_counterexample_context_through_array();
+void test_counterexample_context_through_nested();
 
 // Taint source: user input
 char* get_user_input() {

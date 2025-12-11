@@ -358,6 +358,7 @@ void test_counterexample_multi_target_funcptr(int choice) {
     }
     
     int result = proc(input);  // Taint should propagate through both targets
+    char buffer[200];
     sprintf(buffer, "%d", result);  // TAINT SINK
 }
 
@@ -380,6 +381,7 @@ void test_counterexample_pointer_chain() {
     int** ptrptr = &ptr;
     
     set_value(ptrptr);  // Taint through double pointer
+    char buffer[200];
     sprintf(buffer, "%d", value);  // TAINT SINK: value is tainted
 }
 
@@ -407,6 +409,7 @@ void test_counterexample_struct_pointer_field() {
     node.data = &value;
     
     set_node_data(&node);  // Taint through struct pointer field
+    char buffer[200];
     sprintf(buffer, "%d", value);  // TAINT SINK: value is tainted
 }
 
@@ -448,6 +451,7 @@ int* get_tainted_pointer() {
 
 void test_counterexample_return_pointer() {
     int* ptr = get_tainted_pointer();  // Pointer to tainted data
+    char buffer[200];
     sprintf(buffer, "%d", *ptr);  // TAINT SINK: *ptr is tainted
 }
 

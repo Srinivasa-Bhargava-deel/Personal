@@ -11,6 +11,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+// Forward declarations
+void test_counterexample_union_taint();
+void test_counterexample_volatile_pointer();
+void test_counterexample_function_pointer_arithmetic();
+void test_counterexample_macro_arithmetic();
+void test_counterexample_register_variable();
 
 char buffer[200];
 
@@ -530,11 +538,12 @@ void test_counterexample_macro_arithmetic() {
 // EXPECTED: Taint should propagate through register variables
 // EDGE CASE: Register variable taint
 void test_counterexample_register_variable() {
-    register int reg_var;
+    int reg_var;
     scanf("%d", &reg_var);  // TAINT SOURCE (register variable)
     
-    register int reg_result = reg_var * 2;  // PROPAGATION through register variable
+    int reg_result = reg_var * 2;  // PROPAGATION through register variable
     
+    char buffer[200];
     sprintf(buffer, "%d", reg_result);  // TAINT SINK
 }
 

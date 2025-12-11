@@ -9,6 +9,8 @@ int power(int base, int exp);
 void helperA(int x);
 void helperB(int y);
 int nestedCall(int a);
+int addNumbers(int a, int b);
+int multiplyNumbers(int x, int y);
 
 // Mutual recursion functions
 void functionA(int n);
@@ -176,30 +178,12 @@ void test_counterexample_nested_funcptr() {
     printf("Nested result: %d\n", result);
 }
 
-int main() {
-    int num = 10;
-    
-    // Multiple different function calls
-    int fib = fibonacci(num);
-    int pow = power(2, 5);
-    int nested = nestedCall(7);
-    
-    // Call mutual recursion
-    functionA(5);
-    
-    printf("Fibonacci: %d, Power: %d, Nested: %d\n", fib, pow, nested);
-    
-    // Counterexamples
-    test_counterexample_macro_call();
-    test_counterexample_variadic_call();
-    test_counterexample_inline_call();
-    test_counterexample_funcptr_chain();
-    test_counterexample_nested_funcptr();
-    
-    return 0;
+// Function definitions for counterexamples
+int addNumbers(int a, int b) {
+    return a + b;
 }
 
-// Forward declarations for counterexamples
-int addNumbers(int a, int b);
-int multiplyNumbers(int x, int y);
+int multiplyNumbers(int x, int y) {
+    return x * y;
+}
 

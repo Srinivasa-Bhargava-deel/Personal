@@ -16,6 +16,13 @@
 #include <string.h>
 #include <unistd.h>
 
+// Forward declarations
+void vuln_counterexample_indirect_buffer_overflow();
+void vuln_counterexample_struct_field_overflow();
+void vuln_counterexample_nested_injection();
+void vuln_counterexample_format_string_chain();
+void vuln_counterexample_memory_leak();
+
 // =============================================================================
 // VULNERABILITY 1: Buffer Overflow (strcpy)
 // =============================================================================

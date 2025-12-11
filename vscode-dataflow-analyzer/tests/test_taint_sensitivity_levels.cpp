@@ -22,6 +22,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Forward declarations
+void test_counterexample_sensitivity_funcptr();
+void test_counterexample_sensitivity_global();
+void test_counterexample_sensitivity_struct();
+void test_counterexample_sensitivity_array();
+void test_counterexample_sensitivity_nested_func();
+
 char buffer[200];
 
 // =============================================================================

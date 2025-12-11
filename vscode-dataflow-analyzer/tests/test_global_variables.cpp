@@ -144,6 +144,7 @@ void set_global_ptr(int* p) {
 }
 
 void use_global_ptr() {
+    char buffer[200];
     int value = *global_ptr;  // Dereference global pointer
     sprintf(buffer, "%d", value);  // TAINT SINK
 }
@@ -178,6 +179,7 @@ void test_counterexample_global_funcptr() {
     ModifyFunc func = modify_global;
     func(input);  // Modify global through function pointer
     
+    char buffer[200];
     sprintf(buffer, "%d", global_modify_target);  // TAINT SINK
 }
 
@@ -197,6 +199,7 @@ void test_counterexample_global_array_index() {
     global_arr[index] = value;  // Set global array element with tainted index/value
     int result = global_arr[index];  // Read back - should be tainted
     
+    char buffer[200];
     sprintf(buffer, "%d", result);  // TAINT SINK
 }
 
@@ -220,6 +223,7 @@ void test_counterexample_global_struct() {
     global_struct.field = input;  // Set global struct field
     int result = global_struct.field;  // Read global struct field
     
+    char buffer[200];
     sprintf(buffer, "%d", result);  // TAINT SINK
 }
 
@@ -237,6 +241,7 @@ void writer_function(int value) {
 }
 
 void reader_function() {
+    char buffer[200];
     int value = global_shared;  // Read from global
     sprintf(buffer, "%d", value);  // TAINT SINK
 }

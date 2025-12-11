@@ -142,6 +142,7 @@ void test_counterexample_path_func_call() {
     int result1 = get_value_path_a(x);  // Path-sensitive: different values
     int result2 = get_value_path_b(x);  // Path-sensitive: same value (not control-dependent)
     
+    char buffer[200];
     sprintf(buffer, "%d %d", result1, result2);  // TAINT SINK
 }
 
@@ -166,6 +167,7 @@ void test_counterexample_path_pointer() {
     }
     
     int value = *ptr;  // Path-sensitive: different values on different paths
+    char buffer[200];
     sprintf(buffer, "%d", value);  // TAINT SINK
 }
 
@@ -189,6 +191,7 @@ void test_counterexample_path_global() {
     }
     
     int result = global_path_var;  // Path-sensitive: different values
+    char buffer[200];
     sprintf(buffer, "%d", result);  // TAINT SINK
 }
 
@@ -211,6 +214,7 @@ void test_counterexample_path_array() {
     }
     
     int value = arr[0];  // Path-sensitive: different values
+    char buffer[200];
     sprintf(buffer, "%d", value);  // TAINT SINK
 }
 
@@ -237,6 +241,7 @@ void test_counterexample_path_struct() {
     }
     
     int value = s.field;  // Path-sensitive: different values
+    char buffer[200];
     sprintf(buffer, "%d", value);  // TAINT SINK
 }
 

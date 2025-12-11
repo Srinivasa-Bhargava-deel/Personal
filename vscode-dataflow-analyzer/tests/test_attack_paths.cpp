@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cstdlib>
 
 // =============================================================================
 // TEST 1: Simple Attack Path
@@ -152,6 +153,7 @@ void sink_a(char* data) {
 }
 
 void sink_b(char* data) {
+    char buffer[200];
     sprintf(buffer, "%s", data);  // SINK - format string
 }
 
@@ -195,6 +197,11 @@ void test_counterexample_global_attack_path() {
 // This tests if attack paths are detected through long call chains
 // EXPECTED: Attack path should be detected through entire chain
 // EDGE CASE: Long attack path chain
+
+// Forward declarations
+char* level2_attack(char* input);
+char* level3_attack(char* input);
+
 char* level1_attack(char* input) {
     return level2_attack(input);
 }

@@ -123,6 +123,7 @@ void test_nested_fields() {
 void test_counterexample_field_pointer() {
     struct User user;
     struct User* ptr = &user;
+    char buffer[200];
     
     scanf("%s", ptr->name);  // TAINT SOURCE - only name field through pointer
     ptr->age = 25;           // NOT tainted
@@ -138,6 +139,7 @@ void test_counterexample_field_pointer() {
 // EXPECTED: Only specific field should be tainted
 // EDGE CASE: Struct parameter field sensitivity
 void process_user_field(struct User* user) {
+    char buffer[200];
     sprintf(buffer, "%s", user->name);  // TAINT SINK - only name field should be tainted
 }
 
@@ -159,6 +161,7 @@ void test_counterexample_field_parameter() {
 void test_counterexample_field_array() {
     struct User users[10];
     int index;
+    char buffer[200];
     scanf("%d", &index);  // TAINT SOURCE
     scanf("%s", users[index].name);  // TAINT SOURCE - only name field of specific struct
     
@@ -180,6 +183,7 @@ union FieldUnion {
 
 void test_counterexample_field_union() {
     union FieldUnion u;
+    char buffer[200];
     scanf("%s", u.name);  // TAINT SOURCE - name field
     
     // Union aliasing: u.id shares memory with u.name
@@ -197,6 +201,7 @@ void test_counterexample_field_union() {
 void test_counterexample_field_nested_ptr() {
     struct Container container;
     struct Container* ptr = &container;
+    char buffer[200];
     
     scanf("%s", ptr->inner.value);  // TAINT SOURCE - nested field through pointer
     ptr->inner.other = 42;          // NOT tainted

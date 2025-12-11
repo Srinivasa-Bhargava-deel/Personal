@@ -17,6 +17,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <cstring>
+
+// Forward declarations
+void test_counterexample_indirect_control_dependent();
+void test_counterexample_function_call_control_dependent();
+void test_counterexample_loop_variable_control_dependent();
+void test_counterexample_switch_control_dependent();
+void test_counterexample_nested_function_control_dependent();
 
 // =============================================================================
 // TEST 1: Basic Control-Dependent Taint (Simple If)

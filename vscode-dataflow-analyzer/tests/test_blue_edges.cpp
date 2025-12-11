@@ -8,6 +8,13 @@ void printMessage(const char* msg);
 int addNumbers(int a, int b);
 int multiplyNumbers(int x, int y);
 
+// Forward declarations for counterexamples
+void test_counterexample_funcptr_call();
+void test_counterexample_funcptr_array();
+void test_counterexample_struct_funcptr();
+void test_counterexample_conditional_call();
+void test_counterexample_funcptr_return();
+
 int main() {
     int num1 = 10;
     int num2 = 20;
@@ -22,6 +29,13 @@ int main() {
     printMessage("Calculation complete");
     
     printf("Sum: %d, Product: %d\n", sum, product);
+    
+    // Counterexamples
+    test_counterexample_funcptr_call();
+    test_counterexample_funcptr_array();
+    test_counterexample_struct_funcptr();
+    test_counterexample_conditional_call();
+    test_counterexample_funcptr_return();
     
     return 0;
 }
@@ -124,30 +138,5 @@ void test_counterexample_funcptr_return() {
     MathFunc func = get_operation('+');  // Get function pointer from function
     int result = func(10, 5);  // Call returned function pointer
     printf("Result: %d\n", result);
-}
-
-int main() {
-    int num1 = 10;
-    int num2 = 20;
-    
-    // Call addNumbers function
-    int sum = addNumbers(num1, num2);
-    
-    // Call multiplyNumbers function
-    int product = multiplyNumbers(num1, num2);
-    
-    // Call printMessage function
-    printMessage("Calculation complete");
-    
-    printf("Sum: %d, Product: %d\n", sum, product);
-    
-    // Counterexamples
-    test_counterexample_funcptr_call();
-    test_counterexample_funcptr_array();
-    test_counterexample_struct_funcptr();
-    test_counterexample_conditional_call();
-    test_counterexample_funcptr_return();
-    
-    return 0;
 }
 

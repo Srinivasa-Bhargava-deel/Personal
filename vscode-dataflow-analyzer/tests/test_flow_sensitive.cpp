@@ -112,6 +112,7 @@ void test_counterexample_flow_func_call() {
     x = get_tainted_value();  // x is now tainted
     y = x;  // y is now tainted (x is tainted)
     
+    char buffer[200];
     sprintf(buffer, "%d %d", x, y);  // TAINT SINK
 }
 
@@ -134,6 +135,7 @@ void test_counterexample_flow_loop_reassign() {
     
     value = input;  // value is now tainted (flow-sensitive)
     
+    char buffer[200];
     sprintf(buffer, "%d", value);  // TAINT SINK
 }
 
@@ -155,6 +157,7 @@ void test_counterexample_flow_multiple_assign() {
     x = input;  // x is now tainted
     x = x + 1;  // x is still tainted
     
+    char buffer[200];
     sprintf(buffer, "%d", x);  // TAINT SINK
 }
 
@@ -174,6 +177,7 @@ void test_counterexample_flow_pointer() {
     
     *ptr = input;  // x is now tainted through pointer (flow-sensitive)
     
+    char buffer[200];
     sprintf(buffer, "%d", x);  // TAINT SINK
 }
 
@@ -194,6 +198,7 @@ void test_counterexample_flow_global() {
     
     global_flow_var = input;  // global_flow_var is now tainted (flow-sensitive)
     
+    char buffer[200];
     sprintf(buffer, "%d", global_flow_var);  // TAINT SINK
 }
 

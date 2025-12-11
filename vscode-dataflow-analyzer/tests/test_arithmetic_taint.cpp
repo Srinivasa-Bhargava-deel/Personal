@@ -6,11 +6,25 @@
 
 char buffer[200];
 
+// Forward declarations
+int helper_function(int x);
+void test_counterexample_division_modulo();
+void test_counterexample_bitwise_arithmetic();
+void test_counterexample_compound_assignment();
+void test_counterexample_arithmetic_chain();
+void test_counterexample_arithmetic_in_condition();
+
 // Taint source: user input
 int get_user_number() {
     int n;
     scanf("%d", &n);  // n is tainted
     return n;
+}
+
+// Helper function to test parameter taint propagation
+int helper_function(int x) {
+    // x should be tainted if called with tainted n-1
+    return x + 10;
 }
 
 // Function that processes tainted input with arithmetic
@@ -29,12 +43,6 @@ int process_number(int n) {
     
     printf("Results: %d, %d, %d, %d\n", result1, result2, result3, result4);
     return result1;
-}
-
-// Helper function to test parameter taint propagation
-int helper_function(int x) {
-    // x should be tainted if called with tainted n-1
-    return x + 10;
 }
 
 // Recursive function with arithmetic
