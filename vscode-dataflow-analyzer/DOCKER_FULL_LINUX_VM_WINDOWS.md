@@ -27,7 +27,7 @@ Windows AMD x64 PC
 - **20GB free disk space**
 - **Virtualization enabled** (AMD-V/SVM in BIOS)
 
-### Required Software
+### Required Software (ONLY These Need to be Installed on Windows)
 
 1. **Docker Desktop for Windows** (AMD64 version)
    - Download: https://www.docker.com/products/docker-desktop/
@@ -41,6 +41,38 @@ Windows AMD x64 PC
 3. **Git for Windows**
    - Download: https://git-scm.com/download/win
    - Choose: 64-bit version
+
+4. **VS Code** (for installing and using the extension)
+   - Download: https://code.visualstudio.com/
+   - Version: 1.80.0 or higher
+   - **Note**: VS Code Extension Development Host is included with VS Code
+
+### ✅ What Docker Handles Automatically (NO Installation Needed!)
+
+**The Docker container automatically installs and includes:**
+
+- ✅ **LLVM/Clang 17** - Installed automatically in Docker container
+- ✅ **CMake** - Installed automatically in Docker container
+- ✅ **Build Tools** (build-essential, g++, make) - Installed automatically
+- ✅ **Node.js 20** - Included in Node.js base image
+- ✅ **TypeScript** - Installed via npm in Docker container
+- ✅ **npm dependencies** - Installed automatically during build
+- ✅ **VS Code Extension Manager (vsce)** - Installed automatically when packaging
+- ✅ **All development tools** - Everything needed for building
+
+**You do NOT need to install these on Windows:**
+- ❌ LLVM/Clang
+- ❌ CMake
+- ❌ Node.js
+- ❌ TypeScript
+- ❌ Visual Studio Build Tools
+- ❌ Any C++ compilers or build tools
+- ❌ npm or yarn (except what comes with Node.js if you install it separately)
+
+**What you DO need on Windows:**
+- ✅ Docker Desktop (handles everything else)
+- ✅ VS Code (to install and use the .vsix extension)
+- ✅ Git (to clone the repository)
 
 ## 🚀 Step 1: Install Docker Desktop on Windows AMD x64
 
@@ -166,6 +198,16 @@ cd Personal\vscode-dataflow-analyzer
 
 ## 🔨 Step 3: Build Extension in Docker (Linux Container)
 
+**Important**: This step builds everything inside Docker. The Docker container automatically:
+- ✅ Installs LLVM/Clang 17
+- ✅ Installs CMake
+- ✅ Installs all build tools
+- ✅ Installs Node.js and TypeScript
+- ✅ Builds the C++ cfg-exporter binary
+- ✅ Compiles the TypeScript extension
+
+**You don't need to install ANY of these on Windows!**
+
 ### 3.1 Build Using PowerShell Script (Recommended)
 
 ```powershell
@@ -175,7 +217,10 @@ cd C:\Users\YourName\Desktop\Personal\vscode-dataflow-analyzer
 # Build Docker image (Linux container)
 .\build-docker.ps1 build
 
-# This will:
+# This will automatically:
+# - Install LLVM/Clang 17 in Docker container
+# - Install CMake in Docker container
+# - Install Node.js 20 and TypeScript in Docker container
 # - Build C++ cfg-exporter binary in Linux container
 # - Compile TypeScript extension
 # - Create Docker image: vscode-dataflow-analyzer:latest
@@ -346,7 +391,22 @@ docker run --rm `
 
 ## 📥 Step 7: Install Extension in VS Code
 
-### 7.1 Install from .vsix File
+**Note**: VS Code must be installed on your Windows machine. The Docker container only builds the extension - it doesn't include VS Code itself.
+
+### 7.1 Install VS Code (If Not Already Installed)
+
+1. **Download VS Code**
+   - Go to: https://code.visualstudio.com/
+   - Download: **"Windows x64 User Installer"** (for AMD x64)
+   - Run installer and complete installation
+
+2. **Verify Installation**
+   ```powershell
+   code --version
+   # Should show: 1.80.0 or higher
+   ```
+
+### 7.2 Install Extension from .vsix File
 
 1. **Open VS Code** on Windows
 2. **Open Extensions** (Ctrl+Shift+X)
@@ -354,6 +414,8 @@ docker run --rm `
 4. Navigate to: `C:\Users\YourName\Desktop\Personal\vscode-dataflow-analyzer\dist\dataflow-analyzer.vsix`
 5. Click **"Install"**
 6. **Reload VS Code** when prompted
+
+**Note**: VS Code Extension Development Host is included with VS Code - no separate installation needed.
 
 ### 7.2 Verify Installation
 
@@ -565,17 +627,51 @@ docker-compose exec dev npm run compile
 7. ✅ **Use extension** in VS Code
 
 **Key Benefits:**
-- ✅ No need to install Node.js, TypeScript, or build tools on Windows
+- ✅ **No need to install ANY build tools on Windows** - Docker handles everything:
+  - ✅ LLVM/Clang (installed automatically in container)
+  - ✅ CMake (installed automatically in container)
+  - ✅ Node.js/TypeScript (included in container)
+  - ✅ All npm dependencies (installed automatically)
+  - ✅ Build tools (g++, make, etc. - installed automatically)
 - ✅ Consistent build environment across all machines
 - ✅ Easy to share and reproduce builds
 - ✅ Isolated development environment
+- ✅ **Only VS Code needs to be installed on Windows** (to use the extension)
 
 ## 📖 Related Documentation
 
 - [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
+- [DOCKER_WHAT_IS_INCLUDED.md](DOCKER_WHAT_IS_INCLUDED.md) - **What's included in Docker vs what you need to install**
 - [DOCKER_WINDOWS_AMD64.md](DOCKER_WINDOWS_AMD64.md) - AMD x64 specific instructions
 - [DOCKER_WINDOWS_COMPATIBILITY.md](DOCKER_WINDOWS_COMPATIBILITY.md) - Windows compatibility details
 - [DOCKER.md](DOCKER.md) - Complete Docker documentation
+
+---
+
+## ❓ Frequently Asked Questions
+
+### Q: Do I need to install LLVM/Clang on Windows?
+**A: No!** Docker container automatically installs LLVM/Clang 17 during build.
+
+### Q: Do I need to install CMake on Windows?
+**A: No!** Docker container automatically installs CMake during build.
+
+### Q: Do I need to install Node.js/TypeScript on Windows?
+**A: No!** Docker container includes Node.js 20 and installs TypeScript automatically.
+
+### Q: Do I need Visual Studio Build Tools?
+**A: No!** Docker uses Linux build tools (gcc, g++, make) - no Windows build tools needed.
+
+### Q: Do I need to install VS Code?
+**A: Yes!** VS Code must be installed on Windows to use the extension. Docker only builds it.
+
+### Q: What's the minimum I need on Windows?
+**A: Only 3 things:**
+1. Docker Desktop
+2. VS Code
+3. Git
+
+Everything else is handled by Docker automatically!
 
 ---
 
