@@ -1428,6 +1428,7 @@ The project includes Docker support for easy building and development without in
 ```
 
 For detailed Docker documentation, see:
+- [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) - Fully dockerized Linux VM on Windows AMD x64
 - [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
 - [DOCKER.md](DOCKER.md) - Complete Docker documentation
 

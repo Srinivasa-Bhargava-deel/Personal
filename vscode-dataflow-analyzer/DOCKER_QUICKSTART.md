@@ -87,6 +87,7 @@ docker run -it --rm `
 
 ## Next Steps
 
+- **Fully Dockerized Setup**: See [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) for complete Linux Docker VM on Windows AMD x64 instructions
 - See [DOCKER.md](DOCKER.md) for detailed documentation
 - See [DOCKER_WINDOWS_COMPATIBILITY.md](DOCKER_WINDOWS_COMPATIBILITY.md) for Windows-specific compatibility information
 - **AMD x64 Users**: See [DOCKER_WINDOWS_AMD64.md](DOCKER_WINDOWS_AMD64.md) for complete AMD x64 64-bit instructions
