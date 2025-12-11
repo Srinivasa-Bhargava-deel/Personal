@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # Build service - builds the extension
+  builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: extension-builder
+    volumes:
+      - ./out:/build/out
+      - ./dist:/build/dist
+    command: npm run compile
+
+  # Development service - for testing and development
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount source code for development
+      - ./src:/app/src:ro
+      - ./cpp-tools:/app/cpp-tools:ro
+      - ./out:/app/out
+      - ./dist:/app/dist
+      # Mount workspace for analysis
+      - ./tests:/app/tests:ro
+    environment:
+      - NODE_ENV=development
+    working_dir: /app
+    command: tail -f /dev/null  # Keep container running
+
+  # Production service - runs the built extension
+  production:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./dist:/app/dist
+      - ./workspace:/app/workspace:ro  # Mount your C++ workspace here
+    environment:
+      - NODE_ENV=production
+    working_dir: /app
+    command: node --version
+

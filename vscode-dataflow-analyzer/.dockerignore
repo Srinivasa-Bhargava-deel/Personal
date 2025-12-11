@@ -1,0 +1,83 @@
+# Node modules (will be installed in container)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+out/
+dist/
+*.vsix
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Test files
+tests/
+tests_validation/
+*.test.ts
+*.test.js
+
+# Documentation (optional - comment out if you want docs in image)
+markdowns/
+*.md
+!README.md
+!CHANGELOG.md
+
+# Media files
+media/
+*.pptx
+*.pdf
+
+# Build artifacts
+cpp-tools/cfg-exporter/build/
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# Logs
+*.log
+erorrs.txt
+
+# Temporary files
+*.tmp
+*.temp
+working_overview
+working_overview.cpp
+
+# User instructions (not needed in container)
+userinstructions/
+
+# Validation files
+markdowns/validation/
+markdowns/test_validation/
+
+# Archive files
+markdowns/archive/
+
+# Python scripts
+generate_presentation.py
+compile.sh
+scan_dependencies.sh
+
+# Windows-specific files
+WindowsCMakeLists.txt
+

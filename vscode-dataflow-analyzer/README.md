@@ -823,6 +823,8 @@ code .
 
 #### Windows Setup
 
+> **📘 Complete Windows Guide**: For detailed step-by-step Windows installation instructions, see [WINDOWS_BUILD_INSTRUCTIONS.md](WINDOWS_BUILD_INSTRUCTIONS.md)
+
 **Step 1: Install Node.js**
 1. Download Node.js LTS (20.x or higher) from [nodejs.org](https://nodejs.org/)
 2. Run the installer (`node-v20.x.x-x64.msi`)
@@ -1401,6 +1403,33 @@ mkdir -p build && cd build
 cmake ..
 cmake --build .
 ```
+
+### Docker Support (Windows/Linux/Mac)
+
+The project includes Docker support for easy building and development without installing all dependencies locally.
+
+**Quick Start:**
+```powershell
+# Windows PowerShell
+.\build-docker.ps1 build
+.\build-docker.ps1 dev
+
+# Linux/Mac
+./build-docker.sh build
+./build-docker.sh dev
+```
+
+**Package Extension:**
+```powershell
+# Build and package as .vsix file
+.\build-docker.ps1 package
+
+# Install in VS Code: Extensions → ... → Install from VSIX → dist/dataflow-analyzer.vsix
+```
+
+For detailed Docker documentation, see:
+- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
+- [DOCKER.md](DOCKER.md) - Complete Docker documentation
 
 ### Build Scripts Reference
 

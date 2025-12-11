@@ -1,0 +1,88 @@
+# Windows-specific Dockerfile for VS Code Dataflow Analyzer
+# Uses Windows Server Core base image for native Windows builds
+# Compatible with: AMD x64 (64-bit), Intel x64 (64-bit) Windows systems
+# Requires: Windows containers mode enabled in Docker Desktop
+
+# ============================================================================
+# Stage 1: Build C++ cfg-exporter binary (Windows AMD x64)
+# ============================================================================
+# Windows Server Core LTSC 2022 AMD64 - works on AMD and Intel x64 processors
+FROM --platform=windows/amd64 mcr.microsoft.com/windows/servercore:ltsc2022 AS cpp-builder-windows
+
+# Install Chocolatey package manager
+RUN powershell -Command \
+    Set-ExecutionPolicy Bypass -Scope Process -Force; \
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; \
+    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Install build tools
+RUN choco install -y cmake git llvm --version=17.0.0 -y
+
+# Set environment variables
+ENV LLVM_DIR=C:\Program Files\LLVM\lib\cmake\llvm
+ENV Clang_DIR=C:\Program Files\LLVM\lib\cmake\clang
+ENV PATH=C:\Program Files\LLVM\bin;%PATH%
+
+# Copy C++ source files
+WORKDIR C:\build\cpp-tools\cfg-exporter
+COPY cpp-tools/cfg-exporter/ ./
+
+# Build cfg-exporter
+RUN mkdir build && \
+    cd build && \
+    cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build . --config Release
+
+# ============================================================================
+# Stage 2: Build TypeScript extension (Windows AMD x64)
+# ============================================================================
+# Node.js 20 Windows AMD64 image - compatible with AMD and Intel x64 processors
+FROM --platform=windows/amd64 node:20-windowsservercore-ltsc2022 AS extension-builder-windows
+
+WORKDIR C:\build
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source files
+COPY src/ ./src/
+COPY jest.config.js ./
+
+# Build TypeScript
+RUN npm run compile
+
+# ============================================================================
+# Stage 3: Final image - Package everything together (Windows AMD x64)
+# ============================================================================
+# Final Windows AMD64 image - compatible with AMD and Intel x64 processors
+FROM --platform=windows/amd64 node:20-windowsservercore-ltsc2022
+
+WORKDIR C:\app
+
+# Copy built extension files
+COPY --from=extension-builder-windows C:\build\out ./out
+COPY --from=extension-builder-windows C:\build\node_modules ./node_modules
+COPY --from=extension-builder-windows C:\build\package.json ./
+COPY --from=extension-builder-windows C:\build\package-lock.json ./
+
+# Copy built C++ binary
+COPY --from=cpp-builder-windows C:\build\cpp-tools\cfg-exporter\build\Release\cfg-exporter.exe ./cpp-tools/cfg-exporter/build/
+
+# Copy other necessary files
+COPY README.md ./
+COPY CHANGELOG.md ./
+
+# Create directory for extension output
+RUN mkdir dist
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PATH=C:\app\cpp-tools\cfg-exporter\build;%PATH%
+
+# Default command
+CMD ["node", "--version"]
+

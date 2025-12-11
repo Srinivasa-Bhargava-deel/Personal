@@ -115,6 +115,7 @@ export class CFGVisualizer {
   private context: vscode.ExtensionContext | null = null;  // Store extension context for panel recreation
   // Track pending re-analyses: Map of panel key -> panel reference (for sending success message after visualization updates)
   private pendingReAnalyses: Map<string, vscode.WebviewPanel> = new Map();
+  private isRecreatingPanel: boolean = false;  // Guard flag to prevent infinite recreation loops
 
   /**
    * Get panel key from filename and viewType
@@ -206,6 +207,9 @@ export class CFGVisualizer {
      * 3. Creating new panel or revealing existing one
      * 4. Updating panel with current analysis state
      */
+    // #region agent log
+    LoggingConfig.raw(`[DEBUG] createOrShow ENTRY | location:CFGVisualizer.ts:200 | hypothesisId:D | data:${JSON.stringify({filename,viewType,panelCount:this.panels.size,isRecreating:this.isRecreatingPanel,hasState:!!state,hasCurrentState:!!this.currentState})} | timestamp:${Date.now()}`);
+    // #endregion
     // CRITICAL FIX: Store context for later use
     this.context = context;
     
@@ -246,6 +250,9 @@ export class CFGVisualizer {
       const expectedTitle = `${baseName}: ${viewType} [${currentSensitivity.toUpperCase()}]`;
       
       if (currentTitle !== expectedTitle) {
+        // #region agent log
+        LoggingConfig.raw(`[DEBUG] TITLE MISMATCH in createOrShow | location:CFGVisualizer.ts:249 | hypothesisId:A | data:${JSON.stringify({panelKey,currentTitle,expectedTitle,isRecreating:this.isRecreatingPanel})} | timestamp:${Date.now()}`);
+        // #endregion
         // Sensitivity mismatch detected - recreate panel with correct title
         LoggingConfig.detail('CFGViz', `Panel title mismatch: "${currentTitle}" vs "${expectedTitle}"`);
         LoggingConfig.log('CFGViz', 'Sensitivity changed - closing old panel and creating new one with correct title');
@@ -296,29 +303,28 @@ export class CFGVisualizer {
      * 3. VS Code configuration
      * 4. Default (PRECISE)
      * 
-     * Panel title format: "filename: viewType [SENSITIVITY]"
+     * Panel title format: "filename: viewType [SENSITIVITY]" or "default: viewType [SENSITIVITY]"
+     * CRITICAL FIX: Always use the format that matches updateVisualization expectations to prevent infinite loops
      */
     // Determine panel title based on filename and current sensitivity
     // CRITICAL FIX: Use passed state, then currentState, then VS Code config, then default
-    let panelTitle = 'Control Flow Graph Visualizer';
-    if (filename) {
-      const baseName = filename.split(/[/\\]/).pop() || filename;
-      // CRITICAL FIX: Priority: passed state > currentState > VS Code config > TaintSensitivity.PRECISE
-      let sensitivity: TaintSensitivity | undefined = state?.taintSensitivity || this.currentState?.taintSensitivity;
-      if (!sensitivity) {
-        // Fallback: try to get from VS Code configuration
-        const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
-        const configValue = config.get<string>('taintSensitivity', 'precise');
-        sensitivity = (configValue as TaintSensitivity) || TaintSensitivity.PRECISE;
-        LoggingConfig.detail('CFGViz', `No sensitivity in state/currentState, using VS Code config: ${sensitivity}`);
-      } else {
-        LoggingConfig.detail('CFGViz', `Using sensitivity from ${state ? 'passed state' : 'currentState'}: ${sensitivity}`);
-      }
-      // Final fallback to PRECISE if still not set
-      sensitivity = sensitivity || TaintSensitivity.PRECISE;
-      LoggingConfig.detail('CFGViz', `Creating panel with sensitivity: ${sensitivity}`);
-      panelTitle = `${baseName}: ${viewType} [${sensitivity.toUpperCase()}]`;
+    // CRITICAL FIX: Always use format "baseName: viewType [SENSITIVITY]" to match updateVisualization expectations
+    const baseName = filename ? filename.split(/[/\\]/).pop() || filename : 'default';
+    // CRITICAL FIX: Priority: passed state > currentState > VS Code config > TaintSensitivity.PRECISE
+    let sensitivity: TaintSensitivity | undefined = state?.taintSensitivity || this.currentState?.taintSensitivity;
+    if (!sensitivity) {
+      // Fallback: try to get from VS Code configuration
+      const config = vscode.workspace.getConfiguration('dataflowAnalyzer');
+      const configValue = config.get<string>('taintSensitivity', 'precise');
+      sensitivity = (configValue as TaintSensitivity) || TaintSensitivity.PRECISE;
+      LoggingConfig.detail('CFGViz', `No sensitivity in state/currentState, using VS Code config: ${sensitivity}`);
+    } else {
+      LoggingConfig.detail('CFGViz', `Using sensitivity from ${state ? 'passed state' : 'currentState'}: ${sensitivity}`);
     }
+    // Final fallback to PRECISE if still not set
+    sensitivity = sensitivity || TaintSensitivity.PRECISE;
+    LoggingConfig.detail('CFGViz', `Creating panel with sensitivity: ${sensitivity}`);
+    const panelTitle = `${baseName}: ${viewType} [${sensitivity.toUpperCase()}]`;
     
     // CRITICAL FIX: Update currentState if state was passed
     if (state) {
@@ -365,6 +371,9 @@ export class CFGVisualizer {
      * CRITICAL: Prevents memory leaks by cleaning up panel references.
      */
     panel.onDidDispose(() => {
+      // #region agent log
+      LoggingConfig.raw(`[DEBUG] PANEL DISPOSED | location:CFGVisualizer.ts:367 | hypothesisId:A | data:${JSON.stringify({panelKey,remainingPanels:this.panels.size-1,isRecreating:this.isRecreatingPanel})} | timestamp:${Date.now()}`);
+      // #endregion
       LoggingConfig.detail('CFGViz', 'Panel disposed, removing from tracking');
       // CRITICAL FIX (LOGIC.md #9): Ensure panel is removed from Map to prevent memory leak
       this.panels.delete(panelKey);
@@ -626,6 +635,9 @@ export class CFGVisualizer {
     } else {
       LoggingConfig.detail('CFGViz', 'Panel created without state, will update when state is provided');
     }
+      // #region agent log
+      LoggingConfig.raw(`[DEBUG] createOrShow EXIT | location:CFGVisualizer.ts:629 | hypothesisId:D | data:${JSON.stringify({panelKey,panelTitle:panel.title,panelCount:this.panels.size,isRecreating:this.isRecreatingPanel})} | timestamp:${Date.now()}`);
+      // #endregion
   }
 
   /**
@@ -675,6 +687,9 @@ export class CFGVisualizer {
    * @param functionName - Optional function name to display (defaults to current or first function)
    */
   async updateVisualization(state: AnalysisState, functionName?: string, isFromSavedState: boolean = false): Promise<void> {
+    // #region agent log
+    LoggingConfig.raw(`[DEBUG] updateVisualization ENTRY | location:CFGVisualizer.ts:689 | hypothesisId:B | data:${JSON.stringify({functionCount:state.cfg.functions.size,panelCount:this.panels.size,isRecreating:this.isRecreatingPanel,sensitivity:state.taintSensitivity})} | timestamp:${Date.now()}`);
+    // #endregion
     /**
      * VISUALIZATION UPDATE ENTRY POINT
      * 
@@ -764,21 +779,47 @@ export class CFGVisualizer {
           const newTitle = `${baseName}: ${viewType} [${sensitivity.toUpperCase()}]`;
           
           if (currentTitle !== newTitle) {
+            // #region agent log
+            LoggingConfig.raw(`[DEBUG] TITLE MISMATCH in updateVisualization | location:CFGVisualizer.ts:781 | hypothesisId:C | data:${JSON.stringify({panelKey,currentTitle,newTitle,isRecreating:this.isRecreatingPanel})} | timestamp:${Date.now()}`);
+            // #endregion
+            // CRITICAL FIX: Prevent infinite recreation loop
+            if (this.isRecreatingPanel) {
+              // #region agent log
+              LoggingConfig.raw(`[DEBUG] GUARD FLAG ACTIVE - skipping recreation | location:CFGVisualizer.ts:786 | hypothesisId:C | data:${JSON.stringify({panelKey,isRecreating:this.isRecreatingPanel})} | timestamp:${Date.now()}`);
+              // #endregion
+              LoggingConfig.warn('CFGViz', `Already recreating a panel, skipping recreation of ${panelKey} to prevent infinite loop`);
+              continue;
+            }
+            
             // Sensitivity mismatch - recreate panel with correct title
             LoggingConfig.detail('CFGViz', `Panel title mismatch: "${currentTitle}" vs "${newTitle}"`);
             LoggingConfig.log('CFGViz', `Recreating panel ${panelKey} with correct title`);
             
-            // Dispose old panel
-            panel.dispose();
-            this.panels.delete(panelKey);
+            // Set guard flag to prevent recursive recreation
+            // #region agent log
+            LoggingConfig.raw(`[DEBUG] SETTING GUARD FLAG | location:CFGVisualizer.ts:800 | hypothesisId:C | data:${JSON.stringify({panelKey,isRecreatingBefore:this.isRecreatingPanel})} | timestamp:${Date.now()}`);
+            // #endregion
+            this.isRecreatingPanel = true;
             
-            // Recreate panel with correct title (pass state to ensure correct sensitivity)
-            const fullFilename = baseName === 'default' ? undefined : baseName;
-            if (this.context) {
-              await this.createOrShow(this.context, fullFilename, viewType as 'Viz' | 'Viz/Cfg', state);
-    } else {
-              // Context not available - cannot recreate panel
-              LoggingConfig.error('CFGViz', 'Cannot recreate panel - context not available');
+            try {
+              // Dispose old panel
+              panel.dispose();
+              this.panels.delete(panelKey);
+              
+              // Recreate panel with correct title (pass state to ensure correct sensitivity)
+              const fullFilename = baseName === 'default' ? undefined : baseName;
+              if (this.context) {
+                await this.createOrShow(this.context, fullFilename, viewType as 'Viz' | 'Viz/Cfg', state);
+              } else {
+                // Context not available - cannot recreate panel
+                LoggingConfig.error('CFGViz', 'Cannot recreate panel - context not available');
+              }
+            } finally {
+              // Always reset guard flag, even if recreation fails
+              // #region agent log
+              LoggingConfig.raw(`[DEBUG] RESETTING GUARD FLAG | location:CFGVisualizer.ts:820 | hypothesisId:C | data:${JSON.stringify({panelKey,isRecreatingBefore:this.isRecreatingPanel})} | timestamp:${Date.now()}`);
+              // #endregion
+              this.isRecreatingPanel = false;
             }
             continue; // Skip updating this panel, it's been recreated
           }
@@ -802,6 +843,9 @@ export class CFGVisualizer {
       // No panels exist yet - state will be used when panel is created
       LoggingConfig.log('CFGViz', 'No panels exist yet, state stored for when panel is created');
     }
+    // #region agent log
+    LoggingConfig.raw(`[DEBUG] updateVisualization EXIT | location:CFGVisualizer.ts:847 | hypothesisId:B | data:${JSON.stringify({panelCount:this.panels.size,isRecreating:this.isRecreatingPanel})} | timestamp:${Date.now()}`);
+    // #endregion
   }
 
   /**
@@ -817,6 +861,9 @@ export class CFGVisualizer {
    * @param panel Optional panel to update (defaults to current panel)
    */
   private async updateWebview(panel?: vscode.WebviewPanel): Promise<void> {
+    // #region agent log
+    LoggingConfig.raw(`[DEBUG] updateWebview ENTRY | location:CFGVisualizer.ts:865 | hypothesisId:B | data:${JSON.stringify({hasPanel:!!panel,hasCurrentPanel:!!this.panel,panelCount:this.panels.size})} | timestamp:${Date.now()}`);
+    // #endregion
     LoggingConfig.raw(`[CFGViz] updateWebview called`);
     LoggingConfig.detail('CFGViz', 'updateWebview called');
     const targetPanel = panel || this.panel;
@@ -1424,12 +1471,24 @@ export class CFGVisualizer {
       
       // Determine taint type for proper coloring
       // Check for data-flow taint (explicit propagation) and control-dependent taint (implicit flow)
-      let hasDataFlowTaint = blockTaintInfos.some((t: TaintInfo) => 
-        t.labels && t.labels.some(l => l !== TaintLabel.CONTROL_DEPENDENT)
-      );
-      let hasControlDependentTaint = blockTaintInfos.some((t: TaintInfo) => 
-        t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)
-      );
+      // Data-flow taint: Any label that is NOT CONTROL_DEPENDENT (USER_INPUT, FILE_CONTENT, DERIVED, etc.)
+      // Control-dependent taint: Explicitly marked with CONTROL_DEPENDENT label
+      let hasDataFlowTaint = false;
+      let hasControlDependentTaint = false;
+      
+      // Check each TaintInfo to determine taint types
+      for (const taintInfo of blockTaintInfos) {
+        if (taintInfo.labels && taintInfo.labels.length > 0) {
+          // Check if this taint has any data-flow labels (any label that is not CONTROL_DEPENDENT)
+          if (taintInfo.labels.some(l => l !== TaintLabel.CONTROL_DEPENDENT)) {
+            hasDataFlowTaint = true;
+          }
+          // Check if this taint has control-dependent label
+          if (taintInfo.labels.includes(TaintLabel.CONTROL_DEPENDENT)) {
+            hasControlDependentTaint = true;
+          }
+        }
+      }
       
       // CRITICAL FIX: Detect synthetic taint separately (blocks with return statements but no variables)
       let hasSyntheticTaint = false;
@@ -1558,17 +1617,19 @@ export class CFGVisualizer {
       const startLine = this.getBlockStartLine(block);
       
       // Build tooltip with taint type information
-      // CRITICAL FIX: Make tooltip consistent with coloring logic - only show taint type if labels are present
+      // CRITICAL FIX: Make tooltip consistent with coloring logic - match the exact same order and conditions as color logic
       let taintTypeText = '';
-      if (hasDataFlowTaint && hasControlDependentTaint) {
+      // Match the exact same logic as color determination to ensure consistency
+      if (hasSyntheticTaint && !hasDataFlowTaint) {
+        taintTypeText = '\nTaint Type: Synthetic (Control-dependent - return statement without variables)';
+      } else if (hasDataFlowTaint && hasControlDependentTaint) {
         taintTypeText = '\nTaint Type: Mixed (Data-flow + Control-dependent)';
       } else if (hasControlDependentTaint) {
         taintTypeText = '\nTaint Type: Control-dependent (Implicit Flow)';
       } else if (hasDataFlowTaint) {
         taintTypeText = '\nTaint Type: Data-flow (Explicit Flow)';
       }
-      // CRITICAL FIX: Removed fallback that showed "Data-flow" for blocks with tainted vars but no labels
-      // This ensures tooltip matches the coloring (normal blocks show no taint type)
+      // Normal blocks (no taint) show no taint type text
       
       // Create node with proper color configuration
       const node = {
@@ -1851,12 +1912,24 @@ export class CFGVisualizer {
         });
         
         // Check for data-flow taint and control-dependent taint separately
-        let hasDataFlowTaint = blockTaintedVars.some((t: TaintInfo) => 
-          t.labels && t.labels.some(l => l !== TaintLabel.CONTROL_DEPENDENT)
-        );
-        let hasControlDependentTaint = blockTaintedVars.some((t: TaintInfo) => 
-          t.labels?.includes(TaintLabel.CONTROL_DEPENDENT)
-        );
+        // Data-flow taint: Any label that is NOT CONTROL_DEPENDENT (USER_INPUT, FILE_CONTENT, DERIVED, etc.)
+        // Control-dependent taint: Explicitly marked with CONTROL_DEPENDENT label
+        let hasDataFlowTaint = false;
+        let hasControlDependentTaint = false;
+        
+        // Check each TaintInfo to determine taint types
+        for (const taintInfo of blockTaintedVars) {
+          if (taintInfo.labels && taintInfo.labels.length > 0) {
+            // Check if this taint has any data-flow labels (any label that is not CONTROL_DEPENDENT)
+            if (taintInfo.labels.some(l => l !== TaintLabel.CONTROL_DEPENDENT)) {
+              hasDataFlowTaint = true;
+            }
+            // Check if this taint has control-dependent label
+            if (taintInfo.labels.includes(TaintLabel.CONTROL_DEPENDENT)) {
+              hasControlDependentTaint = true;
+            }
+          }
+        }
         
         // CRITICAL FIX: Check for synthetic block variables (__block_{blockId}__)
         // These are created for return statements without variables
@@ -1967,11 +2040,14 @@ export class CFGVisualizer {
         let title = `${funcName} :: ${blockLabel}\nStatements: ${block.statements.length}`;
         if (isTainted) {
           title += `\nTainted Variables: ${[...new Set(blockTaintedVars.map((t: TaintInfo) => t.variable))].join(', ')}`;
-          if (hasDataFlowTaint && hasControlDependentTaint) {
+          // Match the exact same logic as color determination to ensure consistency
+          if (hasSyntheticTaint && !hasDataFlowTaint) {
+            title += `\nTaint Type: Synthetic (Control-dependent - return statement without variables)`;
+          } else if (hasDataFlowTaint && hasControlDependentTaint) {
             title += `\nTaint Type: Mixed (Data-flow + Control-dependent)`;
           } else if (hasControlDependentTaint) {
             title += `\nTaint Type: Control-dependent (Implicit Flow)`;
-          } else {
+          } else if (hasDataFlowTaint) {
             title += `\nTaint Type: Data-flow (Explicit Flow)`;
           }
         }
