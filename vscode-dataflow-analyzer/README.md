@@ -1424,8 +1424,13 @@ The project includes Docker support for easy building and development without in
 # Build and package as .vsix file
 .\build-docker.ps1 package
 
+# Or with fresh build (no cache):
+.\build-docker.ps1 package -NoCache
+
 # Install in VS Code: Extensions → ... → Install from VSIX → dist/dataflow-analyzer.vsix
 ```
+
+**Note:** The packaging process uses `docker-package.sh` helper script which automatically handles the prepublish script. The extension uses `@vscode/vsce` (newer maintained version) instead of deprecated `vsce`.
 
 For detailed Docker documentation, see:
 - [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) - Fully dockerized Linux VM on Windows AMD x64

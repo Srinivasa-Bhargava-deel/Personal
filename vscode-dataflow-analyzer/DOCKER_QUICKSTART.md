@@ -41,6 +41,9 @@ docker-compose exec dev bash
 # Build and package as .vsix
 .\build-docker.ps1 package
 
+# Or with fresh build (no cache):
+.\build-docker.ps1 package -NoCache
+
 # Install in VS Code:
 # 1. Open VS Code
 # 2. Extensions → ... → Install from VSIX

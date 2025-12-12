@@ -41,11 +41,14 @@ When you build the Docker image, it **automatically installs** everything needed
 
 ```dockerfile
 # Automatically installed when packaging:
-- vsce (VS Code Extension Manager)
-  Installed via: npm install -g vsce
+- @vscode/vsce (VS Code Extension Manager)
+  Installed via: npm install -g @vscode/vsce
+  Uses helper script: docker-package.sh (handles prepublish script)
 ```
 
-**You do NOT need to install vsce on Windows!**
+**You do NOT need to install @vscode/vsce on Windows!**
+
+**Note:** The packaging process uses a helper script (`docker-package.sh`) that temporarily disables the `vscode:prepublish` script since the code is already compiled in the Docker image. This prevents the "tsc: not found" error.
 
 ## ❌ What You MUST Install on Windows
 
@@ -83,7 +86,7 @@ When you build the Docker image, it **automatically installs** everything needed
 | **Node.js 20** | ✅ Yes (base image) | ❌ No |
 | **TypeScript** | ✅ Yes (via npm) | ❌ No |
 | **npm dependencies** | ✅ Yes (automatic) | ❌ No |
-| **vsce** | ✅ Yes (when packaging) | ❌ No |
+| **@vscode/vsce** | ✅ Yes (when packaging) | ❌ No |
 | **Docker Desktop** | ❌ No | ✅ Yes (required) |
 | **VS Code** | ❌ No | ✅ Yes (required) |
 | **Git** | ❌ No | ✅ Yes (required) |
@@ -155,7 +158,7 @@ COPY --from=cpp-builder /build/cfg-exporter ./cpp-tools/cfg-exporter/build/
 4. ✅ **Node.js 20** (JavaScript runtime)
 5. ✅ **TypeScript** (compiler)
 6. ✅ **All npm dependencies** (from package.json)
-7. ✅ **vsce** (extension packager)
+7. ✅ **@vscode/vsce** (extension packager, installed via helper script)
 
 ## 💡 Key Takeaway
 
