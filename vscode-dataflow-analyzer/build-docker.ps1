@@ -3,7 +3,7 @@
 
 param(
     [Parameter(Position=0)]
-    [ValidateSet("build", "run", "dev", "package", "test", "clean", "help")]
+    [ValidateSet("build", "run", "dev", "package", "test", "clean", "cleanall", "help")]
     [string]$Command = "help",
     
     [switch]$Windows,
@@ -26,6 +26,7 @@ Commands:
   package    Build and package extension as .vsix file
   test       Run tests in Docker container
   clean      Remove Docker images and containers
+  cleanall   Complete cleanup: containers, images, and build cache
   help       Show this help message
 
 Options:
@@ -156,6 +157,31 @@ function Clean-Docker {
     Write-Host "Cleanup completed!" -ForegroundColor Green
 }
 
+function Clean-All {
+    Write-Host "Performing complete Docker cleanup..." -ForegroundColor Cyan
+    
+    # Stop containers
+    Write-Host "Stopping containers..." -ForegroundColor Yellow
+    docker-compose down 2>$null
+    
+    # Remove containers
+    Write-Host "Removing containers..." -ForegroundColor Yellow
+    docker container prune -f
+    
+    # Remove images
+    Write-Host "Removing images..." -ForegroundColor Yellow
+    docker rmi $Tag 2>$null
+    docker rmi "vscode-dataflow-analyzer" 2>$null
+    docker image prune -a -f
+    
+    # Clear build cache
+    Write-Host "Clearing build cache..." -ForegroundColor Yellow
+    docker builder prune -a -f
+    
+    Write-Host "Complete cleanup finished!" -ForegroundColor Green
+    Write-Host "Run '.\build-docker.ps1 build -NoCache' for fresh build" -ForegroundColor Yellow
+}
+
 # Main execution
 switch ($Command) {
     "build" {
@@ -179,6 +205,9 @@ switch ($Command) {
     }
     "clean" {
         Clean-Docker
+    }
+    "cleanall" {
+        Clean-All
     }
     "help" {
         Show-Help
