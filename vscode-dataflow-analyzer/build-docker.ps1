@@ -37,8 +37,10 @@ Options:
 Examples:
   .\build-docker.ps1 build
   .\build-docker.ps1 build -Windows
+  .\build-docker.ps1 build -NoCache
   .\build-docker.ps1 dev
   .\build-docker.ps1 package
+  .\build-docker.ps1 package -NoCache
   .\build-docker.ps1 clean
 "@
 }

@@ -4,15 +4,26 @@ Complete guide for clearing Docker cache and performing a fresh build on Windows
 
 ## Quick Commands
 
-### Option 1: Clean Build Using PowerShell Script (Easiest)
+### Option 1: Fresh Package Build (Recommended)
+
+```powershell
+# Package without using Docker cache
+.\build-docker.ps1 package -NoCache
+
+# Or clean everything first, then package
+.\build-docker.ps1 cleanall
+.\build-docker.ps1 package -NoCache
+```
+
+### Option 2: Clean Build Using PowerShell Script
 
 ```powershell
 # Clean everything and rebuild
-.\build-docker.ps1 clean
+.\build-docker.ps1 cleanall
 .\build-docker.ps1 build -NoCache
 ```
 
-### Option 2: Manual Docker Clean Commands
+### Option 3: Manual Docker Clean Commands
 
 ```powershell
 # Stop all running containers
@@ -200,8 +211,14 @@ docker build --no-cache --platform linux/amd64 -t vscode-dataflow-analyzer:lates
 ## Quick Reference
 
 ```powershell
+# Fresh package build (no cache)
+.\build-docker.ps1 package -NoCache
+
 # Complete cleanup and fresh build (one-liner)
 docker-compose down; docker system prune -a -f; .\build-docker.ps1 build -NoCache
+
+# Complete cleanup and fresh package
+docker-compose down; docker system prune -a -f; .\build-docker.ps1 package -NoCache
 
 # Just clear cache and rebuild
 docker builder prune -a -f; .\build-docker.ps1 build -NoCache
@@ -212,9 +229,14 @@ docker rmi vscode-dataflow-analyzer:latest; .\build-docker.ps1 build -NoCache
 
 ## Summary
 
-**Quickest way:**
+**For packaging (fresh build):**
 ```powershell
-.\build-docker.ps1 clean
+.\build-docker.ps1 package -NoCache
+```
+
+**Quickest way (build):**
+```powershell
+.\build-docker.ps1 cleanall
 .\build-docker.ps1 build -NoCache
 ```
 
