@@ -49,8 +49,15 @@ COPY cpp-tools/cfg-exporter/ ./
 # Build type is set via -DCMAKE_BUILD_TYPE=Release
 RUN mkdir -p build && \
     cd build && \
+    echo "=== CMake Configuration ===" && \
     cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja && \
+    echo "=== Checking JSON header download ===" && \
+    ls -la json_include/nlohmann/json.hpp || echo "JSON header NOT found!" && \
+    echo "=== Checking include directories ===" && \
+    cat CMakeCache.txt | grep JSON_HEADER_DIR || echo "JSON_HEADER_DIR not in cache" && \
+    echo "=== Building ===" && \
     cmake --build . && \
+    echo "=== Build complete, checking binary ===" && \
     ls -la cfg-exporter && \
     strip cfg-exporter || true && \
     ls -la cfg-exporter
