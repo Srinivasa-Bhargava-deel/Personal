@@ -45,11 +45,15 @@ WORKDIR /build/cpp-tools/cfg-exporter
 COPY cpp-tools/cfg-exporter/ ./
 
 # Build cfg-exporter
+# Note: Ninja generator doesn't use --config flag (single-config generator)
+# Build type is set via -DCMAKE_BUILD_TYPE=Release
 RUN mkdir -p build && \
     cd build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja && \
-    cmake --build . --config Release && \
-    strip cfg-exporter || true
+    cmake --build . && \
+    ls -la cfg-exporter && \
+    strip cfg-exporter || true && \
+    ls -la cfg-exporter
 
 # ============================================================================
 # Stage 2: Build TypeScript extension
