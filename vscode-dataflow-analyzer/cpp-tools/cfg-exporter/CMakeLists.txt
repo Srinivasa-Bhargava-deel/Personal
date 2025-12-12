@@ -14,6 +14,8 @@ if(NOT EXISTS ${JSON_HEADER_FILE})
   message(STATUS "Target location: ${JSON_HEADER_FILE}")
   file(MAKE_DIRECTORY ${JSON_HEADER_DIR}/nlohmann)
   message(STATUS "Downloading nlohmann/json.hpp from GitHub...")
+  
+  # Try download with TLS verification first
   file(DOWNLOAD
     https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
     ${JSON_HEADER_FILE}
@@ -23,9 +25,25 @@ if(NOT EXISTS ${JSON_HEADER_FILE})
   )
   list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
   list(GET DOWNLOAD_STATUS 1 STATUS_MESSAGE)
+  
+  # If TLS verification fails, try without (for Docker environments with cert issues)
+  if(NOT STATUS_CODE EQUAL 0)
+    message(WARNING "Download with TLS verification failed (${STATUS_CODE}), trying without TLS verification...")
+    file(DOWNLOAD
+      https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
+      ${JSON_HEADER_FILE}
+      SHOW_PROGRESS
+      STATUS DOWNLOAD_STATUS
+      TLS_VERIFY OFF
+    )
+    list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+    list(GET DOWNLOAD_STATUS 1 STATUS_MESSAGE)
+  endif()
+  
   if(NOT STATUS_CODE EQUAL 0)
     message(FATAL_ERROR "Failed to download nlohmann/json.hpp: ${STATUS_CODE} - ${STATUS_MESSAGE}")
   endif()
+  
   message(STATUS "Successfully downloaded nlohmann/json.hpp")
 else()
   message(STATUS "JSON header already exists: ${JSON_HEADER_FILE}")
