@@ -114,12 +114,13 @@ function Package-Extension {
     # Copy helper script to container and use it
     # The helper script temporarily disables vscode:prepublish since code is already compiled
     # Using @vscode/vsce (newer maintained version) instead of deprecated vsce
+    # Note: Script is mounted read-only, so we run it directly with bash instead of chmod
     docker run --rm `
         -v "${PWD}/dist:/app/dist" `
         -v "${PWD}/docker-package.sh:/tmp/docker-package.sh:ro" `
         -w /app `
         $Tag `
-        sh -c "chmod +x /tmp/docker-package.sh && /tmp/docker-package.sh"
+        bash /tmp/docker-package.sh
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Extension packaged successfully!" -ForegroundColor Green

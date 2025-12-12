@@ -1,0 +1,176 @@
+# Docker Troubleshooting Guide
+
+This guide addresses common issues encountered when building and packaging the extension with Docker.
+
+## Issue 1: Permission Error - "chmod: changing permissions of '/tmp/docker-package.sh': Read-only file system"
+
+### Symptoms
+```
+chmod: changing permissions of '/tmp/docker-package.sh': Read-only file system
+Packaging failed!
+```
+
+### Root Cause
+The `docker-package.sh` script is mounted as read-only (`:ro` flag) for security reasons, but the build script was trying to make it executable with `chmod +x`.
+
+### Solution
+**Fixed in:** `build-docker.ps1`, `build-docker.sh`, and documentation
+
+The script now runs directly with `bash /tmp/docker-package.sh` instead of trying to `chmod` it first. This works because bash can execute scripts even if they don't have execute permissions.
+
+### Verification
+Run the package command:
+```powershell
+.\build-docker.ps1 package
+```
+
+Or on Linux/macOS:
+```bash
+./build-docker.sh package
+```
+
+## Issue 2: Network Timeout - LLVM Package Download Failures
+
+### Symptoms
+```
+Error reading from server - read (5: Input/output error)
+Unable to connect to apt.llvm.org:443
+Connection refused
+Failed to fetch https://apt.llvm.org/jammy/pool/main/l/llvm-toolchain-17/...
+```
+
+### Root Cause
+Network connectivity issues when downloading LLVM packages from `apt.llvm.org`. This can happen due to:
+- Slow or unstable internet connection
+- Temporary server issues at apt.llvm.org
+- Firewall/proxy restrictions
+- Network timeouts
+
+### Solution
+**Fixed in:** `Dockerfile`
+
+Added automatic retry logic with exponential backoff:
+- **5 retry attempts** with increasing delays (10s, 20s, 40s, 80s, 160s)
+- **60-second timeout** per download attempt
+- **Connection retry** enabled for wget
+- Clear error messages if all retries fail
+
+### What Happens Now
+1. First attempt: Downloads LLVM GPG key and packages
+2. If it fails: Waits 10 seconds and retries
+3. Each retry doubles the wait time
+4. After 5 failed attempts: Shows clear error message
+
+### If Retries Still Fail
+
+**Option 1: Check Internet Connection**
+```powershell
+# Test connectivity to apt.llvm.org
+Test-NetConnection apt.llvm.org -Port 443
+```
+
+**Option 2: Use a Different Network**
+- Try a different Wi-Fi network
+- Use a mobile hotspot
+- Check if VPN is causing issues
+
+**Option 3: Build During Off-Peak Hours**
+- LLVM servers may be less busy during off-peak hours
+- Try building at different times
+
+**Option 4: Use Docker Build Cache**
+If you've successfully built before, use cached layers:
+```powershell
+# Don't use -NoCache flag
+.\build-docker.ps1 build
+.\build-docker.ps1 package
+```
+
+**Option 5: Manual Retry**
+Simply run the build command again - the retry logic will kick in automatically.
+
+## Issue 3: Docker Build Cache Issues
+
+### Symptoms
+- Build succeeds but uses outdated code
+- Unexpected behavior after code changes
+
+### Solution
+Use `-NoCache` flag for fresh builds:
+```powershell
+.\build-docker.ps1 build -NoCache
+.\build-docker.ps1 package -NoCache
+```
+
+Or clean everything first:
+```powershell
+.\build-docker.ps1 cleanall
+.\build-docker.ps1 build -NoCache
+.\build-docker.ps1 package -NoCache
+```
+
+## Issue 4: Docker Compose Version Warning
+
+### Symptoms
+```
+level=warning msg="docker-compose.yml: the attribute `version` is obsolete"
+```
+
+### Root Cause
+Docker Compose v2+ doesn't require the `version` field in `docker-compose.yml`.
+
+### Solution
+This is just a warning and doesn't affect functionality. The `version` field can be removed from `docker-compose.yml` if desired, but it's harmless to leave it.
+
+## General Troubleshooting Tips
+
+### 1. Check Docker is Running
+```powershell
+docker ps
+```
+
+### 2. Check Disk Space
+```powershell
+docker system df
+```
+
+### 3. Clean Up Docker Resources
+```powershell
+# Remove unused containers, networks, images
+.\build-docker.ps1 cleanall
+
+# Or manually:
+docker system prune -a -f
+```
+
+### 4. Check Docker Logs
+```powershell
+docker logs <container-id>
+```
+
+### 5. Verify Platform Compatibility
+```powershell
+# Check Docker platform
+docker version
+
+# Check if AMD-V/SVM is enabled (Windows)
+systeminfo | findstr /C:"Hyper-V"
+```
+
+## Getting Help
+
+If you continue to experience issues:
+
+1. **Check the error message** - It usually contains helpful information
+2. **Review this troubleshooting guide** - Common issues are documented here
+3. **Check Docker Desktop logs** - Settings → Troubleshoot → View logs
+4. **Try a fresh build** - Use `cleanall` then rebuild
+5. **Check network connectivity** - Ensure you can reach apt.llvm.org
+
+## Related Documentation
+
+- [DOCKER.md](DOCKER.md) - Complete Docker documentation
+- [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) - Windows-specific guide
+- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
+- [CHECK_VIRTUALIZATION_WINDOWS.md](CHECK_VIRTUALIZATION_WINDOWS.md) - Check virtualization on Windows
+

@@ -72,12 +72,13 @@ To create a VSIX package that can be installed in VS Code:
 docker build -t vscode-dataflow-analyzer .
 
 # Run container and package extension (using helper script)
+# Note: Script is mounted read-only, so we run it directly with bash
 docker run --rm `
   -v ${PWD}/dist:/app/dist `
   -v ${PWD}/docker-package.sh:/tmp/docker-package.sh:ro `
   -w /app `
   vscode-dataflow-analyzer `
-  sh -c "chmod +x /tmp/docker-package.sh && /tmp/docker-package.sh"
+  bash /tmp/docker-package.sh
 ```
 
 ## Windows-Specific Considerations
@@ -219,7 +220,7 @@ jobs:
         run: |
           docker run --rm -v $PWD/dist:/app/dist -v $PWD/docker-package.sh:/tmp/docker-package.sh:ro -w /app \
             vscode-dataflow-analyzer \
-            sh -c "chmod +x /tmp/docker-package.sh && /tmp/docker-package.sh"
+            bash /tmp/docker-package.sh
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:

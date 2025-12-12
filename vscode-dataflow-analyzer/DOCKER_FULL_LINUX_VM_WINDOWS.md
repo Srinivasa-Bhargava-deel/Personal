@@ -284,13 +284,14 @@ if (-not (Test-Path "dist")) {
 }
 
 # Package extension (using helper script that handles prepublish)
+# Note: Script is mounted read-only, so we run it directly with bash
 docker run --rm `
     --platform linux/amd64 `
     -v "${PWD}/dist:/app/dist" `
     -v "${PWD}/docker-package.sh:/tmp/docker-package.sh:ro" `
     -w /app `
     vscode-dataflow-analyzer:latest `
-    sh -c "chmod +x /tmp/docker-package.sh && /tmp/docker-package.sh"
+    bash /tmp/docker-package.sh
 
 # Verify package created
 dir dist\dataflow-analyzer.vsix

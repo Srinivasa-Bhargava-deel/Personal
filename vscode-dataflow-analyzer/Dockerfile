@@ -25,15 +25,42 @@ RUN apt-get update && apt-get install -y \
 
 # Install LLVM/Clang 17 (or latest available)
 # Using LLVM official repository for better compatibility
-RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
-    echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" >> /etc/apt/sources.list.d/llvm.list && \
-    apt-get update && \
-    apt-get install -y \
-    llvm-17 \
-    clang-17 \
-    libclang-17-dev \
-    llvm-17-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Add retry logic for network connectivity issues
+RUN set -e && \
+    install_llvm() { \
+        local retry_count=0 && \
+        local max_retries=5 && \
+        local delay=10 && \
+        while [ $retry_count -lt $max_retries ]; do \
+            echo "Attempt $((retry_count + 1))/$max_retries: Installing LLVM..." && \
+            if wget --timeout=60 --tries=3 --retry-connrefused -O - https://apt.llvm.org/llvm-snapshot.gpg.key 2>&1 | apt-key add - 2>&1 && \
+               echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" >> /etc/apt/sources.list.d/llvm.list && \
+               apt-get update 2>&1 && \
+               apt-get install -y --no-install-recommends \
+                   llvm-17 \
+                   clang-17 \
+                   libclang-17-dev \
+                   llvm-17-dev 2>&1; then \
+                echo "LLVM installation successful!" && \
+                return 0; \
+            else \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Installation failed. Waiting ${delay}s before retry..." && \
+                    sleep $delay && \
+                    delay=$((delay * 2)) && \
+                    rm -f /etc/apt/sources.list.d/llvm.list && \
+                    apt-get clean; \
+                fi; \
+            fi; \
+        done && \
+        echo "ERROR: Failed to install LLVM after $max_retries attempts" && \
+        echo "This may be due to network connectivity issues with apt.llvm.org" && \
+        echo "Please check your internet connection and try again." && \
+        return 1; \
+    } && \
+    install_llvm && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set LLVM paths
 ENV LLVM_DIR=/usr/lib/llvm-17/lib/cmake/llvm
