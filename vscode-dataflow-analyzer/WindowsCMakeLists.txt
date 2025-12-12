@@ -1,0 +1,371 @@
+cmake_minimum_required(VERSION 3.13)
+project(cfg_exporter LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# --- Force static runtime library to match LLVM/Clang ---
+# LLVM/Clang libraries are built with static runtime (/MT), so we must match
+# This prevents LNK2038 errors about RuntimeLibrary mismatch
+if(MSVC)
+    # Remove /MD and /MDd flags and replace with /MT and /MTd
+    foreach(flag_var CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_DEBUG 
+                     CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS_MINSIZEREL)
+        string(REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+        string(REPLACE "/MDd" "/MTd" ${flag_var} "${${flag_var}}")
+    endforeach()
+    # Set default runtime library (for CMake 3.15+)
+    if(POLICY CMP0091)
+        cmake_policy(SET CMP0091 NEW)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    endif()
+endif()
+
+# --- Download nlohmann/json single header file ---
+set(JSON_HEADER_DIR ${CMAKE_BINARY_DIR}/json_include)
+set(JSON_HEADER_FILE ${JSON_HEADER_DIR}/nlohmann/json.hpp)
+
+# Download the header file if it doesn't exist
+if(NOT EXISTS ${JSON_HEADER_FILE})
+  file(MAKE_DIRECTORY ${JSON_HEADER_DIR}/nlohmann)
+  message(STATUS "Downloading nlohmann/json.hpp...")
+  file(DOWNLOAD
+    https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
+    ${JSON_HEADER_FILE}
+    SHOW_PROGRESS
+    STATUS DOWNLOAD_STATUS
+  )
+  list(GET DOWNLOAD_STATUS 0 STATUS_CODE)
+  if(NOT STATUS_CODE EQUAL 0)
+    message(FATAL_ERROR "Failed to download nlohmann/json.hpp")
+  endif()
+endif()
+
+# Create interface library for nlohmann_json
+add_library(nlohmann_json INTERFACE)
+target_include_directories(nlohmann_json INTERFACE ${JSON_HEADER_DIR})
+add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
+
+# --- Handle LibXml2 (optional dependency, suppress warnings) ---
+# Disable LibXml2 package finding to suppress warnings from LLVM
+set(CMAKE_DISABLE_FIND_PACKAGE_LibXml2 TRUE)
+# Also set variables in case LLVM checks them
+set(LIBXML2_LIBRARY "")
+set(LIBXML2_INCLUDE_DIR "")
+set(LibXml2_FOUND FALSE)
+
+# --- Handle DIA SDK (Debug Interface Access SDK) ---
+# DIA SDK is optional but LLVM may require it for some features
+# Try to find it in common locations (including VS 2026/VS 18)
+set(DIA_SDK_FOUND FALSE)
+
+# Try to detect Visual Studio installation path from environment
+if(DEFINED ENV{VSINSTALLDIR})
+    set(VS_INSTALL_DIR "$ENV{VSINSTALLDIR}")
+    # Ensure path separator is correct (VSINSTALLDIR may or may not end with backslash)
+    if(NOT VS_INSTALL_DIR MATCHES "[/\\\\]$")
+        set(VS_INSTALL_DIR "${VS_INSTALL_DIR}/")
+    endif()
+    set(DIA_CANDIDATE "${VS_INSTALL_DIR}DIA SDK/lib/amd64")
+    if(EXISTS "${DIA_CANDIDATE}/diaguids.lib")
+        set(DIA_SDK_LIB_DIR "${DIA_CANDIDATE}")
+        set(DIA_SDK_FOUND TRUE)
+        message(STATUS "Found DIA SDK via VSINSTALLDIR: ${DIA_SDK_LIB_DIR}")
+    endif()
+endif()
+
+# If not found via environment, try common installation paths
+if(NOT DIA_SDK_FOUND)
+    set(DIA_SDK_PATHS
+        "C:/Program Files/Microsoft Visual Studio/2026/BuildTools/DIA SDK/lib/amd64"
+        "C:/Program Files/Microsoft Visual Studio/2026/Professional/DIA SDK/lib/amd64"
+        "C:/Program Files/Microsoft Visual Studio/2026/Enterprise/DIA SDK/lib/amd64"
+        "C:/Program Files/Microsoft Visual Studio/2026/Community/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2026/BuildTools/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2026/Professional/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2026/Enterprise/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2026/Community/DIA SDK/lib/amd64"
+        "C:/Program Files/Microsoft Visual Studio/2022/BuildTools/DIA SDK/lib/amd64"
+        "C:/Program Files/Microsoft Visual Studio/2022/Professional/DIA SDK/lib/amd64"
+        "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/DIA SDK/lib/amd64"
+        "C:/Program Files/Microsoft Visual Studio/2022/Community/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2022/Professional/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2022/Enterprise/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2022/Community/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/DIA SDK/lib/amd64"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2019/BuildTools/DIA SDK/lib/amd64"
+    )
+
+    foreach(DIA_PATH ${DIA_SDK_PATHS})
+        if(EXISTS "${DIA_PATH}/diaguids.lib")
+            set(DIA_SDK_LIB_DIR "${DIA_PATH}")
+            set(DIA_SDK_FOUND TRUE)
+            message(STATUS "Found DIA SDK at: ${DIA_SDK_LIB_DIR}")
+            break()
+        endif()
+    endforeach()
+endif()
+
+if(DIA_SDK_FOUND)
+    # Add to linker search paths before finding LLVM
+    link_directories(${DIA_SDK_LIB_DIR})
+    # Also set as environment variable for linker
+    set(ENV{LIB} "$ENV{LIB};${DIA_SDK_LIB_DIR}")
+    
+    # Check if DIA SDK is at a different location than LLVM expects
+    # LLVM hardcodes: C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\DIA SDK
+    get_filename_component(DIA_SDK_ROOT "${DIA_SDK_LIB_DIR}" PATH)
+    get_filename_component(DIA_SDK_ROOT "${DIA_SDK_ROOT}" PATH)
+    
+    set(EXPECTED_DIA_ROOT "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/DIA SDK")
+    set(EXPECTED_DIA_LIB "${EXPECTED_DIA_ROOT}/lib/amd64/diaguids.lib")
+    
+    # If DIA SDK is found but not at the expected Professional location, create a junction
+    if(NOT EXISTS "${EXPECTED_DIA_LIB}" AND EXISTS "${DIA_SDK_LIB_DIR}/diaguids.lib" AND WIN32)
+        message(STATUS "DIA SDK found at: ${DIA_SDK_ROOT}")
+        message(STATUS "LLVM expects it at: ${EXPECTED_DIA_ROOT}")
+        message(STATUS "Attempting to create directory junction...")
+        
+        # Get parent directory of expected location
+        get_filename_component(EXPECTED_PARENT "${EXPECTED_DIA_ROOT}" PATH)
+        
+        # Convert paths to native Windows format (backslashes) for Windows commands
+        file(TO_NATIVE_PATH "${EXPECTED_PARENT}" EXPECTED_PARENT_NATIVE)
+        file(TO_NATIVE_PATH "${EXPECTED_DIA_ROOT}" EXPECTED_DIA_ROOT_NATIVE)
+        file(TO_NATIVE_PATH "${DIA_SDK_ROOT}" DIA_SDK_ROOT_NATIVE)
+        
+        # Try to create parent directory structure if it doesn't exist (non-fatal)
+        if(NOT EXISTS "${EXPECTED_PARENT}")
+            message(STATUS "Attempting to create parent directory: ${EXPECTED_PARENT}")
+            execute_process(
+                COMMAND powershell -Command "New-Item -ItemType Directory -Path '${EXPECTED_PARENT_NATIVE}' -Force"
+                RESULT_VARIABLE DIR_CREATE_RESULT
+                OUTPUT_QUIET
+                ERROR_QUIET
+            )
+            if(NOT DIR_CREATE_RESULT EQUAL 0)
+                message(WARNING "Could not create parent directory (requires Administrator privileges)")
+                message(WARNING "CMake will continue, but you'll need to create the junction manually")
+            endif()
+        endif()
+        
+        # Try to create junction (mklink can create parent directories if needed)
+        # First check if junction already exists
+        if(NOT EXISTS "${EXPECTED_DIA_ROOT}")
+            message(STATUS "Attempting to create junction: ${EXPECTED_DIA_ROOT} -> ${DIA_SDK_ROOT}")
+            
+            # Try PowerShell first (may work without admin, and can create parent dirs)
+            execute_process(
+                COMMAND powershell -Command "$parent = Split-Path '${EXPECTED_DIA_ROOT_NATIVE}'; if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }; New-Item -ItemType Junction -Path '${EXPECTED_DIA_ROOT_NATIVE}' -Target '${DIA_SDK_ROOT_NATIVE}' -Force"
+                RESULT_VARIABLE JUNCTION_RESULT
+                OUTPUT_QUIET
+                ERROR_QUIET
+            )
+            
+            if(JUNCTION_RESULT EQUAL 0 AND EXISTS "${EXPECTED_DIA_ROOT}")
+                message(STATUS "Successfully created junction!")
+            else()
+                # If PowerShell fails, try cmd mklink (requires admin, but can create parent dirs)
+                message(STATUS "PowerShell junction creation failed, trying cmd mklink...")
+                # Create parent directory first using cmd
+                execute_process(
+                    COMMAND cmd /c "if not exist \"${EXPECTED_PARENT_NATIVE}\" mkdir \"${EXPECTED_PARENT_NATIVE}\""
+                    RESULT_VARIABLE MKDIR_RESULT
+                    OUTPUT_QUIET
+                    ERROR_QUIET
+                )
+                # Now try mklink
+                execute_process(
+                    COMMAND cmd /c "mklink /J \"${EXPECTED_DIA_ROOT_NATIVE}\" \"${DIA_SDK_ROOT_NATIVE}\""
+                    RESULT_VARIABLE MKLINK_RESULT
+                    OUTPUT_QUIET
+                    ERROR_QUIET
+                )
+                
+                if(MKLINK_RESULT EQUAL 0 AND EXISTS "${EXPECTED_DIA_ROOT}")
+                    message(STATUS "Successfully created junction using mklink!")
+                else()
+                    message(WARNING "Failed to create junction automatically (requires Administrator privileges).")
+                    message(WARNING "CMake configuration will continue, but linking may fail.")
+                    message(WARNING "")
+                    message(WARNING "To fix this, run as Administrator:")
+                    message(WARNING "  mklink /J \"${EXPECTED_DIA_ROOT_NATIVE}\" \"${DIA_SDK_ROOT_NATIVE}\"")
+                    message(WARNING "")
+                    message(WARNING "Or copy the folder instead:")
+                    message(WARNING "  xcopy /E /I \"${DIA_SDK_ROOT_NATIVE}\" \"${EXPECTED_DIA_ROOT_NATIVE}\"")
+                endif()
+            endif()
+        else()
+            message(STATUS "Junction or directory already exists at expected location")
+        endif()
+    endif()
+else()
+    message(WARNING "DIA SDK not found. Attempting workaround...")
+    message(WARNING "If linking still fails, install DIA SDK from Visual Studio Installer:")
+    message(WARNING "  Visual Studio Installer -> Modify -> Individual Components -> DIA SDK")
+    
+    # Try to find any DIA SDK installation (even if not in expected location)
+    # and add it to library search path
+    file(GLOB_RECURSE DIA_LIBS 
+        "C:/Program Files*/Microsoft Visual Studio/*/DIA SDK/lib/*/diaguids.lib"
+        "C:/Program Files (x86)/Microsoft Visual Studio/*/DIA SDK/lib/*/diaguids.lib"
+    )
+    
+    if(DIA_LIBS)
+        list(GET DIA_LIBS 0 FIRST_DIA_LIB)
+        get_filename_component(DIA_LIB_DIR "${FIRST_DIA_LIB}" DIRECTORY)
+        get_filename_component(DIA_SDK_ROOT "${DIA_LIB_DIR}" PATH)
+        get_filename_component(DIA_SDK_ROOT "${DIA_SDK_ROOT}" PATH)
+        
+        message(STATUS "Found DIA SDK at alternative location: ${DIA_SDK_ROOT}")
+        link_directories(${DIA_LIB_DIR})
+        set(ENV{LIB} "$ENV{LIB};${DIA_LIB_DIR}")
+        
+        # Try to create a junction to the expected VS 2019 location
+        # This is a workaround for LLVM's hardcoded path
+        set(EXPECTED_DIA_ROOT "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/DIA SDK")
+        if(NOT EXISTS "${EXPECTED_DIA_ROOT}" AND WIN32)
+            message(STATUS "Attempting to create junction from ${EXPECTED_DIA_ROOT} to ${DIA_SDK_ROOT}")
+            # Note: This requires admin privileges, so it might fail
+            # User can run this manually if needed:
+            # mklink /J "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\DIA SDK" "<actual-path>"
+        endif()
+        
+        set(DIA_SDK_FOUND TRUE)
+    endif()
+endif()
+
+# --- Set LLVM & Clang paths explicitly ---
+set(LLVM_DIR "C:/LLVM-21.1.7/lib/cmake/llvm")
+set(Clang_DIR "C:/LLVM-21.1.7/lib/cmake/clang")
+
+# --- Try to disable DIA SDK in LLVM if not found ---
+# LLVM may try to use DIA SDK for debug info, but it's optional
+if(NOT DIA_SDK_FOUND)
+    # Try to set variables that LLVM might check to disable DIA SDK
+    set(LLVM_ENABLE_DIA_SDK OFF CACHE BOOL "Enable DIA SDK" FORCE)
+    set(LLVM_USE_DIA_SDK OFF CACHE BOOL "Use DIA SDK" FORCE)
+endif()
+
+# --- Find LLVM & Clang packages ---
+find_package(LLVM REQUIRED CONFIG)
+find_package(Clang REQUIRED CONFIG)
+
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "LLVM DIR: ${LLVM_DIR}")
+message(STATUS "Clang DIR: ${Clang_DIR}")
+
+# --- Include directories ---
+include_directories(${LLVM_INCLUDE_DIRS})
+add_definitions(${LLVM_DEFINITIONS})
+
+include_directories(${CLANG_INCLUDE_DIRS})
+
+# --- Map LLVM components to library names ---
+llvm_map_components_to_libnames(LLVM_LIBS support core irreader)
+
+# --- Source files ---
+set(SOURCE_FILES cfg-exporter.cpp)
+
+# --- Executable ---
+add_executable(cfg-exporter ${SOURCE_FILES})
+
+# --- Suppress runtime library conflict warnings ---
+# Since we're matching LLVM's static runtime, suppress the warning about libcmt conflicts
+# Note: This warning should disappear once runtime libraries match, but keeping suppression as safety
+if(MSVC)
+    set_target_properties(cfg-exporter PROPERTIES
+        LINK_FLAGS "/ignore:4098"
+    )
+endif()
+
+# --- Link libraries ---
+target_link_libraries(cfg-exporter PRIVATE
+    nlohmann_json::nlohmann_json
+    clangTooling
+    clangFrontend
+    clangAST
+    clangASTMatchers
+    clangBasic
+    clangLex
+    clangRewriteFrontend
+    clangSerialization
+    ${LLVM_LIBS}
+)
+
+# --- Handle DIA SDK path mismatch ---
+# LLVM hardcodes VS 2019 Professional path, but DIA SDK might be at BuildTools
+if(DIA_SDK_FOUND)
+    set(EXPECTED_DIA_LIB "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/DIA SDK/lib/amd64/diaguids.lib")
+    set(EXPECTED_DIA_DIR "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/DIA SDK/lib/amd64")
+    
+    if(NOT EXISTS "${EXPECTED_DIA_LIB}")
+        get_filename_component(DIA_SDK_ROOT "${DIA_SDK_LIB_DIR}" PATH)
+        get_filename_component(DIA_SDK_ROOT "${DIA_SDK_ROOT}" PATH)
+        
+        # Try to copy just the library file to expected location (less invasive than full junction)
+        # This might work if we can create the directory structure
+        if(EXISTS "${DIA_SDK_LIB_DIR}/diaguids.lib")
+            message(STATUS "Attempting workaround: copying diaguids.lib to expected location...")
+            
+            # Convert paths to native Windows format for PowerShell
+            file(TO_NATIVE_PATH "${EXPECTED_DIA_DIR}" EXPECTED_DIA_DIR_NATIVE)
+            file(TO_NATIVE_PATH "${EXPECTED_DIA_LIB}" EXPECTED_DIA_LIB_NATIVE)
+            file(TO_NATIVE_PATH "${DIA_SDK_LIB_DIR}/diaguids.lib" DIA_SDK_LIB_FILE_NATIVE)
+            
+            # Try to create the directory structure and copy the file
+            execute_process(
+                COMMAND powershell -Command "$dir = '${EXPECTED_DIA_DIR_NATIVE}'; if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }; Copy-Item '${DIA_SDK_LIB_FILE_NATIVE}' -Destination '${EXPECTED_DIA_LIB_NATIVE}' -Force"
+                RESULT_VARIABLE COPY_RESULT
+                OUTPUT_QUIET
+                ERROR_QUIET
+            )
+            
+            if(COPY_RESULT EQUAL 0 AND EXISTS "${EXPECTED_DIA_LIB}")
+                message(STATUS "Successfully copied diaguids.lib to expected location!")
+            else()
+                # Convert paths for user-facing messages (use backslashes for Windows)
+                # Construct full paths first, then convert to native format
+                set(DIA_SDK_LIB_FULL "${DIA_SDK_LIB_DIR}/diaguids.lib")
+                file(TO_NATIVE_PATH "${DIA_SDK_LIB_FULL}" DIA_SDK_LIB_MSG)
+                file(TO_NATIVE_PATH "${EXPECTED_DIA_LIB}" EXPECTED_DIA_LIB_MSG)
+                file(TO_NATIVE_PATH "${DIA_SDK_ROOT}" DIA_SDK_ROOT_MSG)
+                
+                # Ensure all backslashes for Windows commands (replace any remaining forward slashes)
+                string(REPLACE "/" "\\" DIA_SDK_LIB_MSG "${DIA_SDK_LIB_MSG}")
+                string(REPLACE "/" "\\" EXPECTED_DIA_LIB_MSG "${EXPECTED_DIA_LIB_MSG}")
+                string(REPLACE "/" "\\" DIA_SDK_ROOT_MSG "${DIA_SDK_ROOT_MSG}")
+                
+                message("")
+                message("======================================================================")
+                message("DIA SDK PATH MISMATCH DETECTED")
+                message("======================================================================")
+                message("DIA SDK found at: ${DIA_SDK_ROOT_MSG}")
+                message("LLVM expects it at: C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional\\DIA SDK")
+                message("")
+                message("SOLUTION: Create a directory junction (run as Administrator):")
+                message("")
+                message("  mklink /J \"C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional\\DIA SDK\" \"${DIA_SDK_ROOT_MSG}\"")
+                message("")
+                message("Or copy just the library file:")
+                message("  mkdir \"C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional\\DIA SDK\\lib\\amd64\"")
+                message("  copy \"${DIA_SDK_LIB_MSG}\" \"${EXPECTED_DIA_LIB_MSG}\"")
+                message("")
+                message("======================================================================")
+                message("")
+            endif()
+        endif()
+        
+        # Also ensure the actual DIA SDK path is in linker search directories
+        # This helps even if the hardcoded path doesn't exist
+        target_link_directories(cfg-exporter PRIVATE ${DIA_SDK_LIB_DIR})
+    else()
+        message(STATUS "DIA SDK found at expected location - no workaround needed")
+    endif()
+endif()
+
+# --- Optional install target ---
+install(TARGETS cfg-exporter DESTINATION bin)

@@ -1,0 +1,1116 @@
+README.md[https://github.com/Srinivasa-Bhargava-deel/Personal/blob/main/vscode-dataflow-analyzer/README.md?plain=1, v1.9.9 , error executing line 879
+
+cmd output:
+
+" 
+cmake ..
+-- Building for: Visual Studio 18 2026
+-- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.26200.
+-- The CXX compiler identification is MSVC 19.50.35717.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Downloading nlohmann/json.hpp...
+-- [download 0% complete]
+-- [download 1% complete]
+-- [download 2% complete]
+-- [download 3% complete]
+-- [download 4% complete]
+-- [download 5% complete]
+-- [download 6% complete]
+-- [download 7% complete]
+-- [download 9% complete]
+-- [download 11% complete]
+-- [download 12% complete]
+-- [download 14% complete]
+-- [download 16% complete]
+-- [download 18% complete]
+-- [download 20% complete]
+-- [download 21% complete]
+-- [download 23% complete]
+-- [download 25% complete]
+-- [download 27% complete]
+-- [download 29% complete]
+-- [download 30% complete]
+-- [download 32% complete]
+-- [download 34% complete]
+-- [download 36% complete]
+-- [download 38% complete]
+-- [download 39% complete]
+-- [download 41% complete]
+-- [download 43% complete]
+-- [download 45% complete]
+-- [download 47% complete]
+-- [download 48% complete]
+-- [download 50% complete]
+-- [download 52% complete]
+-- [download 54% complete]
+-- [download 56% complete]
+-- [download 57% complete]
+-- [download 59% complete]
+-- [download 61% complete]
+-- [download 63% complete]
+-- [download 65% complete]
+-- [download 66% complete]
+-- [download 68% complete]
+-- [download 70% complete]
+-- [download 72% complete]
+-- [download 74% complete]
+-- [download 76% complete]
+-- [download 77% complete]
+-- [download 79% complete]
+-- [download 81% complete]
+-- [download 83% complete]
+-- [download 85% complete]
+-- [download 86% complete]
+-- [download 88% complete]
+-- [download 90% complete]
+-- [download 92% complete]
+-- [download 94% complete]
+-- [download 95% complete]
+-- [download 97% complete]
+-- [download 99% complete]
+-- [download 100% complete]
+-- Found DIA SDK at: C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/DIA SDK/lib/amd64
+-- Found LLVM 21.1.7
+-- LLVM DIR: C:/LLVM-21.1.7/lib/cmake/llvm
+-- Clang DIR: C:/LLVM-21.1.7/lib/cmake/clang
+-- DIA SDK found at expected location - no workaround needed
+-- Configuring done (10.2s)
+-- Generating done (0.2s)
+-- Build files have been written to: C:/Users/ditto/Desktop/mewtwo/mewtwo/Final_Proj_8Dec/vscode-dataflow-analyzer/cpp-tools/cfg-exporter/build
+
+C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build>cmake --build . --config Release
+MSBuild version 18.0.2+995a3dce4 for .NET Framework
+
+  1>Checking Build System
+  Building Custom Rule C:/Users/ditto/Desktop/mewtwo/mewtwo/Final_Proj_8Dec/vscode-dataflow-analyzer/cpp-tools/cfg-exporter/CMakeL
+  ists.txt
+  cfg-exporter.cpp
+C:\LLVM-21.1.7\include\llvm\ADT\DenseMapInfo.h(160,33): warning C4244: 'return': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\DirectoryEntry.h(221,22): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
+eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\FileEntry.h(255,22): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\D
+esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\FileEntry.h(274,28): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\D
+esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\Diagnostic.h(1626,69): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\Diagnostic.h(1637,73): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\Diagnostic.h(1697,51): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\Diagnostic.h(1705,51): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\NestedNameSpecifier.h(550,24): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\P
+uneeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\TemplateName.h(421,61): warning C4805: '|': unsafe mix of type 'unsigned int' and type 'bool' in operation [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\TemplateName.h(559,21): warning C4146: unary minus operator applied to unsigned type, result still unsigned [C:\Users\ditto\Desktop
+\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Type.h(3334,58): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop
+\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Type.h(3730,65): warning C4244: 'argument': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Des
+ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\APFixedPoint.h(151,22): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\D
+esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\APFixedPoint.h(331,22): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\D
+esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\APValue.h(81,50): warning C4244: '=': conversion from 'uintptr_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\StringTable.h(134,66): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\StringTable.h(128,42): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\IdentifierTable.h(247,58): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pun
+eeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\ASTContext.h(3765,28): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\ASTContext.h(3803,28): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\TemplateBase.h(283,35): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Deskt
+op\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\TemplateBase.h(659,48): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(599,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\se
+m 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(783,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\se
+m 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(1180,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(1267,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(1892,25): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(2172,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(2189,31): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(2489,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(2535,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(3595,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(3874,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(4620,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(4633,31): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(4881,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(4900,32): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5032,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5078,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5124,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5224,34): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5377,28): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5390,29): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5407,23): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(6190,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(6203,25): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(6729,28): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(6823,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(8843,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(9351,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
+em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(10743,32): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11548,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11707,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11745,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11783,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11821,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11859,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(12539,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(13074,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(13669,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(13707,29): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(13745,29): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14001,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14163,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14334,25): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14380,31): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14504,29): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14507,27): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14562,28): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15104,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15271,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15383,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15692,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15804,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15850,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15917,32): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15963,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\UnresolvedSet.h(135,46): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\ASTUnresolvedSet.h(87,44): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Punee
+th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Expr.h(1899,22): warning C4244: 'initializing': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Expr.h(2479,17): warning C4244: 'return': conversion from 'uintptr_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
+top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Expr.h(5257,55): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop
+\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Expr.h(5262,18): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\D
+esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\Expr.h(5265,42): warning C4267: '+=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\sem
+ 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\TypeLoc.h(1041,59): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
+top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\TypeLoc.h(1740,51): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
+top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\TypeLoc.h(2321,59): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
+top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\TypeLoc.h(2578,51): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
+top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(120,38): warning C4291: 'void *clang::Decl::operator new(size_t,const clang::ASTContext &,clang::DeclContext *,size_t)': no
+ matching operator delete found; memory will not be freed if initialization throws an exception [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Engineer
+ing\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\clang\AST\DeclBase.h(363,9):
+      see declaration of 'clang::Decl::operator new'
+
+C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(3327,38): warning C4291: 'void *clang::Decl::operator new(size_t,const clang::ASTContext &,clang::DeclContext *,size_t)': n
+o matching operator delete found; memory will not be freed if initialization throws an exception [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Enginee
+ring\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\clang\AST\DeclBase.h(363,9):
+      see declaration of 'clang::Decl::operator new'
+
+C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(3331,53): warning C4291: 'void *clang::Decl::operator new(size_t,const clang::ASTContext &,clang::GlobalDeclID,size_t)': no
+ matching operator delete found; memory will not be freed if initialization throws an exception [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Engineer
+ing\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\clang\AST\DeclBase.h(359,9):
+      see declaration of 'clang::Decl::operator new'
+
+C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(3430,24): warning C4291: 'void *clang::Decl::operator new(size_t,const clang::ASTContext &,clang::DeclContext *,size_t)': n
+o matching operator delete found; memory will not be freed if initialization throws an exception [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Enginee
+ring\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\clang\AST\DeclBase.h(363,9):
+      see declaration of 'clang::Decl::operator new'
+
+C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(3566,25): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\Des
+ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(3879,58): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(4250,20): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\DeclTemplate.h(1773,43): warning C4291: 'void *clang::Decl::operator new(size_t,const clang::ASTContext &,clang::DeclContext *,size_t
+)': no matching operator delete found; memory will not be freed if initialization throws an exception [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software En
+gineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\clang\AST\DeclBase.h(363,9):
+      see declaration of 'clang::Decl::operator new'
+
+C:\LLVM-21.1.7\include\clang\AST\DeclFriend.h(92,19): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Punee
+th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\DeclObjC.h(1467,25): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\DeclObjC.h(2450,25): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\DeclObjC.h(2757,25): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\OpenACCClause.h(279,17): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\P
+uneeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\OpenACCClause.h(677,56): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(380,16): warning C4244: '=': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop
+\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(419,16): warning C4244: '=': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop
+\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(490,24): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(491,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(502,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(510,24): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(511,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(527,24): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(528,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(537,24): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(538,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(568,29): warning C4267: 'initializing': conversion from 'size_t' to 'llvm::BitVector::size_type', possible loss of data [C
+:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(576,29): warning C4267: 'initializing': conversion from 'size_t' to 'llvm::BitVector::size_type', possible loss of data [C
+:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(586,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(635,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(748,23): warning C4267: 'initializing': conversion from 'size_t' to 'uint32_t', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(766,23): warning C4267: 'initializing': conversion from 'size_t' to 'uint32_t', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(829,56): warning C4267: 'return': conversion from 'size_t' to 'llvm::BitVector::size_type', possible loss of data [C:\User
+s\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(830,57): warning C4267: 'return': conversion from 'size_t' to 'llvm::BitVector::size_type', possible loss of data [C:\User
+s\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\Frontend\OpenMP\OMPContext.h(212,33): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users
+\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\OpenMPClause.h(9688,25): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\P
+uneeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\ExprCXX.h(4415,15): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\ExprCXX.h(5093,17): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\StmtOpenACC.h(492,17): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pun
+eeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\AST\StmtOpenACC.h(584,16): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pun
+eeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\Support\SourceMgr.h(131,55): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\Support\SourceMgr.h(151,24): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\Support\VirtualFileSystem.h(260,32): warning C4267: 'return': conversion from 'size_t' to 'int', possible loss of data [C:\Users\ditto\D
+esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\SourceManager.h(1748,75): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
+eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\SourceManager.h(1762,77): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
+eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\IR\DerivedTypes.h(482,22): warning C4244: 'initializing': conversion from 'unsigned __int64' to 'unsigned int', possible loss of data [C:\
+Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\IR\DerivedTypes.h(513,24): warning C4244: 'initializing': conversion from 'unsigned __int64' to 'unsigned int', possible loss of data [C:\
+Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(558,51): warning C4244: 'argument': conversion from 'uint64_t' to 'const _Ty', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(558,51): warning C4244:         with [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_P
+roj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(558,51): warning C4244:         [ [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj
+_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(558,51): warning C4244:             _Ty=unsigned int [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Eng
+ineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(558,51): warning C4244:         ] [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj
+_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(896,27): warning C4244: 'return': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(1167,76): warning C4244: 'argument': conversion from 'uint64_t' to 'const T', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(1167,76): warning C4244:         with [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_
+Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(1167,76): warning C4244:         [ [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Pro
+j_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(1167,76): warning C4244:             T=int [C:\Users\ditto\Desktop\mewtwo\mewtwo\F
+inal_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(1167,76): warning C4244:         ] [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Pro
+j_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Analysis\CFG.h(641,35): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Analysis\CFG.h(952,72): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
+top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Analysis\CFG.h(1008,71): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Des
+ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Analysis\CFG.h(1011,71): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Des
+ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\CachedHashString.h(40,26): warning C4267: 'initializing': conversion from 'size_t' to 'uint32_t', possible loss of data [C:\Users\Pune
+eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\CachedHashString.h(105,36): warning C4267: 'initializing': conversion from 'size_t' to 'uint32_t', possible loss of data [C:\Users\Pun
+eeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang-c\Index.h(6959,34): warning C4996: 'CXRemapping': was declared deprecated [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software E
+ngineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang-c\Index.h(6961,34): warning C4996: 'CXRemapping': was declared deprecated [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software E
+ngineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang-c\Index.h(6964,67): warning C4996: 'CXRemapping': was declared deprecated [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software E
+ngineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang-c\Index.h(6967,26): warning C4996: 'CXRemapping': was declared deprecated [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software E
+ngineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang-c\Index.h(6969,59): warning C4996: 'CXRemapping': was declared deprecated [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software E
+ngineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(369,45): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\P
+uneeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(446,24): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\U
+sers\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(461,54): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(471,54): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(482,35): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(481,37): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(574,22): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users
+\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\MacroInfo.h(173,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\MacroInfo.h(194,18): warning C4244: 'return': conversion from '__int64' to 'int', possible loss of data [C:\Users\ditto\Desktop\sem
+ 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\MacroInfo.h(272,39): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
+mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\MacroInfo.h(535,21): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Punee
+th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Sema\DeclSpec.h(2119,28): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
+eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Sema\DeclSpec.h(2397,64): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Sema\DeclSpec.h(2428,32): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
+eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Sema\DeclSpec.h(2439,21): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
+eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Sema\DeclSpec.h(2460,32): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
+eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Serialization\SourceLocationEncoding.h(77,30): warning C4146: unary minus operator applied to unsigned type, result still unsigned [C:\Us
+ers\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Serialization\SourceLocationEncoding.h(90,58): warning C4244: 'argument': conversion from 'clang::SourceLocationEncoding::RawLocEncoding'
+ to 'clang::SourceLocationEncoding::UIntTy', possible loss of data [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-da
+taflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Serialization\SourceLocationEncoding.h(94,69): warning C4244: 'argument': conversion from 'clang::SourceLocationEncoding::RawLocEncoding'
+ to 'clang::SourceLocationEncoding::UIntTy', possible loss of data [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-da
+taflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Serialization\ASTBitCodes.h(125,72): warning C4244: 'argument': conversion from 'clang::serialization::TypeID' to 'uint32_t', possible lo
+ss of data [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporte
+r.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Serialization\ASTBitCodes.h(203,14): warning C4244: '=': conversion from 'uint64_t' to 'uint32_t', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\PreprocessorLexer.h(123,75): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pun
+eeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\Lexer.h(313,22): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\Deskto
+p\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\Lexer.h(643,21): warning C4244: 'initializing': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\HeaderSearch.h(836,59): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\HeaderSearch.h(866,60): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Lex\Preprocessor.h(1717,44): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Punee
+th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Frontend\ASTUnit.h(620,68): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\clang\Frontend\ASTUnit.h(640,40): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\Option\OptTable.h(116,29): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
+eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\Option\OptTable.h(188,59): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+
+C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18): warning C4244: '=': conversion from 'unsigned __int64' to 'T', possible loss of data [C:\Users\ditto\Desktop\se
+m 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18): warning C4244:         with [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_
+8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18): warning C4244:         [ [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8De
+c\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18): warning C4244:             T=unsigned int [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Engineeri
+ng\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18): warning C4244:         ] [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8De
+c\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18):
+      the template instantiation context (the oldest one first) is
+          C:\LLVM-21.1.7\include\clang\Frontend\CommandLineSourceLoc.h(42,26):
+          see reference to function template instantiation 'bool llvm::StringRef::getAsInteger<unsigned int>(unsigned int,T &) const' being compiled
+          with
+          [
+              T=unsigned int
+          ]
+
+C:\LLVM-21.1.7\include\llvm\ADT\StringMap.h(148,32): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\De
+sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\llvm\ADT\StringMap.h(148,32):
+      the template instantiation context (the oldest one first) is
+          C:\LLVM-21.1.7\include\clang\Basic\TargetCXXABI.h(43,34):
+          see reference to class template instantiation 'llvm::StringMap<clang::TargetCXXABI::Kind,llvm::MallocAllocator>' being compiled
+          C:\LLVM-21.1.7\include\llvm\ADT\StringMap.h(147,3):
+          while compiling class template member function 'llvm::StringMap<clang::TargetCXXABI::Kind,llvm::MallocAllocator>::StringMap(std::initializer_list<std::pair<
+  llvm::StringRef,ValueTy>>)'
+          with
+          [
+              ValueTy=clang::TargetCXXABI::Kind
+          ]
+              C:\LLVM-21.1.7\include\clang\Basic\TargetCXXABI.h(43,43):
+              see the first reference to 'llvm::StringMap<clang::TargetCXXABI::Kind,llvm::MallocAllocator>::StringMap' in 'clang::TargetCXXABI::getABIMap'
+
+C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(292,51): warning C4244: 'argument': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\Punee
+th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(292,51):
+      the template instantiation context (the oldest one first) is
+          C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(390,29):
+          while compiling class template 'llvm::SpecificBumpPtrAllocator'
+          C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(391,20):
+          see reference to class template instantiation 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>' being compiled
+          C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(289,10):
+          while compiling class template member function 'size_t llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::getTotalMemory(void) const'
+              C:\LLVM-21.1.7\include\clang\AST\ASTContext.h(841,5):
+              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::getTotalMemory' in 'clang::ASTContext::getASTAllocatedMemor
+  y'
+
+C:\LLVM-21.1.7\include\llvm\ADT\BitmaskEnum.h(129,59): warning C4244: 'return': conversion from 'uint64_t' to 'unsigned char', possible loss of data [C:\Users\ditto
+\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\llvm\ADT\BitmaskEnum.h(129,59):
+      the template instantiation context (the oldest one first) is
+          C:\LLVM-21.1.7\include\clang\AST\DependenceFlags.h(265,14):
+          see reference to function template instantiation 'E llvm::BitmaskEnumDetail::operator ~<clang::ExprDependenceScope::ExprDependence,void>(E)' being compiled
+          with
+          [
+              E=clang::ExprDependenceScope::ExprDependence
+          ]
+          C:\LLVM-21.1.7\include\llvm\ADT\BitmaskEnum.h(157,44):
+          see reference to function template instantiation 'unsigned char llvm::BitmaskEnumDetail::Mask<E>(void)' being compiled
+          with
+          [
+              E=clang::ExprDependenceScope::ExprDependence
+          ]
+
+C:\LLVM-21.1.7\include\llvm\ADT\TinyPtrVector.h(146,36): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
+Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\llvm\ADT\TinyPtrVector.h(146,36):
+      the template instantiation context (the oldest one first) is
+          C:\LLVM-21.1.7\include\clang\Lex\Preprocessor.h(851,40):
+          see reference to class template instantiation 'llvm::TinyPtrVector<clang::ModuleMacro *>' being compiled
+          C:\LLVM-21.1.7\include\llvm\ADT\TinyPtrVector.h(143,12):
+          while compiling class template member function 'unsigned int llvm::TinyPtrVector<clang::ModuleMacro *>::size(void) const'
+              C:\LLVM-21.1.7\include\llvm\ADT\ArrayRef.h(100,33):
+              see the first reference to 'llvm::TinyPtrVector<clang::ModuleMacro *>::size' in 'llvm::ArrayRef<clang::ModuleMacro *>::ArrayRef'
+              C:\LLVM-21.1.7\include\clang\Lex\Preprocessor.h(936,9):
+              see the first reference to 'llvm::ArrayRef<clang::ModuleMacro *>::ArrayRef' in 'clang::Preprocessor::MacroState::getActiveModuleMacros'
+
+C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(363,40): warning C4244: 'argument': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\Punee
+th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(363,40):
+      the template instantiation context (the oldest one first) is
+          C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(359,8):
+          while compiling class template member function 'void llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::DeallocateSlabs(void **,void **)'
+              C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(99,20):
+              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::DeallocateSlabs' in 'llvm::BumpPtrAllocatorImpl<llvm::Mallo
+  cAllocator,4096,4096,128>::~BumpPtrAllocatorImpl'
+              C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(379,1):
+              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::~BumpPtrAllocatorImpl' in 'llvm::BumpPtrAllocatorImpl<llvm:
+  :MallocAllocator,4096,4096,128>::~BumpPtrAllocatorImpl'
+
+C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(454,24): warning C4244: 'return': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Des
+ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(454,24):
+      the template instantiation context (the oldest one first) is
+          C:\LLVM-21.1.7\include\clang\Sema\CodeCompleteConsumer.h(660,50):
+          see reference to class template instantiation 'llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMa
+  pPair<KeyT,ValueT>>' being compiled
+          with
+          [
+              KeyT=const clang::DeclContext *,
+              ValueT=llvm::StringRef
+          ]
+          C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(777,25):
+          see reference to class template instantiation 'llvm::DenseMapBase<llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,ll
+  vm::detail::DenseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>' being compiled
+          with
+          [
+              KeyT=const clang::DeclContext *,
+              ValueT=llvm::StringRef,
+              KeyInfoT=llvm::DenseMapInfo<const clang::DeclContext *,void>,
+              BucketT=llvm::detail::DenseMapPair<const clang::DeclContext *,llvm::StringRef>
+          ]
+          C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(448,12):
+          while compiling class template member function 'unsigned int llvm::DenseMapBase<llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo
+  <KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::getMinBucketToReserveForEntries(unsigned int)'
+          with
+          [
+              KeyT=const clang::DeclContext *,
+              ValueT=llvm::StringRef,
+              KeyInfoT=llvm::DenseMapInfo<const clang::DeclContext *,void>,
+              BucketT=llvm::detail::DenseMapPair<const clang::DeclContext *,llvm::StringRef>
+          ]
+              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(918,22):
+              see the first reference to 'llvm::DenseMapBase<llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,llvm::detail::Den
+  seMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::getMinBucketToReserveForEntries' in 'llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMap
+  Info<KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>::init'
+          with
+          [
+              KeyT=const clang::DeclContext *,
+              ValueT=llvm::StringRef,
+              KeyInfoT=llvm::DenseMapInfo<const clang::DeclContext *,void>,
+              BucketT=llvm::detail::DenseMapPair<const clang::DeclContext *,llvm::StringRef>
+          ]
+          and
+          [
+              KeyT=const clang::DeclContext *,
+              ValueT=llvm::StringRef
+          ]
+              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(793,56):
+              see the first reference to 'llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,Valu
+  eT>>::init' in 'llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>::DenseMap'
+          with
+          [
+              KeyT=const clang::DeclContext *,
+              ValueT=llvm::StringRef
+          ]
+              C:\LLVM-21.1.7\include\clang\Sema\CodeCompleteConsumer.h(666,44):
+              see the first reference to 'llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,Valu
+  eT>>::DenseMap' in 'clang::CodeCompletionTUInfo::CodeCompletionTUInfo'
+          with
+          [
+              KeyT=const clang::DeclContext *,
+              ValueT=llvm::StringRef
+          ]
+
+C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(345,58): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
+h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(345,58):
+      the template instantiation context (the oldest one first) is
+          C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(344,8):
+          while compiling class template member function 'void llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::StartNewSlab(void)'
+              C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(203,17):
+              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::StartNewSlab' in 'llvm::BumpPtrAllocatorImpl<llvm::MallocAl
+  locator,4096,4096,128>::AllocateSlow'
+              C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(179,5):
+              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::AllocateSlow' in 'llvm::BumpPtrAllocatorImpl<llvm::MallocAl
+  locator,4096,4096,128>::Allocate'
+              C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(217,5):
+              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::Allocate' in 'llvm::BumpPtrAllocatorImpl<llvm::MallocAlloca
+  tor,4096,4096,128>::Allocate'
+              C:\LLVM-21.1.7\include\clang\AST\ASTContext.h(807,5):
+              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::Allocate' in 'clang::ASTContext::Allocate'
+
+C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52): warning C4244: 'argument': conversion from 'uint64_t' to 'const _Ty', possible loss of data [C:\Users\ditto\Des
+ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52): warning C4244:         with [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_
+8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52): warning C4244:         [ [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8De
+c\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52): warning C4244:             _Ty=unsigned int [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Enginee
+ring\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52): warning C4244:         ] [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8De
+c\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
+  (compiling source file '../cfg-exporter.cpp')
+      C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52):
+      the template instantiation context (the oldest one first) is
+          C:\LLVM-21.1.7\include\llvm\Frontend\OpenMP\OMPContext.h(158,39):
+          see reference to class template instantiation 'llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseM
+  apPair<KeyT,ValueT>>' being compiled
+          with
+          [
+              KeyT=llvm::omp::TraitProperty,
+              ValueT=llvm::APInt
+          ]
+          C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1094,8):
+          while compiling class template member function 'void llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::
+  DenseMapPair<KeyT,ValueT>>::grow(unsigned int)'
+          with
+          [
+              KeyT=llvm::omp::TraitProperty,
+              ValueT=llvm::APInt
+          ]
+              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(587,68):
+              see the first reference to 'llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,Val
+  ueT>>::grow' in 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>
+  >,KeyT,ValueT,KeyInfoT,BucketT>::grow'
+          with
+          [
+              KeyT=llvm::omp::TraitProperty,
+              ValueT=llvm::APInt
+          ]
+              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(627,17):
+              see the first reference to 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::De
+  nseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::grow' in 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<K
+  eyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::InsertIntoBucketImpl'
+          with
+          [
+              KeyT=llvm::omp::TraitProperty,
+              ValueT=llvm::APInt,
+              KeyInfoT=llvm::DenseMapInfo<llvm::omp::TraitProperty,void>,
+              BucketT=llvm::detail::DenseMapPair<llvm::omp::TraitProperty,llvm::APInt>
+          ]
+              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(594,15):
+              see the first reference to 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::De
+  nseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::InsertIntoBucketImpl' in 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm
+  ::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::InsertIntoBucket'
+          with
+          [
+              KeyT=llvm::omp::TraitProperty,
+              ValueT=llvm::APInt,
+              KeyInfoT=llvm::DenseMapInfo<llvm::omp::TraitProperty,void>,
+              BucketT=llvm::detail::DenseMapPair<llvm::omp::TraitProperty,llvm::APInt>
+          ]
+              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(396,5):
+              see the first reference to 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::De
+  nseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::InsertIntoBucket' in 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::De
+  nseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::operator []'
+          with
+          [
+              KeyT=llvm::omp::TraitProperty,
+              ValueT=llvm::APInt,
+              KeyInfoT=llvm::DenseMapInfo<llvm::omp::TraitProperty,void>,
+              BucketT=llvm::detail::DenseMapPair<llvm::omp::TraitProperty,llvm::APInt>
+          ]
+              C:\LLVM-21.1.7\include\llvm\Frontend\OpenMP\OMPContext.h(141,26):
+              see the first reference to 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::De
+  nseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::operator []' in 'llvm::omp::VariantMatchInfo::addTrait'
+          with
+          [
+              KeyT=llvm::omp::TraitProperty,
+              ValueT=llvm::APInt,
+              KeyInfoT=llvm::DenseMapInfo<llvm::omp::TraitProperty,void>,
+              BucketT=llvm::detail::DenseMapPair<llvm::omp::TraitProperty,llvm::APInt>
+          ]
+
+  cfg-exporter.vcxproj -> C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\bui
+  ld\Release\cfg-exporter.exe
+  Building Custom Rule C:/Users/ditto/Desktop/mewtwo/mewtwo/Final_Proj_8Dec/vscode-dataflow-analyzer/cpp-tools/cfg-exporter/CMakeL
+  ists.txt
+
+"
