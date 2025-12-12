@@ -57,7 +57,7 @@ Windows AMD x64 PC
 - ✅ **Node.js 20** - Included in Node.js base image
 - ✅ **TypeScript** - Installed via npm in Docker container
 - ✅ **npm dependencies** - Installed automatically during build
-- ✅ **VS Code Extension Manager (vsce)** - Installed automatically when packaging
+- ✅ **VS Code Extension Manager (@vscode/vsce)** - Installed automatically when packaging (uses helper script)
 - ✅ **All development tools** - Everything needed for building
 
 **You do NOT need to install these on Windows:**
