@@ -49,18 +49,32 @@ COPY cpp-tools/cfg-exporter/ ./
 # Build type is set via -DCMAKE_BUILD_TYPE=Release
 RUN mkdir -p build && \
     cd build && \
-    echo "=== CMake Configuration ===" && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja && \
-    echo "=== Checking JSON header download ===" && \
-    ls -la json_include/nlohmann/json.hpp || echo "JSON header NOT found!" && \
-    echo "=== Checking include directories ===" && \
-    cat CMakeCache.txt | grep JSON_HEADER_DIR || echo "JSON_HEADER_DIR not in cache" && \
-    echo "=== Building ===" && \
-    cmake --build . && \
-    echo "=== Build complete, checking binary ===" && \
-    ls -la cfg-exporter && \
-    strip cfg-exporter || true && \
-    ls -la cfg-exporter
+    echo "=== Step 1: CMake Configuration ===" && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja 2>&1 | tee cmake_output.log && \
+    echo "=== Step 2: Verifying JSON header download ===" && \
+    if [ -f json_include/nlohmann/json.hpp ]; then \
+        echo "✓ JSON header found at: json_include/nlohmann/json.hpp" && \
+        ls -lh json_include/nlohmann/json.hpp; \
+    else \
+        echo "✗ ERROR: JSON header NOT found!" && \
+        echo "Searching for json.hpp:" && \
+        find . -name "json.hpp" 2>/dev/null || echo "No json.hpp found anywhere" && \
+        echo "Contents of json_include:" && \
+        ls -la json_include/ 2>/dev/null || echo "json_include directory does not exist" && \
+        exit 1; \
+    fi && \
+    echo "=== Step 3: Building ===" && \
+    cmake --build . 2>&1 | tee build_output.log && \
+    echo "=== Step 4: Verifying binary ===" && \
+    if [ -f cfg-exporter ]; then \
+        ls -lh cfg-exporter && \
+        file cfg-exporter && \
+        strip cfg-exporter || true && \
+        ls -lh cfg-exporter; \
+    else \
+        echo "✗ ERROR: Binary not found!" && \
+        exit 1; \
+    fi
 
 # ============================================================================
 # Stage 2: Build TypeScript extension
