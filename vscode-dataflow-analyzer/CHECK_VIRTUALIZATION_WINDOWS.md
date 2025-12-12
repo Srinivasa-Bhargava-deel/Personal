@@ -238,3 +238,6 @@ wmic cpu get VirtualizationFirmwareEnabled
 
 **Note**: After enabling virtualization in BIOS, you may need to restart Windows for the changes to take effect.
 
+
+
+

@@ -1,1116 +1,419 @@
-README.md[https://github.com/Srinivasa-Bhargava-deel/Personal/blob/main/vscode-dataflow-analyzer/README.md?plain=1, v1.9.9 , error executing line 879
+while running the docker container setup[https://github.com/Srinivasa-Bhargava-deel/Personal/blob/main/vscode-dataflow-analyzer/DOCKER_FULL_LINUX_VM_WINDOWS.md], This is the powershell error output. Find out the root cause and debug.
+
+powershell output = "
+
+ docker-compose down
+time="2025-12-12T10:56:40+05:30" level=warning msg="C:\\Users\\mewtwo\\Desktop\\mewtwo\\mewtwo\\Final_Proj_8Dec\\vscode-dataflow-analyzer\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+PS C:\Users\mewtwo\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer> docker container prune -f
+Total reclaimed space: 0B
+PS C:\Users\mewtwo\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer> docker image prune -a -f
+>>
+Total reclaimed space: 0B
+PS C:\Users\mewtwo\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer> docker builder prune -a -f
+ID                                              RECLAIMABLE     SIZE            LAST ACCESSED
+thx7y9cue2f43fd2qs9f3z0yj                       true            16.5kB          14 minutes ago
+kx6iegbt1lhq289s2kkofznaz*                      true    12.29kB         14 minutes ago
+vxme5tlnt34i21vg44jiisuum*                      true    2.253MB         45 minutes ago
+fpq1ixyy7vywduglm6o1z4lsq*                      true    2.253MB         14 minutes ago
+dhr69vs9v7fsxr0ebszg2ditd*                      true    1.765MB         14 minutes ago
+tusv7mpbv12wk9fuaionqk7m3*                      true    8.192kB         14 minutes ago
+nhqz6pdf2vkp2s6j757tz6uwg                       true    16.5kB          45 minutes ago
+0y1sieo1ltyrx5j63fmao7ous*                      true    42.64MB         14 minutes ago
+hu1uvpcl7zzsv3ni9x94sps04*                      true    42.64MB         45 minutes ago
+vxlyj6ce8n9tge3qm0jbvcaex                       true    19.52kB         45 minutes ago
+cbvbjni53i44zif4gcrs04m5o                       true    19.52kB         14 minutes ago
+khzhc7txjdiielzzsryg7qw2i                       true    12.29kB         14 minutes ago
+xka1xzq9uuyr2fpnk1yxwuxix                       true    12.29kB         45 minutes ago
+msr8kqid21h2enhrtfvxf1hds                       true    45.06kB         14 minutes ago
+lv5w27pr5hiztt5x8menfinb0                       true    45.06kB         45 minutes ago
+lvbpdrrmyd6pjtdmsq7mfpkho                       true    16.38kB         45 minutes ago
+wdqgk869zke5ghsoymu5pi5u6                       true    77.08kB         45 minutes ago
+8i4t5m5h29jeyce7ggpe3gpso                       true    16.38kB         14 minutes ago
+jux6zmk0c8y6654ekhqpgr9ra                       true    1.352MB         14 minutes ago
+gghmm44o40v059z4f890fiwd1                       true    1.352MB         45 minutes ago
+jgnj1ln5lx2b260gdzf82qc6a                       true    77.08kB         14 minutes ago
+nj643yudqkzzn6xrlaubcfqfv                       true    1.152GB         14 minutes ago
+o4dmyqe09mmhllreqbcq9nqmb                       true    315.1MB         14 minutes ago
+mucasceq95owa9231kl4k3y4y                       true    1.152GB         45 minutes ago
+y0terffz75a0vdhmbblme7d35                       true    52.85MB         45 minutes ago
+01j5nopp6vlejvx3p9z94x5iw                       true    315.1MB         45 minutes ago
+655qugics3wruth8a63db9zmu                       true    52.85MB         14 minutes ago
+1q8rzcqq63k7phjrkrjy02ohh                       true    12.29kB         45 minutes ago
+7rz51z1gfhd7d51cgbrjrx2ji                       true    393.9MB         45 minutes ago
+qdpuxeja3t01mln86ci1rim2z                       true    394MB           14 minutes ago
+be9w3ob8jocvmn09bskcefjo4                       true    373.5kB         45 minutes ago
+ccsczdy3u0y016cpcoldwp8of                       true    373.5kB         14 minutes ago
+gjq4g83zvvt3vt7jzwpw5i9pv                       true    12.29kB         14 minutes ago
+akdv1qnul1mp5tk1zosnjh939                       true    117MB           14 minutes ago
+r1u3vzi1zu9c5o7d0bseob72f                       true    327.7kB         14 minutes ago
+men0ct5g9xnfhd7hnyoksydtq                       true    17.81kB         14 minutes ago
+ltrqui10g4o2b1h50gu0ui00q                       true    17.81kB         45 minutes ago
+ezun3maqhaz1dj7x7oq1fx821                       true    327.7kB         45 minutes ago
+t8gvjhkxjuvs2aohma5rhdnsa                       true    314.3MB         45 minutes ago
+row4vrcui1q82b66d5ex30rjf                       true    314.3MB         14 minutes ago
+8cgef9oa4ozgntkskjqb3n08c                       true    8.192kB         14 minutes ago
+zdaavvm7hw3rr7ktwv5crj9hg                       true    8.192kB         45 minutes ago
+quhgtlgy29nig030s1mzfjugf                       true    349.7MB         45 minutes ago
+6bk2xactu3ab76bhibpek2bnh                       true    349.7MB         14 minutes ago
+r3p09yeaoi314r5retedjb1e7                       true    2.604MB         14 minutes ago
+loiy0e9prd2qki7q0zwplahoh                       true    2.604MB         45 minutes ago
+5pty5phc55by9plvgdgsmxo9q                       true    8.285kB         14 minutes ago
+skzq68dqo5w0ju0c2gr1kwvgk                       true    8.285kB         45 minutes ago
+fy9v8hdeb65567anbq5dnuiok                       true    14.02MB         45 minutes ago
+h2amzbhxhtllwjqem8rlk6t62                       true    14.02MB         14 minutes ago
+ocv6gg7egclm9ac06j9h14ilv                       true    20.93kB         14 minutes ago
+wexdzc9xua9g8gu3j6j9wc87g                       true    9.032MB         About an hour ago
+jwrpmsb33hyeds6t8p54lecpv                       true    166.1MB         About an hour ago
+rxjxuar2n95xsge72oz4mk397                       true    72.94kB         About an hour ago
+3fi87yu5sb9d06uow2qqqa0xl                       true    113.5MB         About an hour ago
+Total:  5.69GB
+PS C:\Users\mewtwo\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer> docker system prune -a -f
+Total reclaimed space: 0B
+PS C:\Users\mewtwo\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer> .\build-docker.ps1 cleanall
+Performing complete Docker cleanup...
+Stopping containers...
+docker-compose : time="2025-12-12T10:58:44+05:30" level=warning msg="C:\\Users\\mewtwo\\Desktop\\mewtwo\\Program Analysis for Software
+Engineering\\Final_Proj_8Dec\\vscode-dataflow-analyzer\\docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential
+confusion"
+At C:\Users\mewtwo\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\build-docker.ps1:169 char:5
++     docker-compose down 2>$null
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (time="2025-12-1...tial confusion":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+PS C:\Users\mewtwo\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer> .\build-docker.ps1 build -NoCache
+Building Docker image for Linux AMD x64 platform...
+Using Dockerfile: Dockerfile
+Platform: linux/amd64 (compatible with AMD x64 and Intel x64)
+[+] Building 1967.6s (31/31) FINISHED                                                                                                                  docker:desktop-linux
+ => [internal] load build definition from Dockerfile                                                                                                                   0.0s
+ => => transferring dockerfile: 4.85kB                                                                                                                                 0.0s
+ => WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 10)                                                  0.0s
+ => WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 83)                                                  0.0s
+ => WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 112)                                                 0.0s
+ => [internal] load metadata for docker.io/library/node:20-slim                                                                                                        4.3s
+ => [internal] load metadata for docker.io/library/ubuntu:22.04                                                                                                        4.6s
+ => [internal] load .dockerignore                                                                                                                                      0.0s
+ => => transferring context: 990B                                                                                                                                      0.0s
+ => [internal] load build context                                                                                                                                      0.6s
+ => => transferring context: 1.63MB                                                                                                                                    0.5s
+ => [extension-builder 1/9] FROM docker.io/library/node:20-slim@sha256:1b38aaddff63cd0d3a9b5b03863a71fd33ee62047dd2e915f494d96b4b9c18cc                              189.0s
+ => => resolve docker.io/library/node:20-slim@sha256:1b38aaddff63cd0d3a9b5b03863a71fd33ee62047dd2e915f494d96b4b9c18cc                                                  0.0s
+ => => sha256:43cb6be58df504eb7a3e1926adbd4b5129e58a2663401f34440db7f72ce33f9a 445B / 445B                                                                             0.7s
+ => => sha256:7f92fcb12a25d7235c5c36ad20c4968c4b8286433b57a371b42db83633c2e029 1.71MB / 1.71MB                                                                        22.4s
+ => => sha256:1acafb0b2a9a309ace2542590600739e7d010f800370e861af0e4fdd8777e1cc 40.99MB / 40.99MB                                                                     187.7s
+ => => sha256:4d088bcb51f5200756aedc10e2d6b0c42321346f7392b20db6fe348369992446 3.31kB / 3.31kB                                                                         2.1s
+ => => sha256:ae4ce04d0e1ccb5db08fa441b79635de5590399fae652d10bd3379b231be0ead 28.23MB / 28.23MB                                                                     129.1s
+ => => extracting sha256:ae4ce04d0e1ccb5db08fa441b79635de5590399fae652d10bd3379b231be0ead                                                                              0.9s
+ => => extracting sha256:4d088bcb51f5200756aedc10e2d6b0c42321346f7392b20db6fe348369992446                                                                              0.0s
+ => => extracting sha256:1acafb0b2a9a309ace2542590600739e7d010f800370e861af0e4fdd8777e1cc                                                                              1.0s
+ => => extracting sha256:7f92fcb12a25d7235c5c36ad20c4968c4b8286433b57a371b42db83633c2e029                                                                              0.0s
+ => => extracting sha256:43cb6be58df504eb7a3e1926adbd4b5129e58a2663401f34440db7f72ce33f9a                                                                              0.0s
+ => [cpp-builder 1/6] FROM docker.io/library/ubuntu:22.04@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb                                    168.4s
+ => => resolve docker.io/library/ubuntu:22.04@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb                                                  0.0s
+ => => sha256:7e49dc6156b0b532730614d83a65ae5e7ce61e966b0498703d333b4d03505e4f 29.54MB / 29.54MB                                                                     167.4s
+ => => extracting sha256:7e49dc6156b0b532730614d83a65ae5e7ce61e966b0498703d333b4d03505e4f                                                                              0.9s
+ => [cpp-builder 2/6] RUN apt-get update && apt-get install -y     build-essential     cmake     ninja-build     git     wget     curl     ca-certificates     && r  802.9s
+ => [stage-2  2/11] RUN apt-get update && apt-get install -y     ca-certificates     && rm -rf /var/lib/apt/lists/*                                                  211.6s
+ => [extension-builder 2/9] RUN apt-get update && apt-get install -y     python3     make     g++     && rm -rf /var/lib/apt/lists/*                                 426.8s
+ => [stage-2  3/11] WORKDIR /app                                                                                                                                       0.0s
+ => [extension-builder 3/9] WORKDIR /build                                                                                                                             0.1s
+ => [extension-builder 4/9] COPY package*.json ./                                                                                                                      0.0s
+ => [extension-builder 5/9] COPY tsconfig.json ./                                                                                                                      0.0s
+ => [extension-builder 6/9] RUN npm ci                                                                                                                                59.8s
+ => [extension-builder 7/9] COPY src/ ./src/                                                                                                                           0.4s
+ => [extension-builder 8/9] COPY jest.config.js ./                                                                                                                     0.0s
+ => [extension-builder 9/9] RUN npm run compile                                                                                                                        2.6s
+ => [stage-2  4/11] COPY --from=extension-builder /build/out ./out                                                                                                     0.1s
+ => [stage-2  5/11] COPY --from=extension-builder /build/node_modules ./node_modules                                                                                   8.8s
+ => [stage-2  6/11] COPY --from=extension-builder /build/package.json ./                                                                                               0.4s
+ => [stage-2  7/11] COPY --from=extension-builder /build/package-lock.json ./                                                                                          0.0s
+ => [cpp-builder 3/6] RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - &&     echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17   938.4s
+ => [cpp-builder 4/6] WORKDIR /build/cpp-tools/cfg-exporter                                                                                                            0.1s
+ => [cpp-builder 5/6] COPY cpp-tools/cfg-exporter/ ./                                                                                                                  0.0s
+ => [cpp-builder 6/6] RUN mkdir -p build &&     cd build &&     echo "=== Step 1: CMake Configuration ===" &&     cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja 2>&1   22.2s
+ => [stage-2  8/11] COPY --from=cpp-builder /build/cpp-tools/cfg-exporter/build/cfg-exporter ./cpp-tools/cfg-exporter/build/                                           0.1s
+ => [stage-2  9/11] COPY README.md ./                                                                                                                                  0.1s
+ => [stage-2 10/11] COPY CHANGELOG.md ./                                                                                                                               0.0s
+ => [stage-2 11/11] RUN mkdir -p /app/dist                                                                                                                             0.3s
+ => exporting to image                                                                                                                                                30.1s
+ => => exporting layers                                                                                                                                               15.4s
+ => => exporting manifest sha256:b69503f0748a04311943bed825626b567db286c404149aba71dce25752c75985                                                                      0.0s
+ => => exporting config sha256:b0bb29315db3ef204f63bcf5b606ce1bbbc666bc33489d0d0bf8930f7dfac5d1                                                                        0.0s
+ => => exporting attestation manifest sha256:eaa5f51d7e190350b52560beb3e28a0237955e964377d3c99dc7108a2d2a658f                                                          0.0s
+ => => exporting manifest list sha256:05a9384c91fb58ad3de5e87a291889ffefde2cd6bca55985e9fd19765a95f97e                                                                 0.0s
+ => => naming to docker.io/library/vscode-dataflow-analyzer:latest                                                                                                     0.0s
+ => => unpacking to docker.io/library/vscode-dataflow-analyzer:latest                                                                                                 14.6s
+
+ 3 warnings found (use docker --debug to expand):
+ - FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 10)
+ - FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 83)
+ - FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 112)
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/w9nciky766o9ifz36ein59yf6
+Build completed successfully!
+PS C:\Users\mewtwo\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer> .\build-docker.ps1 package -NoCache
+Building Docker image for Linux AMD x64 platform...
+Using Dockerfile: Dockerfile
+Platform: linux/amd64 (compatible with AMD x64 and Intel x64)
+[+] Building 23762.9s (23/30)                                                                                                                          docker:desktop-linux
+ => [internal] load build definition from Dockerfile                                                                                                                   0.0s
+ => => transferring dockerfile: 4.85kB                                                                                                                                 0.0s
+ => WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 10)                                                  0.0s
+ => WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 83)                                                  0.0s
+ => WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 112)                                                 0.0s
+ => [internal] load metadata for docker.io/library/node:20-slim                                                                                                        2.9s
+ => [internal] load metadata for docker.io/library/ubuntu:22.04                                                                                                        3.3s
+ => [internal] load .dockerignore                                                                                                                                      0.0s
+ => => transferring context: 990B                                                                                                                                      0.0s
+ => [internal] load build context                                                                                                                                      0.0s
+ => => transferring context: 2.67kB                                                                                                                                    0.0s
+ => CACHED [cpp-builder 1/6] FROM docker.io/library/ubuntu:22.04@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb                               0.0s
+ => => resolve docker.io/library/ubuntu:22.04@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb                                                  0.0s
+ => CACHED [extension-builder 1/9] FROM docker.io/library/node:20-slim@sha256:1b38aaddff63cd0d3a9b5b03863a71fd33ee62047dd2e915f494d96b4b9c18cc                         0.0s
+ => => resolve docker.io/library/node:20-slim@sha256:1b38aaddff63cd0d3a9b5b03863a71fd33ee62047dd2e915f494d96b4b9c18cc                                                  0.0s
+ => [stage-2  2/11] RUN apt-get update && apt-get install -y     ca-certificates     && rm -rf /var/lib/apt/lists/*                                                  123.9s
+ => [cpp-builder 2/6] RUN apt-get update && apt-get install -y     build-essential     cmake     ninja-build     git     wget     curl     ca-certificates     && r  902.8s
+ => [extension-builder 2/9] RUN apt-get update && apt-get install -y     python3     make     g++     && rm -rf /var/lib/apt/lists/*                                 401.2s
+ => [stage-2  3/11] WORKDIR /app                                                                                                                                       0.1s
+ => [extension-builder 3/9] WORKDIR /build                                                                                                                             0.1s
+ => [extension-builder 4/9] COPY package*.json ./                                                                                                                      0.0s
+ => [extension-builder 5/9] COPY tsconfig.json ./                                                                                                                      0.0s
+ => [extension-builder 6/9] RUN npm ci                                                                                                                                41.7s
+ => [extension-builder 7/9] COPY src/ ./src/                                                                                                                           0.6s
+ => [extension-builder 8/9] COPY jest.config.js ./                                                                                                                     0.0s
+ => [extension-builder 9/9] RUN npm run compile                                                                                                                        3.6s
+ => [stage-2  4/11] COPY --from=extension-builder /build/out ./out                                                                                                     0.1s
+ => [stage-2  5/11] COPY --from=extension-builder /build/node_modules ./node_modules                                                                                  12.3s
+ => [stage-2  6/11] COPY --from=extension-builder /build/package.json ./                                                                                               0.5s
+ => [stage-2  7/11] COPY --from=extension-builder /build/package-lock.json ./                                                                                          0.0s
+ => ERROR [cpp-builder 3/6] RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - &&     echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-j  22856.2s
+------
+ > [cpp-builder 3/6] RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - &&     echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" >> /etc/apt/sources.list.d/llvm.list &&     apt-get update &&     apt-get install -y     llvm-17     clang-17     libclang-17-dev     llvm-17-dev     && rm -rf /var/lib/apt/lists/*:
+0.351 --2025-12-12 06:20:11--  https://apt.llvm.org/llvm-snapshot.gpg.key
+0.354 Resolving apt.llvm.org (apt.llvm.org)... 199.232.194.49, 199.232.198.49, 2a04:4e42:4c::561, ...
+0.429 Connecting to apt.llvm.org (apt.llvm.org)|199.232.194.49|:443... Warning: apt-key is deprecated. Manage keyring files in trusted.gpg.d instead (see apt-key(8)).
+0.704 connected.
+1.259 HTTP request sent, awaiting response... 200 OK
+1.539 Length: 3145 (3.1K) [application/octet-stream]
+1.539 Saving to: 'STDOUT'
+1.539
+1.539      0K ...                                                   100% 49.0M=0s
+1.539
+1.539 2025-12-12 06:20:12 (49.0 MB/s) - written to stdout [3145/3145]
+1.539
+1.656 OK
+2.219 Get:1 http://security.ubuntu.com/ubuntu jammy-security InRelease [129 kB]
+2.346 Get:2 http://archive.ubuntu.com/ubuntu jammy InRelease [270 kB]
+3.455 Get:4 http://security.ubuntu.com/ubuntu jammy-security/restricted amd64 Packages [6185 kB]
+3.587 Get:5 http://archive.ubuntu.com/ubuntu jammy-updates InRelease [128 kB]
+3.645 Get:3 https://apt.llvm.org/jammy llvm-toolchain-jammy-17 InRelease [6833 B]
+4.138 Get:6 http://archive.ubuntu.com/ubuntu jammy-backports InRelease [127 kB]
+4.497 Get:7 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 Packages [12.4 kB]
+4.668 Get:8 http://archive.ubuntu.com/ubuntu jammy/main amd64 Packages [1792 kB]
+11.22 Get:9 http://archive.ubuntu.com/ubuntu jammy/restricted amd64 Packages [164 kB]
+11.67 Get:10 http://archive.ubuntu.com/ubuntu jammy/universe amd64 Packages [17.5 MB]
+34.72 Get:11 http://security.ubuntu.com/ubuntu jammy-security/multiverse amd64 Packages [60.9 kB]
+35.30 Get:12 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 Packages [1287 kB]
+42.45 Get:13 http://security.ubuntu.com/ubuntu jammy-security/main amd64 Packages [3623 kB]
+77.12 Get:14 http://archive.ubuntu.com/ubuntu jammy/multiverse amd64 Packages [266 kB]
+77.90 Get:15 http://archive.ubuntu.com/ubuntu jammy-updates/multiverse amd64 Packages [69.2 kB]
+78.16 Get:16 http://archive.ubuntu.com/ubuntu jammy-updates/restricted amd64 Packages [6410 kB]
+100.7 Get:17 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 Packages [3961 kB]
+118.3 Get:18 http://archive.ubuntu.com/ubuntu jammy-updates/universe amd64 Packages [1598 kB]
+123.9 Get:19 http://archive.ubuntu.com/ubuntu jammy-backports/main amd64 Packages [83.9 kB]
+124.1 Get:20 http://archive.ubuntu.com/ubuntu jammy-backports/universe amd64 Packages [35.2 kB]
+124.3 Fetched 43.7 MB in 2min 3s (356 kB/s)
+124.3 Reading package lists...
+125.4 W: http://apt.llvm.org/jammy/dists/llvm-toolchain-jammy-17/InRelease: Key is stored in legacy trusted.gpg keyring (/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+125.4 Reading package lists...
+126.5 Building dependency tree...
+126.7 Reading state information...
+126.9 The following additional packages will be installed:
+126.9   binfmt-support icu-devtools lib32gcc-s1 lib32stdc++6 libc6-i386
+126.9   libclang-common-17-dev libclang-cpp17 libclang-rt-17-dev libclang1-17
+126.9   libffi-dev libgc1 libicu-dev libllvm17 libmpdec3 libncurses-dev
+126.9   libobjc-11-dev libobjc4 libpfm4 libpipeline1 libpython3-stdlib
+126.9   libpython3.10-minimal libpython3.10-stdlib libxml2-dev libyaml-0-2 libz3-4
+126.9   libz3-dev llvm-17-linker-tools llvm-17-runtime llvm-17-tools media-types
+126.9   python3 python3-minimal python3-pkg-resources python3-pygments python3-yaml
+126.9   python3.10 python3.10-minimal
+126.9 Suggested packages:
+126.9   clang-17-doc wasi-libc icu-doc ncurses-doc pkg-config llvm-17-doc
+126.9   python3-doc python3-tk python3-venv python3-setuptools python-pygments-doc
+126.9   ttf-bitstream-vera python3.10-venv python3.10-doc
+127.1 The following NEW packages will be installed:
+127.1   binfmt-support clang-17 icu-devtools lib32gcc-s1 lib32stdc++6 libc6-i386
+127.1   libclang-17-dev libclang-common-17-dev libclang-cpp17 libclang-rt-17-dev
+127.1   libclang1-17 libffi-dev libgc1 libicu-dev libllvm17 libmpdec3 libncurses-dev
+127.1   libobjc-11-dev libobjc4 libpfm4 libpipeline1 libpython3-stdlib
+127.1   libpython3.10-minimal libpython3.10-stdlib libxml2-dev libyaml-0-2 libz3-4
+127.1   libz3-dev llvm-17 llvm-17-dev llvm-17-linker-tools llvm-17-runtime
+127.1   llvm-17-tools media-types python3 python3-minimal python3-pkg-resources
+127.1   python3-pygments python3-yaml python3.10 python3.10-minimal
+128.3 0 upgraded, 41 newly installed, 0 to remove and 0 not upgraded.
+128.3 Need to get 179 MB of archives.
+128.3 After this operation, 1127 MB of additional disk space will be used.
+128.3 Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libpython3.10-minimal amd64 3.10.12-1~22.04.12 [815 kB]
+129.1 Get:1 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libllvm17 amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77 [26.2 MB]
+132.4 Get:10 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 python3.10-minimal amd64 3.10.12-1~22.04.12 [2268 kB]
+156.8 Get:15 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 python3-minimal amd64 3.10.6-1~22.04.1 [24.3 kB]
+156.8 Get:16 http://archive.ubuntu.com/ubuntu jammy/main amd64 media-types all 7.0.0 [25.5 kB]
+157.3 Get:17 http://archive.ubuntu.com/ubuntu jammy/main amd64 libmpdec3 amd64 2.5.1-2build2 [86.8 kB]
+157.8 Get:18 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libpython3.10-stdlib amd64 3.10.12-1~22.04.12 [1849 kB]
+171.8 Get:19 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 python3.10 amd64 3.10.12-1~22.04.12 [508 kB]
+174.5 Get:20 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libpython3-stdlib amd64 3.10.6-1~22.04.1 [6812 B]
+174.5 Get:21 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 python3 amd64 3.10.6-1~22.04.1 [22.8 kB]
+174.6 Get:22 http://archive.ubuntu.com/ubuntu jammy/main amd64 libyaml-0-2 amd64 0.2.2-1build2 [51.6 kB]
+174.9 Get:23 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 python3-pkg-resources all 59.6.0-1.2ubuntu0.22.04.3 [133 kB]
+175.5 Get:24 http://archive.ubuntu.com/ubuntu jammy/main amd64 python3-yaml amd64 5.4.1-1ubuntu1 [129 kB]
+176.1 Get:25 http://archive.ubuntu.com/ubuntu jammy/main amd64 libpipeline1 amd64 1.5.5-1 [23.5 kB]
+176.2 Get:26 http://archive.ubuntu.com/ubuntu jammy/main amd64 binfmt-support amd64 2.2.1-2 [55.8 kB]
+176.4 Get:27 http://archive.ubuntu.com/ubuntu jammy/main amd64 libgc1 amd64 1:8.0.6-1.1build1 [96.8 kB]
+176.9 Get:28 http://archive.ubuntu.com/ubuntu jammy-updates/universe amd64 libobjc4 amd64 12.3.0-1ubuntu1~22.04.2 [48.7 kB]
+177.1 Get:29 http://archive.ubuntu.com/ubuntu jammy-updates/universe amd64 libobjc-11-dev amd64 11.4.0-1ubuntu1~22.04.2 [196 kB]
+177.9 Get:30 http://archive.ubuntu.com/ubuntu jammy/main amd64 icu-devtools amd64 70.1-2 [197 kB]
+178.8 Get:31 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libc6-i386 amd64 2.35-0ubuntu3.11 [2838 kB]
+198.6 Get:32 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 lib32gcc-s1 amd64 12.3.0-1ubuntu1~22.04.2 [63.9 kB]
+199.0 Get:33 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 lib32stdc++6 amd64 12.3.0-1ubuntu1~22.04.2 [739 kB]
+204.8 Get:34 http://archive.ubuntu.com/ubuntu jammy/main amd64 libicu-dev amd64 70.1-2 [11.6 MB]
+336.4 Get:35 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libncurses-dev amd64 6.3-2ubuntu0.1 [381 kB]
+349.0 Get:36 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libxml2-dev amd64 2.9.13+dfsg-1ubuntu0.10 [804 kB]
+353.5 Get:37 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libpfm4 amd64 4.11.1+git32-gd0b85fb-1ubuntu0.1 [345 kB]
+356.9 Get:38 http://archive.ubuntu.com/ubuntu jammy/main amd64 libffi-dev amd64 3.4.2-4 [63.7 kB]
+357.5 Get:39 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 python3-pygments all 2.11.2+dfsg-2ubuntu0.1 [750 kB]
+362.8 Get:40 http://archive.ubuntu.com/ubuntu jammy/universe amd64 libz3-4 amd64 4.8.12-1 [5766 kB]
+385.6 Get:2 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-cpp17 amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77 [13.0 MB]
+396.1 Get:41 http://archive.ubuntu.com/ubuntu jammy/universe amd64 libz3-dev amd64 4.8.12-1 [72.2 kB]
+479.1 Get:4 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-common-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77 [717 kB]
+482.6 Get:5 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-linker-tools amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77 [1376 kB]
+493.3 Get:6 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang1-17 amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77 [7414 kB]
+556.9 Get:7 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 clang-17 amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77 [144 kB]
+557.7 Get:8 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77 [28.0 MB]
+3637.7 Ign:8 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3637.7 Ign:9 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-rt-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3637.7 Ign:11 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-runtime amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3637.7 Ign:12 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17 amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3637.7 Ign:13 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-tools amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3637.7 Ign:14 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3638.7 Ign:8 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3638.7 Ign:9 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-rt-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3638.7 Ign:11 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-runtime amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3638.7 Ign:12 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17 amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3638.7 Ign:13 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-tools amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3638.7 Ign:14 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3640.7 Ign:8 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3640.7 Ign:9 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-rt-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3640.7 Ign:11 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-runtime amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3640.7 Ign:12 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17 amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3640.7 Ign:13 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-tools amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+3640.7 Ign:14 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+22856.0 Err:8 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+22856.0   Error reading from server - read (5: Input/output error) [IP: 199.232.194.49 443]
+22856.1 Err:9 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 libclang-rt-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+22856.1   Could not connect to apt.llvm.org:443 (199.232.194.49). - connect (111: Connection refused) Could not connect to apt.llvm.org:443 (199.232.198.49). - connect (111: Connection refused) [IP: 199.232.194.49 443]
+22856.1 Err:11 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-runtime amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+22856.1   Unable to connect to apt.llvm.org:https: [IP: 199.232.194.49 443]
+22856.1 Err:12 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17 amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+22856.1   Unable to connect to apt.llvm.org:https: [IP: 199.232.194.49 443]
+22856.1 Err:13 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-tools amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+22856.1   Unable to connect to apt.llvm.org:https: [IP: 199.232.194.49 443]
+22856.1 Err:14 https://apt.llvm.org/jammy llvm-toolchain-jammy-17/main amd64 llvm-17-dev amd64 1:17.0.6~++20231209124227+6009708b4367-1~exp1~20231209124336.77
+22856.1   Unable to connect to apt.llvm.org:https: [IP: 199.232.194.49 443]
+22856.1 E: Failed to fetch https://apt.llvm.org/jammy/pool/main/l/llvm-toolchain-17/libclang-17-dev_17.0.6%7e%2b%2b20231209124227%2b6009708b4367-1%7eexp1%7e20231209124336.77_amd64.deb  Error reading from server - read (5: Input/output error) [IP: 199.232.194.49 443]
+22856.1 E: Failed to fetch https://apt.llvm.org/jammy/pool/main/l/llvm-toolchain-17/libclang-rt-17-dev_17.0.6%7e%2b%2b20231209124227%2b6009708b4367-1%7eexp1%7e20231209124336.77_amd64.deb  Could not connect to apt.llvm.org:443 (199.232.194.49). - connect (111: Connection refused) Could not connect to apt.llvm.org:443 (199.232.198.49). - connect (111: Connection refused) [IP: 199.232.194.49 443]
+22856.1 E: Failed to fetch https://apt.llvm.org/jammy/pool/main/l/llvm-toolchain-17/llvm-17-runtime_17.0.6%7e%2b%2b20231209124227%2b6009708b4367-1%7eexp1%7e20231209124336.77_amd64.deb  Unable to connect to apt.llvm.org:https: [IP: 199.232.194.49 443]
+22856.1 E: Failed to fetch https://apt.llvm.org/jammy/pool/main/l/llvm-toolchain-17/llvm-17_17.0.6%7e%2b%2b20231209124227%2b6009708b4367-1%7eexp1%7e20231209124336.77_amd64.deb  Unable to connect to apt.llvm.org:https: [IP: 199.232.194.49 443]
+22856.1 E: Failed to fetch https://apt.llvm.org/jammy/pool/main/l/llvm-toolchain-17/llvm-17-tools_17.0.6%7e%2b%2b20231209124227%2b6009708b4367-1%7eexp1%7e20231209124336.77_amd64.deb  Unable to connect to apt.llvm.org:https: [IP: 199.232.194.49 443]
+22856.1 E: Failed to fetch https://apt.llvm.org/jammy/pool/main/l/llvm-toolchain-17/llvm-17-dev_17.0.6%7e%2b%2b20231209124227%2b6009708b4367-1%7eexp1%7e20231209124336.77_amd64.deb  Unable to connect to apt.llvm.org:https: [IP: 199.232.194.49 443]
+22856.1 E: Unable to fetch some archives, maybe run apt-get update or try with --fix-missing?
+22856.1 Fetched 78.8 MB in 8min 14s (159 kB/s)
+------
+
+ 3 warnings found (use docker --debug to expand):
+ - FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 10)
+ - FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 83)
+ - FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 112)
+Dockerfile:28
+--------------------
+  27 |     # Using LLVM official repository for better compatibility
+  28 | >>> RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+  29 | >>>     echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" >> /etc/apt/sources.list.d/llvm.list && \
+  30 | >>>     apt-get update && \
+  31 | >>>     apt-get install -y \
+  32 | >>>     llvm-17 \
+  33 | >>>     clang-17 \
+  34 | >>>     libclang-17-dev \
+  35 | >>>     llvm-17-dev \
+  36 | >>>     && rm -rf /var/lib/apt/lists/*
+  37 |
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - &&     echo \"deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main\" >> /etc/apt/sources.list.d/llvm.list &&     apt-get update &&     apt-get install -y     llvm-17     clang-17     libclang-17-dev     llvm-17-dev     && rm -rf /var/lib/apt/lists/*" did not complete successfully: exit code: 100
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/ho6rgvpa01g14hyok2vujn8c3
+Build failed!
+PS C:\Users\mewtwo\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer> .\build-docker.ps1 package -NoCache
+Building Docker image for Linux AMD x64 platform...
+Using Dockerfile: Dockerfile
+Platform: linux/amd64 (compatible with AMD x64 and Intel x64)
+[+] Building 2061.5s (31/31) FINISHED                                                                                                                  docker:desktop-linux
+ => [internal] load build definition from Dockerfile                                                                                                                   0.0s
+ => => transferring dockerfile: 4.85kB                                                                                                                                 0.0s
+ => WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 10)                                                  0.0s
+ => WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 83)                                                  0.0s
+ => WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 112)                                                 0.0s
+ => [internal] load metadata for docker.io/library/node:20-slim                                                                                                        4.9s
+ => [internal] load metadata for docker.io/library/ubuntu:22.04                                                                                                        5.0s
+ => [internal] load .dockerignore                                                                                                                                      0.0s
+ => => transferring context: 990B                                                                                                                                      0.0s
+ => [internal] load build context                                                                                                                                      0.1s
+ => => transferring context: 2.67kB                                                                                                                                    0.1s
+ => CACHED [extension-builder 1/9] FROM docker.io/library/node:20-slim@sha256:1b38aaddff63cd0d3a9b5b03863a71fd33ee62047dd2e915f494d96b4b9c18cc                         0.0s
+ => => resolve docker.io/library/node:20-slim@sha256:1b38aaddff63cd0d3a9b5b03863a71fd33ee62047dd2e915f494d96b4b9c18cc                                                  0.0s
+ => CACHED [cpp-builder 1/6] FROM docker.io/library/ubuntu:22.04@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb                               0.0s
+ => => resolve docker.io/library/ubuntu:22.04@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb                                                  0.0s
+ => [stage-2  2/11] RUN apt-get update && apt-get install -y     ca-certificates     && rm -rf /var/lib/apt/lists/*                                                  128.6s
+ => [extension-builder 2/9] RUN apt-get update && apt-get install -y     python3     make     g++     && rm -rf /var/lib/apt/lists/*                                 437.6s
+ => [cpp-builder 2/6] RUN apt-get update && apt-get install -y     build-essential     cmake     ninja-build     git     wget     curl     ca-certificates     && r  889.4s
+ => [stage-2  3/11] WORKDIR /app                                                                                                                                       0.0s
+ => [extension-builder 3/9] WORKDIR /build                                                                                                                             0.1s
+ => [extension-builder 4/9] COPY package*.json ./                                                                                                                      0.0s
+ => [extension-builder 5/9] COPY tsconfig.json ./                                                                                                                      0.0s
+ => [extension-builder 6/9] RUN npm ci                                                                                                                                93.1s
+ => [extension-builder 7/9] COPY src/ ./src/                                                                                                                           0.6s
+ => [extension-builder 8/9] COPY jest.config.js ./                                                                                                                     0.0s
+ => [extension-builder 9/9] RUN npm run compile                                                                                                                        3.6s
+ => [stage-2  4/11] COPY --from=extension-builder /build/out ./out                                                                                                     0.2s
+ => [stage-2  5/11] COPY --from=extension-builder /build/node_modules ./node_modules                                                                                  12.2s
+ => [stage-2  6/11] COPY --from=extension-builder /build/package.json ./                                                                                               0.5s
+ => [stage-2  7/11] COPY --from=extension-builder /build/package-lock.json ./                                                                                          0.0s
+ => [cpp-builder 3/6] RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - &&     echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17  1112.5s
+ => [cpp-builder 4/6] WORKDIR /build/cpp-tools/cfg-exporter                                                                                                            0.1s
+ => [cpp-builder 5/6] COPY cpp-tools/cfg-exporter/ ./                                                                                                                  0.0s
+ => [cpp-builder 6/6] RUN mkdir -p build &&     cd build &&     echo "=== Step 1: CMake Configuration ===" &&     cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja 2>&1   23.0s
+ => [stage-2  8/11] COPY --from=cpp-builder /build/cpp-tools/cfg-exporter/build/cfg-exporter ./cpp-tools/cfg-exporter/build/                                           0.1s
+ => [stage-2  9/11] COPY README.md ./                                                                                                                                  0.0s
+ => [stage-2 10/11] COPY CHANGELOG.md ./                                                                                                                               0.0s
+ => [stage-2 11/11] RUN mkdir -p /app/dist                                                                                                                             0.3s
+ => exporting to image                                                                                                                                                30.7s
+ => => exporting layers                                                                                                                                               16.0s
+ => => exporting manifest sha256:3299f7852bc51ba5b05a0fe172a4586b7a060ddb6af69523ce0917e54a410945                                                                      0.0s
+ => => exporting config sha256:427264fb5ed30dc852e111bf232e9661bc9aa5be3947ec2bb6b60c5eda0a07ca                                                                        0.0s
+ => => exporting attestation manifest sha256:1ec72d13ae76abf5c12c0858ce1f36ebbe77d4cc7a2d7c20a55549384dc4f2f5                                                          0.0s
+ => => exporting manifest list sha256:51e04ea45970089f4d193a2aebc3a1ba1fb09c4abcf73c0eab37422c047e7a10                                                                 0.0s
+ => => naming to docker.io/library/vscode-dataflow-analyzer:latest                                                                                                     0.0s
+ => => unpacking to docker.io/library/vscode-dataflow-analyzer:latest                                                                                                 14.6s
+
+ 3 warnings found (use docker --debug to expand):
+ - FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 10)
+ - FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 83)
+ - FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 112)
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/ymrik8temg6wt8d9fczaz2trx
+Build completed successfully!
+Packaging extension as .vsix...
+chmod: changing permissions of '/tmp/docker-package.sh': Read-only file system
+Packaging failed!
 
-cmd output:
-
-" 
-cmake ..
--- Building for: Visual Studio 18 2026
--- Selecting Windows SDK version 10.0.26100.0 to target Windows 10.0.26200.
--- The CXX compiler identification is MSVC 19.50.35717.0
--- Detecting CXX compiler ABI info
--- Detecting CXX compiler ABI info - done
--- Check for working CXX compiler: C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/cl.exe - skipped
--- Detecting CXX compile features
--- Detecting CXX compile features - done
--- Downloading nlohmann/json.hpp...
--- [download 0% complete]
--- [download 1% complete]
--- [download 2% complete]
--- [download 3% complete]
--- [download 4% complete]
--- [download 5% complete]
--- [download 6% complete]
--- [download 7% complete]
--- [download 9% complete]
--- [download 11% complete]
--- [download 12% complete]
--- [download 14% complete]
--- [download 16% complete]
--- [download 18% complete]
--- [download 20% complete]
--- [download 21% complete]
--- [download 23% complete]
--- [download 25% complete]
--- [download 27% complete]
--- [download 29% complete]
--- [download 30% complete]
--- [download 32% complete]
--- [download 34% complete]
--- [download 36% complete]
--- [download 38% complete]
--- [download 39% complete]
--- [download 41% complete]
--- [download 43% complete]
--- [download 45% complete]
--- [download 47% complete]
--- [download 48% complete]
--- [download 50% complete]
--- [download 52% complete]
--- [download 54% complete]
--- [download 56% complete]
--- [download 57% complete]
--- [download 59% complete]
--- [download 61% complete]
--- [download 63% complete]
--- [download 65% complete]
--- [download 66% complete]
--- [download 68% complete]
--- [download 70% complete]
--- [download 72% complete]
--- [download 74% complete]
--- [download 76% complete]
--- [download 77% complete]
--- [download 79% complete]
--- [download 81% complete]
--- [download 83% complete]
--- [download 85% complete]
--- [download 86% complete]
--- [download 88% complete]
--- [download 90% complete]
--- [download 92% complete]
--- [download 94% complete]
--- [download 95% complete]
--- [download 97% complete]
--- [download 99% complete]
--- [download 100% complete]
--- Found DIA SDK at: C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/DIA SDK/lib/amd64
--- Found LLVM 21.1.7
--- LLVM DIR: C:/LLVM-21.1.7/lib/cmake/llvm
--- Clang DIR: C:/LLVM-21.1.7/lib/cmake/clang
--- DIA SDK found at expected location - no workaround needed
--- Configuring done (10.2s)
--- Generating done (0.2s)
--- Build files have been written to: C:/Users/ditto/Desktop/mewtwo/mewtwo/Final_Proj_8Dec/vscode-dataflow-analyzer/cpp-tools/cfg-exporter/build
-
-C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build>cmake --build . --config Release
-MSBuild version 18.0.2+995a3dce4 for .NET Framework
-
-  1>Checking Build System
-  Building Custom Rule C:/Users/ditto/Desktop/mewtwo/mewtwo/Final_Proj_8Dec/vscode-dataflow-analyzer/cpp-tools/cfg-exporter/CMakeL
-  ists.txt
-  cfg-exporter.cpp
-C:\LLVM-21.1.7\include\llvm\ADT\DenseMapInfo.h(160,33): warning C4244: 'return': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\DirectoryEntry.h(221,22): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
-eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\FileEntry.h(255,22): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\D
-esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\FileEntry.h(274,28): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\D
-esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\Diagnostic.h(1626,69): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\Diagnostic.h(1637,73): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\Diagnostic.h(1697,51): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\Diagnostic.h(1705,51): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\NestedNameSpecifier.h(550,24): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\P
-uneeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\TemplateName.h(421,61): warning C4805: '|': unsafe mix of type 'unsigned int' and type 'bool' in operation [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\TemplateName.h(559,21): warning C4146: unary minus operator applied to unsigned type, result still unsigned [C:\Users\ditto\Desktop
-\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Type.h(3334,58): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop
-\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Type.h(3730,65): warning C4244: 'argument': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Des
-ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\APFixedPoint.h(151,22): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\D
-esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\APFixedPoint.h(331,22): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\D
-esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\APValue.h(81,50): warning C4244: '=': conversion from 'uintptr_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\StringTable.h(134,66): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\StringTable.h(128,42): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\IdentifierTable.h(247,58): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pun
-eeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\ASTContext.h(3765,28): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\ASTContext.h(3803,28): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\TemplateBase.h(283,35): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Deskt
-op\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\TemplateBase.h(659,48): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(599,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\se
-m 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(783,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\se
-m 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(1180,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(1267,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(1892,25): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(2172,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(2189,31): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(2489,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(2535,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(3595,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(3874,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(4620,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(4633,31): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(4881,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(4900,32): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5032,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5078,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5124,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5224,34): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5377,28): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5390,29): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(5407,23): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(6190,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(6203,25): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(6729,28): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(6823,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(8843,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(9351,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\s
-em 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(10743,32): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11548,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11707,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11745,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11783,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11821,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(11859,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(12539,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(13074,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(13669,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(13707,29): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(13745,29): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14001,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14163,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14334,25): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14380,31): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14504,29): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14507,27): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(14562,28): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15104,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15271,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15383,24): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15692,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15804,27): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15850,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15917,32): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Attrs.inc(15963,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\UnresolvedSet.h(135,46): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\ASTUnresolvedSet.h(87,44): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Punee
-th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Expr.h(1899,22): warning C4244: 'initializing': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Expr.h(2479,17): warning C4244: 'return': conversion from 'uintptr_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
-top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Expr.h(5257,55): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop
-\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Expr.h(5262,18): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\D
-esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\Expr.h(5265,42): warning C4267: '+=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\sem
- 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\TypeLoc.h(1041,59): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
-top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\TypeLoc.h(1740,51): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
-top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\TypeLoc.h(2321,59): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
-top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\TypeLoc.h(2578,51): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
-top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(120,38): warning C4291: 'void *clang::Decl::operator new(size_t,const clang::ASTContext &,clang::DeclContext *,size_t)': no
- matching operator delete found; memory will not be freed if initialization throws an exception [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Engineer
-ing\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\clang\AST\DeclBase.h(363,9):
-      see declaration of 'clang::Decl::operator new'
-
-C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(3327,38): warning C4291: 'void *clang::Decl::operator new(size_t,const clang::ASTContext &,clang::DeclContext *,size_t)': n
-o matching operator delete found; memory will not be freed if initialization throws an exception [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Enginee
-ring\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\clang\AST\DeclBase.h(363,9):
-      see declaration of 'clang::Decl::operator new'
-
-C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(3331,53): warning C4291: 'void *clang::Decl::operator new(size_t,const clang::ASTContext &,clang::GlobalDeclID,size_t)': no
- matching operator delete found; memory will not be freed if initialization throws an exception [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Engineer
-ing\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\clang\AST\DeclBase.h(359,9):
-      see declaration of 'clang::Decl::operator new'
-
-C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(3430,24): warning C4291: 'void *clang::Decl::operator new(size_t,const clang::ASTContext &,clang::DeclContext *,size_t)': n
-o matching operator delete found; memory will not be freed if initialization throws an exception [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Enginee
-ring\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\clang\AST\DeclBase.h(363,9):
-      see declaration of 'clang::Decl::operator new'
-
-C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(3566,25): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\Des
-ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(3879,58): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\DeclCXX.h(4250,20): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\DeclTemplate.h(1773,43): warning C4291: 'void *clang::Decl::operator new(size_t,const clang::ASTContext &,clang::DeclContext *,size_t
-)': no matching operator delete found; memory will not be freed if initialization throws an exception [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software En
-gineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\clang\AST\DeclBase.h(363,9):
-      see declaration of 'clang::Decl::operator new'
-
-C:\LLVM-21.1.7\include\clang\AST\DeclFriend.h(92,19): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Punee
-th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\DeclObjC.h(1467,25): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\DeclObjC.h(2450,25): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\DeclObjC.h(2757,25): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\OpenACCClause.h(279,17): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\P
-uneeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\OpenACCClause.h(677,56): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(380,16): warning C4244: '=': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop
-\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(419,16): warning C4244: '=': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop
-\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(490,24): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(491,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(502,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(510,24): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(511,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(527,24): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(528,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(537,24): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(538,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(568,29): warning C4267: 'initializing': conversion from 'size_t' to 'llvm::BitVector::size_type', possible loss of data [C
-:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(576,29): warning C4267: 'initializing': conversion from 'size_t' to 'llvm::BitVector::size_type', possible loss of data [C
-:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(586,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(635,23): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(748,23): warning C4267: 'initializing': conversion from 'size_t' to 'uint32_t', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(766,23): warning C4267: 'initializing': conversion from 'size_t' to 'uint32_t', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(829,56): warning C4267: 'return': conversion from 'size_t' to 'llvm::BitVector::size_type', possible loss of data [C:\User
-s\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitVector.h(830,57): warning C4267: 'return': conversion from 'size_t' to 'llvm::BitVector::size_type', possible loss of data [C:\User
-s\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\Frontend\OpenMP\OMPContext.h(212,33): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users
-\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\OpenMPClause.h(9688,25): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\P
-uneeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\ExprCXX.h(4415,15): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\ExprCXX.h(5093,17): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\StmtOpenACC.h(492,17): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pun
-eeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\AST\StmtOpenACC.h(584,16): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pun
-eeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\Support\SourceMgr.h(131,55): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\Support\SourceMgr.h(151,24): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\Support\VirtualFileSystem.h(260,32): warning C4267: 'return': conversion from 'size_t' to 'int', possible loss of data [C:\Users\ditto\D
-esktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\SourceManager.h(1748,75): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
-eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\SourceManager.h(1762,77): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
-eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\IR\DerivedTypes.h(482,22): warning C4244: 'initializing': conversion from 'unsigned __int64' to 'unsigned int', possible loss of data [C:\
-Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\IR\DerivedTypes.h(513,24): warning C4244: 'initializing': conversion from 'unsigned __int64' to 'unsigned int', possible loss of data [C:\
-Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(558,51): warning C4244: 'argument': conversion from 'uint64_t' to 'const _Ty', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(558,51): warning C4244:         with [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_P
-roj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(558,51): warning C4244:         [ [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj
-_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(558,51): warning C4244:             _Ty=unsigned int [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Eng
-ineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(558,51): warning C4244:         ] [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj
-_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(896,27): warning C4244: 'return': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(1167,76): warning C4244: 'argument': conversion from 'uint64_t' to 'const T', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(1167,76): warning C4244:         with [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_
-Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(1167,76): warning C4244:         [ [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Pro
-j_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(1167,76): warning C4244:             T=int [C:\Users\ditto\Desktop\mewtwo\mewtwo\F
-inal_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\clang\Basic\TargetInfo.h(1167,76): warning C4244:         ] [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Pro
-j_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Analysis\CFG.h(641,35): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Analysis\CFG.h(952,72): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desk
-top\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Analysis\CFG.h(1008,71): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Des
-ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Analysis\CFG.h(1011,71): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Des
-ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\CachedHashString.h(40,26): warning C4267: 'initializing': conversion from 'size_t' to 'uint32_t', possible loss of data [C:\Users\Pune
-eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\CachedHashString.h(105,36): warning C4267: 'initializing': conversion from 'size_t' to 'uint32_t', possible loss of data [C:\Users\Pun
-eeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang-c\Index.h(6959,34): warning C4996: 'CXRemapping': was declared deprecated [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software E
-ngineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang-c\Index.h(6961,34): warning C4996: 'CXRemapping': was declared deprecated [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software E
-ngineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang-c\Index.h(6964,67): warning C4996: 'CXRemapping': was declared deprecated [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software E
-ngineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang-c\Index.h(6967,26): warning C4996: 'CXRemapping': was declared deprecated [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software E
-ngineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang-c\Index.h(6969,59): warning C4996: 'CXRemapping': was declared deprecated [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software E
-ngineering\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(369,45): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\P
-uneeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(446,24): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\U
-sers\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(461,54): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(471,54): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(482,35): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(481,37): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\PreprocessingRecord.h(574,22): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users
-\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\MacroInfo.h(173,30): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\MacroInfo.h(194,18): warning C4244: 'return': conversion from '__int64' to 'int', possible loss of data [C:\Users\ditto\Desktop\sem
- 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\MacroInfo.h(272,39): warning C4267: '=': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Desktop\
-mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\MacroInfo.h(535,21): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Punee
-th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Sema\DeclSpec.h(2119,28): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
-eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Sema\DeclSpec.h(2397,64): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Sema\DeclSpec.h(2428,32): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
-eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Sema\DeclSpec.h(2439,21): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
-eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Sema\DeclSpec.h(2460,32): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
-eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Serialization\SourceLocationEncoding.h(77,30): warning C4146: unary minus operator applied to unsigned type, result still unsigned [C:\Us
-ers\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Serialization\SourceLocationEncoding.h(90,58): warning C4244: 'argument': conversion from 'clang::SourceLocationEncoding::RawLocEncoding'
- to 'clang::SourceLocationEncoding::UIntTy', possible loss of data [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-da
-taflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Serialization\SourceLocationEncoding.h(94,69): warning C4244: 'argument': conversion from 'clang::SourceLocationEncoding::RawLocEncoding'
- to 'clang::SourceLocationEncoding::UIntTy', possible loss of data [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-da
-taflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Serialization\ASTBitCodes.h(125,72): warning C4244: 'argument': conversion from 'clang::serialization::TypeID' to 'uint32_t', possible lo
-ss of data [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporte
-r.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Serialization\ASTBitCodes.h(203,14): warning C4244: '=': conversion from 'uint64_t' to 'uint32_t', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\PreprocessorLexer.h(123,75): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pun
-eeth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\Lexer.h(313,22): warning C4244: 'return': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\Deskto
-p\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\Lexer.h(643,21): warning C4244: 'initializing': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\HeaderSearch.h(836,59): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\HeaderSearch.h(866,60): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Lex\Preprocessor.h(1717,44): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Punee
-th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Frontend\ASTUnit.h(620,68): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\clang\Frontend\ASTUnit.h(640,40): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\Option\OptTable.h(116,29): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Pune
-eth\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\Option\OptTable.h(188,59): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-
-C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18): warning C4244: '=': conversion from 'unsigned __int64' to 'T', possible loss of data [C:\Users\ditto\Desktop\se
-m 7\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18): warning C4244:         with [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_
-8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18): warning C4244:         [ [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8De
-c\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18): warning C4244:             T=unsigned int [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Engineeri
-ng\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18): warning C4244:         ] [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8De
-c\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\llvm\ADT\StringRef.h(493,18):
-      the template instantiation context (the oldest one first) is
-          C:\LLVM-21.1.7\include\clang\Frontend\CommandLineSourceLoc.h(42,26):
-          see reference to function template instantiation 'bool llvm::StringRef::getAsInteger<unsigned int>(unsigned int,T &) const' being compiled
-          with
-          [
-              T=unsigned int
-          ]
-
-C:\LLVM-21.1.7\include\llvm\ADT\StringMap.h(148,32): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\De
-sktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\llvm\ADT\StringMap.h(148,32):
-      the template instantiation context (the oldest one first) is
-          C:\LLVM-21.1.7\include\clang\Basic\TargetCXXABI.h(43,34):
-          see reference to class template instantiation 'llvm::StringMap<clang::TargetCXXABI::Kind,llvm::MallocAllocator>' being compiled
-          C:\LLVM-21.1.7\include\llvm\ADT\StringMap.h(147,3):
-          while compiling class template member function 'llvm::StringMap<clang::TargetCXXABI::Kind,llvm::MallocAllocator>::StringMap(std::initializer_list<std::pair<
-  llvm::StringRef,ValueTy>>)'
-          with
-          [
-              ValueTy=clang::TargetCXXABI::Kind
-          ]
-              C:\LLVM-21.1.7\include\clang\Basic\TargetCXXABI.h(43,43):
-              see the first reference to 'llvm::StringMap<clang::TargetCXXABI::Kind,llvm::MallocAllocator>::StringMap' in 'clang::TargetCXXABI::getABIMap'
-
-C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(292,51): warning C4244: 'argument': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\Punee
-th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(292,51):
-      the template instantiation context (the oldest one first) is
-          C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(390,29):
-          while compiling class template 'llvm::SpecificBumpPtrAllocator'
-          C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(391,20):
-          see reference to class template instantiation 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>' being compiled
-          C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(289,10):
-          while compiling class template member function 'size_t llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::getTotalMemory(void) const'
-              C:\LLVM-21.1.7\include\clang\AST\ASTContext.h(841,5):
-              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::getTotalMemory' in 'clang::ASTContext::getASTAllocatedMemor
-  y'
-
-C:\LLVM-21.1.7\include\llvm\ADT\BitmaskEnum.h(129,59): warning C4244: 'return': conversion from 'uint64_t' to 'unsigned char', possible loss of data [C:\Users\ditto
-\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\llvm\ADT\BitmaskEnum.h(129,59):
-      the template instantiation context (the oldest one first) is
-          C:\LLVM-21.1.7\include\clang\AST\DependenceFlags.h(265,14):
-          see reference to function template instantiation 'E llvm::BitmaskEnumDetail::operator ~<clang::ExprDependenceScope::ExprDependence,void>(E)' being compiled
-          with
-          [
-              E=clang::ExprDependenceScope::ExprDependence
-          ]
-          C:\LLVM-21.1.7\include\llvm\ADT\BitmaskEnum.h(157,44):
-          see reference to function template instantiation 'unsigned char llvm::BitmaskEnumDetail::Mask<E>(void)' being compiled
-          with
-          [
-              E=clang::ExprDependenceScope::ExprDependence
-          ]
-
-C:\LLVM-21.1.7\include\llvm\ADT\TinyPtrVector.h(146,36): warning C4267: 'return': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\ditto\
-Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\llvm\ADT\TinyPtrVector.h(146,36):
-      the template instantiation context (the oldest one first) is
-          C:\LLVM-21.1.7\include\clang\Lex\Preprocessor.h(851,40):
-          see reference to class template instantiation 'llvm::TinyPtrVector<clang::ModuleMacro *>' being compiled
-          C:\LLVM-21.1.7\include\llvm\ADT\TinyPtrVector.h(143,12):
-          while compiling class template member function 'unsigned int llvm::TinyPtrVector<clang::ModuleMacro *>::size(void) const'
-              C:\LLVM-21.1.7\include\llvm\ADT\ArrayRef.h(100,33):
-              see the first reference to 'llvm::TinyPtrVector<clang::ModuleMacro *>::size' in 'llvm::ArrayRef<clang::ModuleMacro *>::ArrayRef'
-              C:\LLVM-21.1.7\include\clang\Lex\Preprocessor.h(936,9):
-              see the first reference to 'llvm::ArrayRef<clang::ModuleMacro *>::ArrayRef' in 'clang::Preprocessor::MacroState::getActiveModuleMacros'
-
-C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(363,40): warning C4244: 'argument': conversion from '__int64' to 'unsigned int', possible loss of data [C:\Users\Punee
-th\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(363,40):
-      the template instantiation context (the oldest one first) is
-          C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(359,8):
-          while compiling class template member function 'void llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::DeallocateSlabs(void **,void **)'
-              C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(99,20):
-              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::DeallocateSlabs' in 'llvm::BumpPtrAllocatorImpl<llvm::Mallo
-  cAllocator,4096,4096,128>::~BumpPtrAllocatorImpl'
-              C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(379,1):
-              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::~BumpPtrAllocatorImpl' in 'llvm::BumpPtrAllocatorImpl<llvm:
-  :MallocAllocator,4096,4096,128>::~BumpPtrAllocatorImpl'
-
-C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(454,24): warning C4244: 'return': conversion from 'uint64_t' to 'unsigned int', possible loss of data [C:\Users\ditto\Des
-ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(454,24):
-      the template instantiation context (the oldest one first) is
-          C:\LLVM-21.1.7\include\clang\Sema\CodeCompleteConsumer.h(660,50):
-          see reference to class template instantiation 'llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMa
-  pPair<KeyT,ValueT>>' being compiled
-          with
-          [
-              KeyT=const clang::DeclContext *,
-              ValueT=llvm::StringRef
-          ]
-          C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(777,25):
-          see reference to class template instantiation 'llvm::DenseMapBase<llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,ll
-  vm::detail::DenseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>' being compiled
-          with
-          [
-              KeyT=const clang::DeclContext *,
-              ValueT=llvm::StringRef,
-              KeyInfoT=llvm::DenseMapInfo<const clang::DeclContext *,void>,
-              BucketT=llvm::detail::DenseMapPair<const clang::DeclContext *,llvm::StringRef>
-          ]
-          C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(448,12):
-          while compiling class template member function 'unsigned int llvm::DenseMapBase<llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo
-  <KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::getMinBucketToReserveForEntries(unsigned int)'
-          with
-          [
-              KeyT=const clang::DeclContext *,
-              ValueT=llvm::StringRef,
-              KeyInfoT=llvm::DenseMapInfo<const clang::DeclContext *,void>,
-              BucketT=llvm::detail::DenseMapPair<const clang::DeclContext *,llvm::StringRef>
-          ]
-              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(918,22):
-              see the first reference to 'llvm::DenseMapBase<llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,llvm::detail::Den
-  seMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::getMinBucketToReserveForEntries' in 'llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMap
-  Info<KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>::init'
-          with
-          [
-              KeyT=const clang::DeclContext *,
-              ValueT=llvm::StringRef,
-              KeyInfoT=llvm::DenseMapInfo<const clang::DeclContext *,void>,
-              BucketT=llvm::detail::DenseMapPair<const clang::DeclContext *,llvm::StringRef>
-          ]
-          and
-          [
-              KeyT=const clang::DeclContext *,
-              ValueT=llvm::StringRef
-          ]
-              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(793,56):
-              see the first reference to 'llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,Valu
-  eT>>::init' in 'llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>::DenseMap'
-          with
-          [
-              KeyT=const clang::DeclContext *,
-              ValueT=llvm::StringRef
-          ]
-              C:\LLVM-21.1.7\include\clang\Sema\CodeCompleteConsumer.h(666,44):
-              see the first reference to 'llvm::DenseMap<const clang::DeclContext *,llvm::StringRef,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,Valu
-  eT>>::DenseMap' in 'clang::CodeCompletionTUInfo::CodeCompletionTUInfo'
-          with
-          [
-              KeyT=const clang::DeclContext *,
-              ValueT=llvm::StringRef
-          ]
-
-C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(345,58): warning C4267: 'argument': conversion from 'size_t' to 'unsigned int', possible loss of data [C:\Users\Puneet
-h\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(345,58):
-      the template instantiation context (the oldest one first) is
-          C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(344,8):
-          while compiling class template member function 'void llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::StartNewSlab(void)'
-              C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(203,17):
-              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::StartNewSlab' in 'llvm::BumpPtrAllocatorImpl<llvm::MallocAl
-  locator,4096,4096,128>::AllocateSlow'
-              C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(179,5):
-              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::AllocateSlow' in 'llvm::BumpPtrAllocatorImpl<llvm::MallocAl
-  locator,4096,4096,128>::Allocate'
-              C:\LLVM-21.1.7\include\llvm\Support\Allocator.h(217,5):
-              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::Allocate' in 'llvm::BumpPtrAllocatorImpl<llvm::MallocAlloca
-  tor,4096,4096,128>::Allocate'
-              C:\LLVM-21.1.7\include\clang\AST\ASTContext.h(807,5):
-              see the first reference to 'llvm::BumpPtrAllocatorImpl<llvm::MallocAllocator,4096,4096,128>::Allocate' in 'clang::ASTContext::Allocate'
-
-C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52): warning C4244: 'argument': conversion from 'uint64_t' to 'const _Ty', possible loss of data [C:\Users\ditto\Des
-ktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52): warning C4244:         with [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_
-8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52): warning C4244:         [ [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8De
-c\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52): warning C4244:             _Ty=unsigned int [C:\Users\ditto\Desktop\mewtwo\Program Analysis for Software Enginee
-ring\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52): warning C4244:         ] [C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8De
-c\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\build\cfg-exporter.vcxproj]
-  (compiling source file '../cfg-exporter.cpp')
-      C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1096,52):
-      the template instantiation context (the oldest one first) is
-          C:\LLVM-21.1.7\include\llvm\Frontend\OpenMP\OMPContext.h(158,39):
-          see reference to class template instantiation 'llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseM
-  apPair<KeyT,ValueT>>' being compiled
-          with
-          [
-              KeyT=llvm::omp::TraitProperty,
-              ValueT=llvm::APInt
-          ]
-          C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(1094,8):
-          while compiling class template member function 'void llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::
-  DenseMapPair<KeyT,ValueT>>::grow(unsigned int)'
-          with
-          [
-              KeyT=llvm::omp::TraitProperty,
-              ValueT=llvm::APInt
-          ]
-              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(587,68):
-              see the first reference to 'llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,Val
-  ueT>>::grow' in 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>
-  >,KeyT,ValueT,KeyInfoT,BucketT>::grow'
-          with
-          [
-              KeyT=llvm::omp::TraitProperty,
-              ValueT=llvm::APInt
-          ]
-              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(627,17):
-              see the first reference to 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::De
-  nseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::grow' in 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<K
-  eyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::InsertIntoBucketImpl'
-          with
-          [
-              KeyT=llvm::omp::TraitProperty,
-              ValueT=llvm::APInt,
-              KeyInfoT=llvm::DenseMapInfo<llvm::omp::TraitProperty,void>,
-              BucketT=llvm::detail::DenseMapPair<llvm::omp::TraitProperty,llvm::APInt>
-          ]
-              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(594,15):
-              see the first reference to 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::De
-  nseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::InsertIntoBucketImpl' in 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm
-  ::DenseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::InsertIntoBucket'
-          with
-          [
-              KeyT=llvm::omp::TraitProperty,
-              ValueT=llvm::APInt,
-              KeyInfoT=llvm::DenseMapInfo<llvm::omp::TraitProperty,void>,
-              BucketT=llvm::detail::DenseMapPair<llvm::omp::TraitProperty,llvm::APInt>
-          ]
-              C:\LLVM-21.1.7\include\llvm\ADT\DenseMap.h(396,5):
-              see the first reference to 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::De
-  nseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::InsertIntoBucket' in 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::De
-  nseMapInfo<KeyT,void>,llvm::detail::DenseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::operator []'
-          with
-          [
-              KeyT=llvm::omp::TraitProperty,
-              ValueT=llvm::APInt,
-              KeyInfoT=llvm::DenseMapInfo<llvm::omp::TraitProperty,void>,
-              BucketT=llvm::detail::DenseMapPair<llvm::omp::TraitProperty,llvm::APInt>
-          ]
-              C:\LLVM-21.1.7\include\llvm\Frontend\OpenMP\OMPContext.h(141,26):
-              see the first reference to 'llvm::DenseMapBase<llvm::SmallDenseMap<llvm::omp::TraitProperty,llvm::APInt,4,llvm::DenseMapInfo<KeyT,void>,llvm::detail::De
-  nseMapPair<KeyT,ValueT>>,KeyT,ValueT,KeyInfoT,BucketT>::operator []' in 'llvm::omp::VariantMatchInfo::addTrait'
-          with
-          [
-              KeyT=llvm::omp::TraitProperty,
-              ValueT=llvm::APInt,
-              KeyInfoT=llvm::DenseMapInfo<llvm::omp::TraitProperty,void>,
-              BucketT=llvm::detail::DenseMapPair<llvm::omp::TraitProperty,llvm::APInt>
-          ]
-
-  cfg-exporter.vcxproj -> C:\Users\ditto\Desktop\mewtwo\mewtwo\Final_Proj_8Dec\vscode-dataflow-analyzer\cpp-tools\cfg-exporter\bui
-  ld\Release\cfg-exporter.exe
-  Building Custom Rule C:/Users/ditto/Desktop/mewtwo/mewtwo/Final_Proj_8Dec/vscode-dataflow-analyzer/cpp-tools/cfg-exporter/CMakeL
-  ists.txt
 
 "
