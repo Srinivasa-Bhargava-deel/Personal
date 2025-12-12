@@ -85,16 +85,22 @@ package_extension() {
     # Ensure dist directory exists
     mkdir -p dist
     
-    # Build and package
+    # Package using the already-compiled code from the Docker image
+    # The code is already compiled in the extension-builder stage
+    # We use --skip-prepublish to skip the vscode:prepublish script (which runs compile)
     docker run --rm \
         -v "$(pwd)/dist:/app/dist" \
-        -v "$(pwd):/workspace" \
-        -w /workspace \
+        -w /app \
         "$TAG" \
-        sh -c "npm install -g vsce && npm run compile && vsce package --out /app/dist/dataflow-analyzer.vsix"
+        sh -c "npm install -g vsce && vsce package --skip-prepublish --out /app/dist/dataflow-analyzer.vsix"
     
-    echo "Extension packaged successfully!"
-    echo "VSIX file: dist/dataflow-analyzer.vsix"
+    if [ $? -eq 0 ]; then
+        echo "Extension packaged successfully!"
+        echo "VSIX file: dist/dataflow-analyzer.vsix"
+    else
+        echo "Packaging failed!"
+        exit 1
+    fi
 }
 
 run_tests() {

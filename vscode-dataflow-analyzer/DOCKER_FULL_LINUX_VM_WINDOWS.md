@@ -283,14 +283,13 @@ if (-not (Test-Path "dist")) {
     New-Item -ItemType Directory -Path "dist"
 }
 
-# Package extension
+# Package extension (using already-compiled code from Docker image)
 docker run --rm `
     --platform linux/amd64 `
     -v "${PWD}/dist:/app/dist" `
-    -v "${PWD}:/workspace" `
-    -w /workspace `
+    -w /app `
     vscode-dataflow-analyzer:latest `
-    sh -c "npm install -g vsce && npm run compile && vsce package --out /app/dist/dataflow-analyzer.vsix"
+    sh -c "npm install -g vsce && vsce package --skip-prepublish --out /app/dist/dataflow-analyzer.vsix"
 
 # Verify package created
 dir dist\dataflow-analyzer.vsix
