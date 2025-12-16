@@ -211,7 +211,16 @@ The `vsce` (VS Code Extension Manager) tool validates links in README.md files a
 Added `--allow-missing-repository` flag to the `vsce package` command:
 - Allows packaging even when repository URL can't be detected
 - Skips repository validation for relative links in README.md
-- Safe to use when packaging in Docker containers
+- **Completely safe** - only affects link validation, not extension code or security
+- Common practice in Docker/CI/CD environments
+
+### Safety Note
+✅ **It's safe to use this flag:**
+- Does NOT affect extension functionality or security
+- Does NOT change the packaged extension code
+- Only skips validation of README.md links
+- Extension will work identically whether flag is used or not
+- The only minor downside: broken links in README won't be caught during packaging
 
 ### What Changed
 **Before:**
