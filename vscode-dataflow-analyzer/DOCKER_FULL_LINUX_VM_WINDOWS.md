@@ -270,8 +270,9 @@ docker inspect vscode-dataflow-analyzer:latest | findstr /C:"Architecture"
 
 # This will:
 # - Build the extension
-# - Install vsce (VS Code Extension Manager)
-# - Create .vsix package
+# - Install @vscode/vsce (VS Code Extension Manager)
+# - Use helper script (docker-package.sh) that handles prepublish script
+# - Create .vsix package with --allow-missing-repository flag (safe for Docker)
 # - Output: dist/dataflow-analyzer.vsix
 ```
 
@@ -285,6 +286,7 @@ if (-not (Test-Path "dist")) {
 
 # Package extension (using helper script that handles prepublish)
 # Note: Script is mounted read-only, so we run it directly with bash
+# The helper script uses --allow-missing-repository flag (safe for Docker)
 docker run --rm `
     --platform linux/amd64 `
     -v "${PWD}/dist:/app/dist" `
@@ -295,6 +297,9 @@ docker run --rm `
 
 # Verify package created
 dir dist\dataflow-analyzer.vsix
+```
+
+**Note:** The `--allow-missing-repository` flag is used automatically by the helper script. This is safe and only skips README.md link validation - it does NOT affect extension functionality or security.
 ```
 
 ## 🚀 Step 5: Run Extension in Docker
@@ -465,6 +470,14 @@ docker-compose exec dev npm test
 ```
 
 ## 🐛 Troubleshooting
+
+For detailed troubleshooting, see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) which covers:
+- Permission errors (chmod issues)
+- GPG key import errors
+- apt-get update failures
+- Network timeout issues
+- vsce repository detection errors
+- Docker build cache issues
 
 ### Issue: "Cannot connect to Docker daemon"
 
@@ -645,6 +658,7 @@ docker-compose exec dev npm run compile
 - [DOCKER_WHAT_IS_INCLUDED.md](DOCKER_WHAT_IS_INCLUDED.md) - **What's included in Docker vs what you need to install**
 - [DOCKER_WINDOWS_AMD64.md](DOCKER_WINDOWS_AMD64.md) - AMD x64 specific instructions
 - [DOCKER_WINDOWS_COMPATIBILITY.md](DOCKER_WINDOWS_COMPATIBILITY.md) - Windows compatibility details
+- [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) - **Comprehensive troubleshooting guide**
 - [DOCKER.md](DOCKER.md) - Complete Docker documentation
 
 ---
@@ -662,6 +676,9 @@ docker-compose exec dev npm run compile
 
 ### Q: Do I need Visual Studio Build Tools?
 **A: No!** Docker uses Linux build tools (gcc, g++, make) - no Windows build tools needed.
+
+### Q: What if I get a "repository detection" error during packaging?
+**A: This is normal in Docker!** The helper script uses `--allow-missing-repository` flag which is safe. It only skips README.md link validation and does NOT affect extension functionality or security.
 
 ### Q: Do I need to install VS Code?
 **A: Yes!** VS Code must be installed on Windows to use the extension. Docker only builds it.
