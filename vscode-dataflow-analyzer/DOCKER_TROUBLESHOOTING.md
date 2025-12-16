@@ -191,7 +191,57 @@ Or clean everything first:
 .\build-docker.ps1 package -NoCache
 ```
 
-## Issue 6: Docker Compose Version Warning
+## Issue 6: vsce Repository Detection Error
+
+### Symptoms
+```
+ERROR  Couldn't detect the repository where this extension is published. 
+The link 'WINDOWS_BUILD_INSTRUCTIONS.md' will be broken in README.md. 
+GitHub/GitLab repositories will be automatically detected. Otherwise, 
+please provide the repository URL in package.json or use the --baseContentUrl 
+and --baseImagesUrl options.
+```
+
+### Root Cause
+The `vsce` (VS Code Extension Manager) tool validates links in README.md files and requires a repository URL to validate relative links. When packaging in Docker, the git remote might not be available, causing `vsce` to fail.
+
+### Solution
+**Fixed in:** `docker-package.sh`
+
+Added `--allow-missing-repository` flag to the `vsce package` command:
+- Allows packaging even when repository URL can't be detected
+- Skips repository validation for relative links in README.md
+- Safe to use when packaging in Docker containers
+
+### What Changed
+**Before:**
+```bash
+vsce package --out /app/dist/dataflow-analyzer.vsix
+```
+
+**After:**
+```bash
+vsce package --out /app/dist/dataflow-analyzer.vsix --allow-missing-repository
+```
+
+### Verification
+The package command should now complete successfully:
+```powershell
+.\build-docker.ps1 package
+```
+
+### Alternative Solution
+If you want to avoid the flag, you can add the repository URL to `package.json`:
+```json
+{
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/your-repo.git"
+  }
+}
+```
+
+## Issue 7: Docker Compose Version Warning
 
 ### Symptoms
 ```
