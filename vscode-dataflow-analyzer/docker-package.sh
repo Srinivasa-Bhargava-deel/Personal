@@ -21,9 +21,15 @@ fi
 
 # Install vsce and package
 npm install -g @vscode/vsce
-# Use --allow-missing-repository to skip repository URL validation
-# This is needed when packaging in Docker where git remote might not be available
-vsce package --out /app/dist/dataflow-analyzer.vsix --allow-missing-repository
+
+# Package extension
+# The repository URL is now in package.json, so vsce can detect it automatically
+# Try with --allow-missing-repository flag first (in case flag is supported)
+# If that fails, fall back to regular packaging (should work with repository in package.json)
+if ! vsce package --out /app/dist/dataflow-analyzer.vsix --allow-missing-repository 2>&1; then
+    echo "Retrying without --allow-missing-repository flag (repository URL is in package.json)..."
+    vsce package --out /app/dist/dataflow-analyzer.vsix
+fi
 EXIT_CODE=$?
 
 # Restore vscode:prepublish script

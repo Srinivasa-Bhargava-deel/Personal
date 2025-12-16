@@ -240,15 +240,23 @@ The package command should now complete successfully:
 ```
 
 ### Alternative Solution
-If you want to avoid the flag, you can add the repository URL to `package.json`:
+**Fixed in:** `package.json` and `docker-package.sh`
+
+The repository URL has been added to `package.json`:
 ```json
 {
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/your-repo.git"
+    "url": "https://github.com/Srinivasa-Bhargava-deel/Personal.git"
   }
 }
 ```
+
+The `docker-package.sh` script now:
+1. First tries with `--allow-missing-repository` flag (if supported)
+2. Falls back to regular packaging (which works because repository URL is in package.json)
+
+This ensures packaging works even if the flag isn't supported in the vsce version being used.
 
 ## Issue 7: Docker Compose Version Warning
 
