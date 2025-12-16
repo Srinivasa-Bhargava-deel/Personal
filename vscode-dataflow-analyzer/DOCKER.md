@@ -73,6 +73,7 @@ docker build -t vscode-dataflow-analyzer .
 
 # Run container and package extension (using helper script)
 # Note: Script is mounted read-only, so we run it directly with bash
+# The helper script uses @vscode/vsce with --allow-missing-repository flag (safe for Docker)
 docker run --rm `
   -v ${PWD}/dist:/app/dist `
   -v ${PWD}/docker-package.sh:/tmp/docker-package.sh:ro `
@@ -132,6 +133,14 @@ The Dockerfile uses a multi-stage build:
 3. **Final stage**: Packages everything together
 
 ## Troubleshooting
+
+For comprehensive troubleshooting, see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) which covers:
+- Permission errors (chmod issues)
+- GPG key import errors
+- apt-get update failures
+- Network timeout issues
+- vsce repository detection errors
+- Docker build cache issues
 
 ### Issue: LLVM not found
 
@@ -218,6 +227,7 @@ jobs:
         run: docker build -t vscode-dataflow-analyzer .
       - name: Package extension
         run: |
+          # Helper script uses @vscode/vsce with --allow-missing-repository flag (safe for Docker)
           docker run --rm -v $PWD/dist:/app/dist -v $PWD/docker-package.sh:/tmp/docker-package.sh:ro -w /app \
             vscode-dataflow-analyzer \
             bash /tmp/docker-package.sh
@@ -230,6 +240,9 @@ jobs:
 
 ## Additional Resources
 
+- [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) - Comprehensive troubleshooting guide
+- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
+- [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) - Complete Linux Docker VM on Windows guide
 - [Docker Desktop for Windows](https://docs.docker.com/desktop/windows/)
 - [VS Code Extension Packaging](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)
 - [LLVM Docker Images](https://hub.docker.com/r/library/llvm)

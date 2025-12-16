@@ -121,6 +121,9 @@ docker-compose --version
 
 # Result: dist/dataflow-analyzer.vsix
 # This .vsix file works on Windows, macOS, and Linux
+# 
+# Note: Uses @vscode/vsce with --allow-missing-repository flag (safe for Docker)
+# This only skips README.md link validation and does NOT affect extension functionality
 ```
 
 ### Build Windows Binary (Required for Extension to Work)
@@ -213,6 +216,8 @@ dir cpp-tools\cfg-exporter\build\Release\cfg-exporter.exe
 
 - [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
 - [DOCKER.md](DOCKER.md) - Complete Docker documentation
+- [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) - Comprehensive troubleshooting guide
+- [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) - Complete Linux Docker VM on Windows guide
 - [WINDOWS_BUILD_INSTRUCTIONS.md](WINDOWS_BUILD_INSTRUCTIONS.md) - Windows binary build instructions
 
 

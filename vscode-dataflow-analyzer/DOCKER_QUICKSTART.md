@@ -71,6 +71,8 @@ docker run -it --rm `
 
 ## Troubleshooting
 
+For detailed troubleshooting, see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) which covers common issues and solutions.
+
 ### "Docker daemon not running"
 - Start Docker Desktop
 - Wait for it to fully start (whale icon in system tray)
@@ -92,6 +94,7 @@ docker run -it --rm `
 
 - **Fully Dockerized Setup**: See [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) for complete Linux Docker VM on Windows AMD x64 instructions
 - See [DOCKER.md](DOCKER.md) for detailed documentation
+- **Troubleshooting**: See [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) for comprehensive troubleshooting guide
 - See [DOCKER_WINDOWS_COMPATIBILITY.md](DOCKER_WINDOWS_COMPATIBILITY.md) for Windows-specific compatibility information
 - **AMD x64 Users**: See [DOCKER_WINDOWS_AMD64.md](DOCKER_WINDOWS_AMD64.md) for complete AMD x64 64-bit instructions
 - See [WINDOWS_BUILD_INSTRUCTIONS.md](WINDOWS_BUILD_INSTRUCTIONS.md) for building the Windows C++ binary

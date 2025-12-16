@@ -174,6 +174,16 @@ docker system df
 
 ## Troubleshooting
 
+For comprehensive troubleshooting, see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) which covers:
+- Permission errors (chmod issues)
+- GPG key import errors
+- apt-get update failures
+- Network timeout issues
+- vsce repository detection errors
+- Docker build cache issues
+
+### Common Issues
+
 ### Issue: "Image is being used by running container"
 
 **Solution:**
@@ -249,4 +259,10 @@ docker system prune -a -f
 ---
 
 **Note**: `-f` flag means "force" (no confirmation prompt). Remove it if you want to confirm each step.
+
+## Related Documentation
+
+- [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) - Comprehensive troubleshooting guide
+- [DOCKER.md](DOCKER.md) - Complete Docker documentation
+- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
 

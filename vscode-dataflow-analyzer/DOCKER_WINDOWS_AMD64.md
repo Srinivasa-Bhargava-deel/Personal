@@ -225,6 +225,9 @@ docker build --platform windows/amd64 -f Dockerfile.windows -t vscode-dataflow-a
 
 # This creates: dist/dataflow-analyzer.vsix
 # This .vsix file works on AMD x64, Intel x64, and ARM64 Windows systems
+# 
+# Note: Uses @vscode/vsce with --allow-missing-repository flag (safe for Docker)
+# This only skips README.md link validation and does NOT affect extension functionality
 ```
 
 ### Build Windows C++ Binary (Required for Extension)
