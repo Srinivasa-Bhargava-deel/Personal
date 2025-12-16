@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Build service - builds the extension
   builder:
@@ -25,6 +23,12 @@ services:
       - ./dist:/app/dist
       # Mount workspace for analysis
       - ./tests:/app/tests:ro
+      # Mount config files needed for compilation and linting
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./.eslintrc.json:/app/.eslintrc.json:ro
+      - ./jest.config.js:/app/jest.config.js:ro
+      - ./package.json:/app/package.json:ro
+      - ./package-lock.json:/app/package-lock.json:ro
     environment:
       - NODE_ENV=development
     working_dir: /app

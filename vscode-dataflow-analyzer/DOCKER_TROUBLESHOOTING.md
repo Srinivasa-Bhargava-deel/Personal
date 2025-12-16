@@ -304,7 +304,66 @@ Tests should now run successfully:
 .\build-docker.ps1 test
 ```
 
-## Issue 8: Docker Compose Version Warning
+## Issue 8: Dev Container Missing Config Files - "Cannot find tsconfig.json"
+
+### Symptoms
+```
+error TS5057: Cannot find a tsconfig.json file at the specified directory: './'.
+ESLint couldn't find a configuration file.
+```
+
+### Root Cause
+The dev container in `docker-compose.yml` was only mounting source directories (`src/`, `tests/`) but not the configuration files (`tsconfig.json`, `.eslintrc.json`, `jest.config.js`). When volumes are mounted, they override the files copied during the Docker build, so the config files were missing.
+
+### Solution
+**Fixed in:** `docker-compose.yml`
+
+Added volume mounts for all required config files:
+- `tsconfig.json` - TypeScript configuration
+- `.eslintrc.json` - ESLint configuration
+- `jest.config.js` - Jest test configuration
+- `package.json` - Package manifest
+- `package-lock.json` - Dependency lock file
+
+**Before:**
+```yaml
+volumes:
+  - ./src:/app/src:ro
+  - ./tests:/app/tests:ro
+```
+
+**After:**
+```yaml
+volumes:
+  - ./src:/app/src:ro
+  - ./tests:/app/tests:ro
+  - ./tsconfig.json:/app/tsconfig.json:ro
+  - ./.eslintrc.json:/app/.eslintrc.json:ro
+  - ./jest.config.js:/app/jest.config.js:ro
+  - ./package.json:/app/package.json:ro
+  - ./package-lock.json:/app/package-lock.json:ro
+```
+
+### Verification
+After updating `docker-compose.yml`, restart the dev container:
+```powershell
+docker-compose down
+.\build-docker.ps1 dev
+docker-compose exec dev bash
+# Inside container:
+npm run compile  # Should work now
+npm test         # Should work now
+npm run lint     # Should work now
+```
+
+### Additional Improvements
+**Enhanced logging in `docker-package.sh`:**
+- Added verification that `package.json` exists
+- Added check for repository field in `package.json`
+- Added detailed error messages for packaging failures
+- Better logging for debugging packaging issues
+
+## Issue 9: Docker Compose Version Warning
 
 ### Symptoms
 ```
