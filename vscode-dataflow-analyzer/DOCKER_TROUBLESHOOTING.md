@@ -258,7 +258,53 @@ The `docker-package.sh` script now:
 
 This ensures packaging works even if the flag isn't supported in the vsce version being used.
 
-## Issue 7: Docker Compose Version Warning
+**Important**: After adding the repository URL to package.json, you must rebuild the Docker image:
+```powershell
+.\build-docker.ps1 build -NoCache
+.\build-docker.ps1 package
+```
+
+## Issue 7: Test Command Fails - "tsc: not found"
+
+### Symptoms
+```
+sh: 1: tsc: not found
+Tests failed!
+```
+
+### Root Cause
+When running tests, the `pretest` script runs `npm run compile` which requires TypeScript (`tsc`). The test command was mounting the entire workspace, which might override the container's `node_modules` that contains TypeScript.
+
+### Solution
+**Fixed in:** `build-docker.ps1` and `build-docker.sh`
+
+Updated test command to:
+- Run tests in container's `/app` directory (not mounted workspace)
+- Mount only `src/` and `tests/` directories as read-only
+- Use container's `node_modules` which includes devDependencies (TypeScript)
+
+**Before:**
+```powershell
+docker run --rm -v "${PWD}:/workspace" -w /workspace $Tag npm test
+```
+
+**After:**
+```powershell
+docker run --rm `
+    -v "${PWD}/src:/app/src:ro" `
+    -v "${PWD}/tests:/app/tests:ro" `
+    -w /app `
+    $Tag `
+    sh -c "npm test"
+```
+
+### Verification
+Tests should now run successfully:
+```powershell
+.\build-docker.ps1 test
+```
+
+## Issue 8: Docker Compose Version Warning
 
 ### Symptoms
 ```

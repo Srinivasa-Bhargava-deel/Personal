@@ -108,11 +108,14 @@ package_extension() {
 run_tests() {
     echo "Running tests in Docker container..."
     
+    # Run tests in the container's /app directory (not mounted workspace)
+    # This ensures node_modules and devDependencies are available
     docker run --rm \
-        -v "$(pwd):/workspace" \
-        -w /workspace \
+        -v "$(pwd)/src:/app/src:ro" \
+        -v "$(pwd)/tests:/app/tests:ro" \
+        -w /app \
         "$TAG" \
-        npm test
+        sh -c "npm test"
 }
 
 clean_docker() {

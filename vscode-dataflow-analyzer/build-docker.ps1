@@ -134,11 +134,14 @@ function Package-Extension {
 function Run-Tests {
     Write-Host "Running tests in Docker container..." -ForegroundColor Cyan
     
+    # Run tests in the container's /app directory (not mounted workspace)
+    # This ensures node_modules and devDependencies are available
     docker run --rm `
-        -v "${PWD}:/workspace" `
-        -w /workspace `
+        -v "${PWD}/src:/app/src:ro" `
+        -v "${PWD}/tests:/app/tests:ro" `
+        -w /app `
         $Tag `
-        npm test
+        sh -c "npm test"
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Tests failed!" -ForegroundColor Red
