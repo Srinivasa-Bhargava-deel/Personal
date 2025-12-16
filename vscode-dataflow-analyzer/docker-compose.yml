@@ -5,6 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: extension-builder
+      args:
+        TARGETPLATFORM: linux/amd64
     volumes:
       - ./out:/build/out
       - ./dist:/build/dist
@@ -15,6 +17,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        TARGETPLATFORM: linux/amd64
     volumes:
       # Mount source code for development
       - ./src:/app/src:ro
@@ -39,6 +43,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        TARGETPLATFORM: linux/amd64
     volumes:
       - ./dist:/app/dist
       - ./workspace:/app/workspace:ro  # Mount your C++ workspace here

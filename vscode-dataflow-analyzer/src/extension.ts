@@ -70,6 +70,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { DataflowAnalyzer } from './analyzer/DataflowAnalyzer';
 import { CFGVisualizer } from './visualizer/CFGVisualizer';
 import { AnalysisConfig, TaintSensitivity } from './types';
@@ -126,7 +127,7 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('Dataflow Analyzer extension is activating...');
 
     // Determine workspace path - always use workspace root, not subdirectories
-    let workspacePath: string = require('os').homedir(); // Default fallback
+    let workspacePath: string = os.homedir(); // Default fallback
     try {
       const workspaceFolders = vscode.workspace.workspaceFolders;
       console.log(`[Extension] Workspace folders count: ${workspaceFolders ? workspaceFolders.length : 0}`);
@@ -211,14 +212,14 @@ export function activate(context: vscode.ExtensionContext) {
             workspacePath = process.cwd();
             console.log('Using process.cwd():', workspacePath);
           } catch {
-            workspacePath = require('os').homedir();
+            workspacePath = os.homedir();
             console.log('Using home directory:', workspacePath);
           }
         }
       }
     } catch (error) {
       console.error('Error determining workspace path:', error);
-      workspacePath = require('os').homedir();
+      workspacePath = os.homedir();
       console.log('Fallback to home directory:', workspacePath);
     }
     

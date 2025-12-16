@@ -40,17 +40,23 @@ EOF
 
 build_image() {
     local dockerfile="Dockerfile"
-    local platform="linux"
+    local platform="linux/amd64"
     
     if [ "$WINDOWS" = true ]; then
         dockerfile="Dockerfile.windows"
-        platform="windows"
+        platform="windows/amd64"
     fi
     
     echo "Building Docker image for $platform platform..."
     echo "Using Dockerfile: $dockerfile"
     
-    docker build $NO_CACHE -t "$TAG" -f "$dockerfile" .
+    # Set platform via build arg to avoid warnings about hardcoded platform flags
+    docker build $NO_CACHE --platform "$platform" --build-arg "TARGETPLATFORM=$platform" -t "$TAG" -f "$dockerfile" .
+    
+    if [ $? -ne 0 ]; then
+        echo "Build failed!" >&2
+        exit 1
+    fi
     
     echo "Build completed successfully!"
 }

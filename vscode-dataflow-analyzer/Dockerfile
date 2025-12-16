@@ -7,7 +7,10 @@
 # Stage 1: Build C++ cfg-exporter binary
 # ============================================================================
 # Using Ubuntu 22.04 AMD64 (x86_64) base image - works on AMD and Intel x64 processors
-FROM --platform=linux/amd64 ubuntu:22.04 AS cpp-builder
+# Platform is set via --platform flag in docker build command
+# Note: TARGETPLATFORM build arg is set by Docker automatically when using --platform flag
+ARG TARGETPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} ubuntu:22.04 AS cpp-builder
 
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -171,7 +174,9 @@ RUN mkdir -p build && \
 # Stage 2: Build TypeScript extension
 # ============================================================================
 # Node.js 20 AMD64 image - compatible with AMD and Intel x64 processors
-FROM --platform=linux/amd64 node:20-slim AS extension-builder
+# Platform is set via --platform flag in docker build command
+ARG TARGETPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} node:20-slim AS extension-builder
 
 # Install build tools for native modules (if needed)
 RUN apt-get update && apt-get install -y \
@@ -200,7 +205,9 @@ RUN npm run compile
 # Stage 3: Final image - Package everything together
 # ============================================================================
 # Final AMD64 image - compatible with AMD and Intel x64 processors
-FROM --platform=linux/amd64 node:20-slim
+# Platform is set via --platform flag in docker build command
+ARG TARGETPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} node:20-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \

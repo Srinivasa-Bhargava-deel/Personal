@@ -363,7 +363,98 @@ npm run lint     # Should work now
 - Added detailed error messages for packaging failures
 - Better logging for debugging packaging issues
 
-## Issue 9: Docker Compose Version Warning
+## Issue 9: Docker Platform Flag Warnings
+
+### Symptoms
+```
+WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 10)
+WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 174)
+WARN: FromPlatformFlagConstDisallowed: FROM --platform flag should not use constant value "linux/amd64" (line 203)
+```
+
+### Root Cause
+Docker Compose v2+ recommends using build arguments (`TARGETPLATFORM`) instead of hardcoded `--platform` flags in `FROM` statements. While the warnings don't break the build, they indicate a deprecated pattern.
+
+### Solution
+**Fixed in:** `Dockerfile`, `build-docker.ps1`, `build-docker.sh`
+
+Updated Dockerfile to use build args:
+- Added `ARG TARGETPLATFORM=linux/amd64` before each `FROM` statement
+- Changed `FROM --platform=linux/amd64` to `FROM --platform=${TARGETPLATFORM}`
+- Updated build scripts to pass `--build-arg TARGETPLATFORM=$platform`
+
+**Before:**
+```dockerfile
+FROM --platform=linux/amd64 ubuntu:22.04 AS cpp-builder
+```
+
+**After:**
+```dockerfile
+ARG TARGETPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} ubuntu:22.04 AS cpp-builder
+```
+
+### Verification
+The warnings should no longer appear:
+```powershell
+.\build-docker.ps1 build
+```
+
+**Note:** These warnings were harmless and didn't affect functionality. The fix makes the Dockerfile follow Docker best practices.
+
+## Issue 10: TypeScript Version Warning in ESLint
+
+### Symptoms
+```
+WARNING: You are currently running a version of TypeScript which is not officially supported by @typescript-eslint/typescript-estree.
+SUPPORTED TYPESCRIPT VERSIONS: >=4.3.5 <5.4.0
+YOUR TYPESCRIPT VERSION: 5.9.3
+```
+
+### Root Cause
+The project uses TypeScript 5.9.3, but `@typescript-eslint/typescript-estree` officially supports up to TypeScript 5.4.0. This is a version mismatch warning.
+
+### Validation
+**This warning is acceptable and safe to ignore:**
+- TypeScript 5.9.3 is backward compatible with TypeScript 5.4.0
+- ESLint typically works fine with newer TypeScript versions
+- The warning is informational, not an error
+- No functionality is affected
+
+### Solution
+**No action required** - This is an informational warning. The code compiles and lints correctly.
+
+If you want to eliminate the warning, you could downgrade TypeScript to 5.3.x, but this is not recommended as TypeScript 5.9.3 includes important bug fixes and improvements.
+
+## Issue 11: ESLint Warnings (Not Errors)
+
+### Symptoms
+Many ESLint warnings about:
+- Unused variables (`@typescript-eslint/no-unused-vars`)
+- `any` types (`@typescript-eslint/no-explicit-any`)
+- Unnecessary escape characters (`no-useless-escape`)
+- Prefer const (`prefer-const`)
+
+### Root Cause
+These are code quality warnings, not errors. They indicate areas where code could be improved but don't prevent the code from working.
+
+### Validation
+**These warnings are acceptable:**
+- The code compiles and runs successfully
+- These are style/quality warnings, not functional errors
+- The project has `--max-warnings 1000` in the lint script, allowing these warnings
+- Fixing all warnings would require significant refactoring
+
+### Solution
+**No action required** - These are acceptable warnings. The code works correctly.
+
+If you want to reduce warnings in the future:
+1. Fix unused variables by removing them or prefixing with `_`
+2. Replace `any` types with proper TypeScript types
+3. Remove unnecessary escape characters in regex patterns
+4. Use `const` instead of `let` for variables that aren't reassigned
+
+## Issue 12: Docker Compose Version Warning
 
 ### Symptoms
 ```

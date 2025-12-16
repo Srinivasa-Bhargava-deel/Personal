@@ -59,6 +59,7 @@ function Build-Image {
     $buildArgs = @(
         "build",
         "--platform", $platform,
+        "--build-arg", "TARGETPLATFORM=$platform",
         "-t", $Tag,
         "-f", $dockerfile
     )
@@ -69,6 +70,7 @@ function Build-Image {
     
     $buildArgs += "."
     
+    Write-Host "Running: docker $($buildArgs -join ' ')" -ForegroundColor Gray
     docker @buildArgs
     
     if ($LASTEXITCODE -ne 0) {
