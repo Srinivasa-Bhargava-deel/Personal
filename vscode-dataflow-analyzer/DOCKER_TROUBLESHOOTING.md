@@ -70,7 +70,48 @@ The build should now complete successfully:
 .\build-docker.ps1 build -NoCache
 ```
 
-## Issue 3: Network Timeout - LLVM Package Download Failures
+## Issue 3: apt-get update Failure - LLVM Repository Update Errors
+
+### Symptoms
+```
+ERROR: apt-get update failed (exit code: 1)
+apt-get update failed
+```
+
+### Root Cause
+The `apt-get update` command may fail after adding the LLVM repository due to:
+- GPG key verification issues
+- Repository configuration problems
+- Network connectivity issues during update
+- Repository server unavailability
+
+### Solution
+**Fixed in:** `Dockerfile`
+
+Improved error handling for `apt-get update`:
+- **Step-by-step validation**: Each step (GPG key download, conversion, repository setup) is validated before proceeding
+- **Explicit error checking**: `apt-get update` exit code is checked explicitly
+- **Better error messages**: Clear indication of which step failed
+- **Automatic retry**: Failed `apt-get update` attempts are retried with exponential backoff
+
+### What Changed
+The installation process now:
+1. Downloads GPG key and verifies success
+2. Converts GPG key and verifies file creation
+3. Creates repository file and verifies it exists
+4. Runs `apt-get update` with explicit error checking
+5. Only proceeds to package installation if update succeeds
+
+### Verification
+The build should show clear progress:
+```powershell
+Attempt 1/5: Installing LLVM...
+Running apt-get update...
+apt-get update completed successfully
+LLVM installation successful!
+```
+
+## Issue 4: Network Timeout - LLVM Package Download Failures
 
 ### Symptoms
 ```
@@ -130,7 +171,7 @@ If you've successfully built before, use cached layers:
 **Option 5: Manual Retry**
 Simply run the build command again - the retry logic will kick in automatically.
 
-## Issue 4: Docker Build Cache Issues
+## Issue 5: Docker Build Cache Issues
 
 ### Symptoms
 - Build succeeds but uses outdated code
@@ -150,7 +191,7 @@ Or clean everything first:
 .\build-docker.ps1 package -NoCache
 ```
 
-## Issue 5: Docker Compose Version Warning
+## Issue 6: Docker Compose Version Warning
 
 ### Symptoms
 ```

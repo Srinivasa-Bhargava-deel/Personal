@@ -35,16 +35,70 @@ RUN set -e && \
         local delay=10 && \
         while [ $retry_count -lt $max_retries ]; do \
             echo "Attempt $((retry_count + 1))/$max_retries: Installing LLVM..." && \
+            # Clean up any previous failed attempts \
+            rm -f /etc/apt/sources.list.d/llvm.list /etc/apt/trusted.gpg.d/llvm-snapshot.gpg /tmp/llvm-snapshot.gpg.key 2>/dev/null || true && \
             # Download GPG key to temporary file \
-            if wget --timeout=60 --tries=3 --retry-connrefused -O /tmp/llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key 2>&1 && \
-               # Convert and install GPG key using modern method (apt-key is deprecated) \
-               gpg --dearmor < /tmp/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/llvm-snapshot.gpg 2>&1 && \
-               # Add repository \
-               echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" > /etc/apt/sources.list.d/llvm.list && \
-               # Update package list \
-               apt-get update 2>&1 && \
-               # Install LLVM packages \
-               apt-get install -y --no-install-recommends \
+            if ! wget --timeout=60 --tries=3 --retry-connrefused -O /tmp/llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key 2>&1; then \
+                echo "Failed to download GPG key" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && \
+                    sleep $delay && \
+                    delay=$((delay * 2)); \
+                fi && \
+                continue; \
+            fi && \
+            # Convert and install GPG key using modern method (apt-key is deprecated) \
+            if ! gpg --dearmor < /tmp/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/llvm-snapshot.gpg 2>&1; then \
+                echo "Failed to convert GPG key" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && \
+                    sleep $delay && \
+                    delay=$((delay * 2)); \
+                fi && \
+                continue; \
+            fi && \
+            # Verify GPG key was created \
+            if [ ! -f /etc/apt/trusted.gpg.d/llvm-snapshot.gpg ]; then \
+                echo "GPG key file not found after conversion" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && \
+                    sleep $delay && \
+                    delay=$((delay * 2)); \
+                fi && \
+                continue; \
+            fi && \
+            # Add repository \
+            echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" > /etc/apt/sources.list.d/llvm.list && \
+            # Verify repository file was created \
+            if [ ! -f /etc/apt/sources.list.d/llvm.list ]; then \
+                echo "Failed to create repository file" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && \
+                    sleep $delay && \
+                    delay=$((delay * 2)); \
+                fi && \
+                continue; \
+            fi && \
+            # Update package list (with explicit error handling) \
+            echo "Running apt-get update..." && \
+            if ! apt-get update; then \
+                echo "ERROR: apt-get update failed (exit code: $?)" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && \
+                    sleep $delay && \
+                    delay=$((delay * 2)) && \
+                    apt-get clean; \
+                fi && \
+                continue; \
+            fi && \
+            echo "apt-get update completed successfully" && \
+            # Install LLVM packages \
+            if apt-get install -y --no-install-recommends \
                    llvm-17 \
                    clang-17 \
                    libclang-17-dev \
@@ -53,12 +107,12 @@ RUN set -e && \
                 rm -f /tmp/llvm-snapshot.gpg.key && \
                 return 0; \
             else \
+                echo "Package installation failed" && \
                 retry_count=$((retry_count + 1)) && \
                 if [ $retry_count -lt $max_retries ]; then \
-                    echo "Installation failed. Waiting ${delay}s before retry..." && \
+                    echo "Waiting ${delay}s before retry..." && \
                     sleep $delay && \
                     delay=$((delay * 2)) && \
-                    rm -f /etc/apt/sources.list.d/llvm.list /etc/apt/trusted.gpg.d/llvm-snapshot.gpg /tmp/llvm-snapshot.gpg.key && \
                     apt-get clean; \
                 fi; \
             fi; \
