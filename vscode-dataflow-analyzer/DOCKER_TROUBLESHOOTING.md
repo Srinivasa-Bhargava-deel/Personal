@@ -29,7 +29,48 @@ Or on Linux/macOS:
 ./build-docker.sh package
 ```
 
-## Issue 2: Network Timeout - LLVM Package Download Failures
+## Issue 2: GPG Key Import Error - "gpg: invalid radix64 character" / "Invalid keyring"
+
+### Symptoms
+```
+gpg: invalid radix64 character 2E skipped
+gpg: CRC error; E077E1 - 8FEE2A
+gpg: read_block: read error: Invalid keyring
+gpg: import from '-' failed: Invalid keyring
+Installation failed. Waiting 40s before retry...
+```
+
+### Root Cause
+The deprecated `apt-key add -` command is causing GPG key import failures in Ubuntu 22.04. The `apt-key` command has been deprecated and removed in newer Ubuntu versions, causing the GPG key import to fail.
+
+### Solution
+**Fixed in:** `Dockerfile`
+
+Replaced deprecated `apt-key` with modern GPG key handling:
+- Download GPG key to temporary file
+- Use `gpg --dearmor` to convert key format
+- Place key in `/etc/apt/trusted.gpg.d/` (modern location)
+- Added `gnupg` package to ensure `gpg` command is available
+
+### What Changed
+**Before (deprecated):**
+```dockerfile
+wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+```
+
+**After (modern approach):**
+```dockerfile
+wget -O /tmp/llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key
+gpg --dearmor < /tmp/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/llvm-snapshot.gpg
+```
+
+### Verification
+The build should now complete successfully:
+```powershell
+.\build-docker.ps1 build -NoCache
+```
+
+## Issue 3: Network Timeout - LLVM Package Download Failures
 
 ### Symptoms
 ```
@@ -89,7 +130,7 @@ If you've successfully built before, use cached layers:
 **Option 5: Manual Retry**
 Simply run the build command again - the retry logic will kick in automatically.
 
-## Issue 3: Docker Build Cache Issues
+## Issue 4: Docker Build Cache Issues
 
 ### Symptoms
 - Build succeeds but uses outdated code
@@ -109,7 +150,7 @@ Or clean everything first:
 .\build-docker.ps1 package -NoCache
 ```
 
-## Issue 4: Docker Compose Version Warning
+## Issue 5: Docker Compose Version Warning
 
 ### Symptoms
 ```

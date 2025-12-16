@@ -21,11 +21,13 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     ca-certificates \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install LLVM/Clang 17 (or latest available)
 # Using LLVM official repository for better compatibility
 # Add retry logic for network connectivity issues
+# Use modern GPG key handling (apt-key is deprecated in Ubuntu 22.04)
 RUN set -e && \
     install_llvm() { \
         local retry_count=0 && \
@@ -33,15 +35,22 @@ RUN set -e && \
         local delay=10 && \
         while [ $retry_count -lt $max_retries ]; do \
             echo "Attempt $((retry_count + 1))/$max_retries: Installing LLVM..." && \
-            if wget --timeout=60 --tries=3 --retry-connrefused -O - https://apt.llvm.org/llvm-snapshot.gpg.key 2>&1 | apt-key add - 2>&1 && \
-               echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" >> /etc/apt/sources.list.d/llvm.list && \
+            # Download GPG key to temporary file \
+            if wget --timeout=60 --tries=3 --retry-connrefused -O /tmp/llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key 2>&1 && \
+               # Convert and install GPG key using modern method (apt-key is deprecated) \
+               gpg --dearmor < /tmp/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/llvm-snapshot.gpg 2>&1 && \
+               # Add repository \
+               echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" > /etc/apt/sources.list.d/llvm.list && \
+               # Update package list \
                apt-get update 2>&1 && \
+               # Install LLVM packages \
                apt-get install -y --no-install-recommends \
                    llvm-17 \
                    clang-17 \
                    libclang-17-dev \
                    llvm-17-dev 2>&1; then \
                 echo "LLVM installation successful!" && \
+                rm -f /tmp/llvm-snapshot.gpg.key && \
                 return 0; \
             else \
                 retry_count=$((retry_count + 1)) && \
@@ -49,7 +58,7 @@ RUN set -e && \
                     echo "Installation failed. Waiting ${delay}s before retry..." && \
                     sleep $delay && \
                     delay=$((delay * 2)) && \
-                    rm -f /etc/apt/sources.list.d/llvm.list && \
+                    rm -f /etc/apt/sources.list.d/llvm.list /etc/apt/trusted.gpg.d/llvm-snapshot.gpg /tmp/llvm-snapshot.gpg.key && \
                     apt-get clean; \
                 fi; \
             fi; \
@@ -57,6 +66,7 @@ RUN set -e && \
         echo "ERROR: Failed to install LLVM after $max_retries attempts" && \
         echo "This may be due to network connectivity issues with apt.llvm.org" && \
         echo "Please check your internet connection and try again." && \
+        rm -f /tmp/llvm-snapshot.gpg.key && \
         return 1; \
     } && \
     install_llvm && \
