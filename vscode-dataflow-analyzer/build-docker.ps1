@@ -63,11 +63,15 @@ function Invoke-LoggedCommand {
             Write-Log "[DEBUG] Executing command: $commandString" -ForegroundColor DarkGray
             
             # Use Start-Process with proper argument handling
-            # Arguments must be a single string, properly escaped
+            # Start-Process accepts an array of arguments and handles quoting correctly
+            # However, we need to ensure paths with spaces are properly quoted in the array
             $argumentsString = $Arguments -join ' '
             Write-Log "[DEBUG] Arguments string: $argumentsString" -ForegroundColor DarkGray
             Write-Log "[DEBUG] Arguments count: $($Arguments.Count)" -ForegroundColor DarkGray
             Write-Log "[DEBUG] First argument: $($Arguments[0])" -ForegroundColor DarkGray
+            # Show all arguments for debugging (use -join for PowerShell 5.1 compatibility)
+            $argsDebug = $Arguments | ForEach-Object { "'$_'" } | ForEach-Object { $_ }
+            Write-Log "[DEBUG] All arguments: $($argsDebug -join ', ')" -ForegroundColor DarkGray
             
             # Use temporary files for output capture
             $stdoutFile = "$env:TEMP\docker_stdout_$(Get-Date -Format 'yyyyMMddHHmmss').txt"
@@ -75,9 +79,34 @@ function Invoke-LoggedCommand {
             
             try {
                 # Execute using Start-Process with proper redirection
-                # For paths with spaces, we need to ensure arguments are passed correctly
-                # Start-Process handles argument arrays correctly, but we need to ensure paths are properly formatted
-                $process = Start-Process -FilePath $Command -ArgumentList $Arguments -NoNewWindow -PassThru -Wait -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+                # CRITICAL: Start-Process with ArgumentList passes each array element as a separate argument
+                # When paths contain spaces, Docker sees them as separate arguments (e.g., "sem" and "7/Program")
+                # Solution: Build a single quoted argument string for paths with spaces
+                # For Docker volume mounts with spaces, we need to quote the entire "host_path:container_path" value
+                $quotedArguments = @()
+                $i = 0
+                while ($i -lt $Arguments.Count) {
+                    $arg = $Arguments[$i]
+                    # Check if this is a volume mount argument (-v) and the next argument contains spaces
+                    if ($arg -eq "-v" -and $i + 1 -lt $Arguments.Count) {
+                        $volumeArg = $Arguments[$i + 1]
+                        if ($volumeArg -match ' ') {
+                            # Quote the entire volume mount specification
+                            $quotedArguments += $arg
+                            $quotedArguments += "`"$volumeArg`""
+                            $i += 2
+                        } else {
+                            $quotedArguments += $arg
+                            $i++
+                        }
+                    } else {
+                        $quotedArguments += $arg
+                        $i++
+                    }
+                }
+                
+                Write-Log "[DEBUG] Using quoted arguments for volume mounts with spaces" -ForegroundColor DarkGray
+                $process = Start-Process -FilePath $Command -ArgumentList $quotedArguments -NoNewWindow -PassThru -Wait -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
                 $exitCode = $process.ExitCode
                 
                 Write-Log "[DEBUG] Process exit code: $exitCode" -ForegroundColor DarkGray
@@ -374,20 +403,30 @@ function Package-Extension {
     
     # Get absolute paths and convert Windows backslashes to forward slashes
     # Docker Desktop on Windows requires forward slashes in volume mount paths
-    $distPath = (Resolve-Path "dist").Path -replace '\\', '/'
-    $scriptPath = (Resolve-Path "docker-package.sh").Path -replace '\\', '/'
+    $distPathRaw = (Resolve-Path "dist").Path -replace '\\', '/'
+    $scriptPathRaw = (Resolve-Path "docker-package.sh").Path -replace '\\', '/'
     
     Write-Log "[DEBUG] Dist path (original): $((Resolve-Path 'dist').Path)" -ForegroundColor DarkGray
-    Write-Log "[DEBUG] Dist path (converted): $distPath" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Dist path (converted): $distPathRaw" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Script path (original): $((Resolve-Path 'docker-package.sh').Path)" -ForegroundColor DarkGray
-    Write-Log "[DEBUG] Script path (converted): $scriptPath" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Script path (converted): $scriptPathRaw" -ForegroundColor DarkGray
+    
+    # Build volume mount arguments - the entire "host_path:container_path" must be a single argument
+    # If the path contains spaces, we need to ensure it's treated as one argument
+    # Start-Process with ArgumentList array handles this correctly, but we need to ensure
+    # the volume mount specification is a single string element
+    $distVolume = "${distPathRaw}:/app/dist"
+    $scriptVolume = "${scriptPathRaw}:/tmp/docker-package.sh:ro"
+    
+    Write-Log "[DEBUG] Dist volume mount: $distVolume" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Script volume mount: $scriptVolume" -ForegroundColor DarkGray
     
     # Docker Desktop on Windows handles Windows paths with forward slashes
-    # Paths with spaces are handled correctly when using forward slashes
+    # Each volume mount argument must be a single array element (Start-Process handles quoting)
     $packageArgs = @(
         "run", "--rm",
-        "-v", "${distPath}:/app/dist",
-        "-v", "${scriptPath}:/tmp/docker-package.sh:ro",
+        "-v", $distVolume,
+        "-v", $scriptVolume,
         "-w", "/app",
         $Tag,
         "bash", "/tmp/docker-package.sh"
