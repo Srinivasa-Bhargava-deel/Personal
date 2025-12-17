@@ -470,8 +470,20 @@ function Start-DevContainer {
             exit 1
         }
         
-        if (-not $result.PSObject.Properties.Name -contains "ExitCode") {
+        # Check if ExitCode exists - for hashtables use .ContainsKey, for objects use Properties
+        $hasExitCode = if ($result -is [hashtable]) {
+            $result.ContainsKey("ExitCode")
+        } else {
+            $result.PSObject.Properties.Name -contains "ExitCode"
+        }
+        
+        if (-not $hasExitCode) {
             Write-Log "ERROR: Result object missing ExitCode property. Result type: $($result.GetType().FullName)" -ForegroundColor Red
+            if ($result -is [hashtable]) {
+                Write-Log "Hashtable keys: $($result.Keys -join ', ')" -ForegroundColor Yellow
+            } else {
+                Write-Log "Result properties: $($result.PSObject.Properties.Name -join ', ')" -ForegroundColor Yellow
+            }
             Write-Log "Result content: $($result | ConvertTo-Json -Depth 3)" -ForegroundColor Yellow
             exit 1
         }
