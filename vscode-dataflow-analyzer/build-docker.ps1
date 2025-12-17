@@ -453,7 +453,34 @@ function Run-Container {
         $Tag,
         "bash"
     )
-    Invoke-LoggedCommand -Command "docker" -Arguments $runArgs
+    
+    Write-Log "Executing: docker $($runArgs -join ' ')" -ForegroundColor Cyan
+    Write-Log "[DEBUG] Interactive command detected (-it flag). Executing without output redirection..." -ForegroundColor DarkGray
+    
+    # For interactive commands (-it), we cannot use Invoke-LoggedCommand with output redirection
+    # as it will hang waiting for interactive input. Execute directly instead.
+    try {
+        # Execute docker run -it directly without output redirection
+        # This allows the interactive terminal to work properly
+        & docker @runArgs
+        $exitCode = $LASTEXITCODE
+        Write-Log "[DEBUG] Container exited with code: $exitCode" -ForegroundColor DarkGray
+        
+        # Log the command execution (but not the interactive output)
+        $logEntry = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Executed interactive docker command: docker $($runArgs -join ' ')`n"
+        $logEntry += "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Container exited with code: $exitCode`n"
+        Add-Content -Path $LogFile -Value $logEntry
+        
+        if ($exitCode -ne 0) {
+            Write-Log "Container exited with non-zero code: $exitCode" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Log "ERROR: Failed to run container interactively: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log "Exception details: $($_.Exception | Format-List -Force | Out-String)" -ForegroundColor DarkGray
+        $logEntry = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ERROR: Failed to run container: $($_.Exception.Message)`n"
+        Add-Content -Path $LogFile -Value $logEntry
+        exit 1
+    }
 }
 
 function Start-DevContainer {
