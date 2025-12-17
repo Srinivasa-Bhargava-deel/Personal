@@ -320,11 +320,20 @@ function Build-Image {
 function Run-Container {
     Write-Log "Running container interactively..." -ForegroundColor Cyan
     
+    # Convert Windows paths to forward slashes for Docker
+    $srcPath = (Resolve-Path "src").Path -replace '\\', '/'
+    $outPath = (Resolve-Path "out").Path -replace '\\', '/'
+    $testsPath = (Resolve-Path "tests").Path -replace '\\', '/'
+    
+    Write-Log "[DEBUG] Source path: $srcPath" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Output path: $outPath" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Tests path: $testsPath" -ForegroundColor DarkGray
+    
     $runArgs = @(
         "run", "-it", "--rm",
-        "-v", "${PWD}/src:/app/src",
-        "-v", "${PWD}/out:/app/out",
-        "-v", "${PWD}/tests:/app/tests",
+        "-v", "${srcPath}:/app/src",
+        "-v", "${outPath}:/app/out",
+        "-v", "${testsPath}:/app/tests",
         "-w", "/app",
         $Tag,
         "bash"
@@ -363,16 +372,18 @@ function Package-Extension {
     # Using @vscode/vsce (newer maintained version) instead of deprecated vsce
     # Note: Script is mounted read-only, so we run it directly with bash instead of chmod
     
-    # Get absolute paths and properly quote them for Windows paths with spaces
-    $distPath = (Resolve-Path "dist").Path
-    $scriptPath = (Resolve-Path "docker-package.sh").Path
+    # Get absolute paths and convert Windows backslashes to forward slashes
+    # Docker Desktop on Windows requires forward slashes in volume mount paths
+    $distPath = (Resolve-Path "dist").Path -replace '\\', '/'
+    $scriptPath = (Resolve-Path "docker-package.sh").Path -replace '\\', '/'
     
-    Write-Log "[DEBUG] Dist path: $distPath" -ForegroundColor DarkGray
-    Write-Log "[DEBUG] Script path: $scriptPath" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Dist path (original): $((Resolve-Path 'dist').Path)" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Dist path (converted): $distPath" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Script path (original): $((Resolve-Path 'docker-package.sh').Path)" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Script path (converted): $scriptPath" -ForegroundColor DarkGray
     
-    # For Windows paths with spaces, we need to ensure they're properly formatted
-    # Docker Desktop on Windows handles Windows paths, but they must be properly quoted
-    # Use the paths directly - Start-Process will handle quoting correctly
+    # Docker Desktop on Windows handles Windows paths with forward slashes
+    # Paths with spaces are handled correctly when using forward slashes
     $packageArgs = @(
         "run", "--rm",
         "-v", "${distPath}:/app/dist",
@@ -402,10 +413,17 @@ function Run-Tests {
     
     # Run tests in the container's /app directory (not mounted workspace)
     # This ensures node_modules and devDependencies are available
+    # Convert Windows paths to forward slashes for Docker
+    $srcPath = (Resolve-Path "src").Path -replace '\\', '/'
+    $testsPath = (Resolve-Path "tests").Path -replace '\\', '/'
+    
+    Write-Log "[DEBUG] Source path: $srcPath" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Tests path: $testsPath" -ForegroundColor DarkGray
+    
     $testArgs = @(
         "run", "--rm",
-        "-v", "${PWD}/src:/app/src:ro",
-        "-v", "${PWD}/tests:/app/tests:ro",
+        "-v", "${srcPath}:/app/src:ro",
+        "-v", "${testsPath}:/app/tests:ro",
         "-w", "/app",
         $Tag,
         "sh", "-c", "npm test"
