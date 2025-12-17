@@ -15,7 +15,8 @@ FROM ubuntu:22.04 AS cpp-builder
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
+# Suppress update-alternatives warnings (harmless but noisy)
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     build-essential \
     cmake \
     ninja-build \
@@ -24,7 +25,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     gnupg \
-    && rm -rf /var/lib/apt/lists/*
+    2>&1 | grep -v "update-alternatives: warning" || true && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install LLVM/Clang 17 (or latest available)
 # Using LLVM official repository for better compatibility
@@ -178,11 +180,13 @@ RUN mkdir -p build && \
 FROM node:20-slim AS extension-builder
 
 # Install build tools for native modules (if needed)
-RUN apt-get update && apt-get install -y \
+# Suppress update-alternatives warnings (harmless but noisy)
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python3 \
     make \
     g++ \
-    && rm -rf /var/lib/apt/lists/*
+    2>&1 | grep -v "update-alternatives: warning" || true && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 
@@ -210,7 +214,8 @@ FROM node:20-slim AS dev
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install all development dependencies including build tools
-RUN apt-get update && apt-get install -y \
+# Suppress update-alternatives warnings (harmless but noisy)
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     # Build essentials
     build-essential \
     cmake \
@@ -228,7 +233,8 @@ RUN apt-get update && apt-get install -y \
     g++ \
     make \
     # LLVM/Clang for ClangASTParser
-    && rm -rf /var/lib/apt/lists/*
+    2>&1 | grep -v "update-alternatives: warning" || true && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install LLVM/Clang 17 (same as cpp-builder stage)
 RUN set -e && \
@@ -346,9 +352,11 @@ CMD ["tail", "-f", "/dev/null"]
 FROM node:20-slim
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y \
+# Suppress update-alternatives warnings (harmless but noisy)
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    2>&1 | grep -v "update-alternatives: warning" || true && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

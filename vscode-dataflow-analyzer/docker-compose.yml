@@ -32,15 +32,55 @@ services:
       - ./package-lock.json:/app/package-lock.json:ro
     environment:
       - NODE_ENV=development
+      # Ensure PATH includes LLVM and build tools
+      - PATH=/usr/lib/llvm-17/bin:/usr/bin:/usr/local/bin:/app/cpp-tools/cfg-exporter/build:$PATH
+      - LLVM_DIR=/usr/lib/llvm-17/lib/cmake/llvm
+      - Clang_DIR=/usr/lib/llvm-17/lib/cmake/clang
     working_dir: /app
     # Ensure out directory exists and has proper permissions before starting
+    # Verify all development tools are accessible
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        echo "Setting up development environment..."
+        echo "=== Setting up development environment ==="
         mkdir -p /app/out
         chmod -R 777 /app/out || true
-        echo "Development environment ready!"
+        echo ""
+        echo "=== Verifying development tools are accessible ==="
+        echo "PATH: $PATH"
+        echo ""
+        if command -v clang-17 >/dev/null 2>&1; then
+          echo "✓ clang-17: $(clang-17 --version | head -n1)"
+        else
+          echo "✗ ERROR: clang-17 not found in PATH"
+        fi
+        if command -v gcc >/dev/null 2>&1; then
+          echo "✓ gcc: $(gcc --version | head -n1)"
+        else
+          echo "✗ ERROR: gcc not found in PATH"
+        fi
+        if command -v g++ >/dev/null 2>&1; then
+          echo "✓ g++: $(g++ --version | head -n1)"
+        else
+          echo "✗ ERROR: g++ not found in PATH"
+        fi
+        if command -v python3 >/dev/null 2>&1; then
+          echo "✓ python3: $(python3 --version)"
+        else
+          echo "✗ ERROR: python3 not found in PATH"
+        fi
+        if command -v cmake >/dev/null 2>&1; then
+          echo "✓ cmake: $(cmake --version | head -n1)"
+        else
+          echo "✗ ERROR: cmake not found in PATH"
+        fi
+        if command -v cfg-exporter >/dev/null 2>&1; then
+          echo "✓ cfg-exporter: $(cfg-exporter --version 2>&1 || echo 'available')"
+        else
+          echo "⚠ WARNING: cfg-exporter not found in PATH (may need full path)"
+        fi
+        echo ""
+        echo "=== Development environment ready ==="
         tail -f /dev/null
 
   # Production service - runs the built extension
