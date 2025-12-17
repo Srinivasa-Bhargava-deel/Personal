@@ -466,9 +466,8 @@ export class LoggingConfig {
         }
       });
     } else {
-      if (!LoggingConfig.isTestEnvironment()) {
-        LoggingConfig.originalConsoleWarn(`[LoggingConfig] [DIAG] processWriteQueue: No message or stream!`);
-      }
+      LoggingConfig.originalConsoleWarn(`[LoggingConfig] [DIAG] processWriteQueue: No message or stream!`);
+      LoggingConfig.isWriting = false;
       LoggingConfig.isWriting = false;
     }
   }
