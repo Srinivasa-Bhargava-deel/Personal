@@ -362,15 +362,31 @@ function Package-Extension {
     # The helper script temporarily disables vscode:prepublish since code is already compiled
     # Using @vscode/vsce (newer maintained version) instead of deprecated vsce
     # Note: Script is mounted read-only, so we run it directly with bash instead of chmod
+    
+    # Get absolute paths and properly quote them for Windows paths with spaces
+    $distPath = (Resolve-Path "dist").Path
+    $scriptPath = (Resolve-Path "docker-package.sh").Path
+    
+    Write-Log "[DEBUG] Dist path: $distPath" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Script path: $scriptPath" -ForegroundColor DarkGray
+    
+    # For Windows paths with spaces, we need to ensure they're properly formatted
+    # Docker Desktop on Windows handles Windows paths, but they must be properly quoted
+    # Use the paths directly - Start-Process will handle quoting correctly
     $packageArgs = @(
         "run", "--rm",
-        "-v", "${PWD}/dist:/app/dist",
-        "-v", "${PWD}/docker-package.sh:/tmp/docker-package.sh:ro",
+        "-v", "${distPath}:/app/dist",
+        "-v", "${scriptPath}:/tmp/docker-package.sh:ro",
         "-w", "/app",
         $Tag,
         "bash", "/tmp/docker-package.sh"
     )
-    $exitCode = Invoke-LoggedCommand -Command "docker" -Arguments $packageArgs
+    
+    Write-Log "[DEBUG] Package arguments: $($packageArgs -join ' ')" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Using CaptureOutput for better path handling" -ForegroundColor DarkGray
+    
+    $result = Invoke-LoggedCommand -Command "docker" -Arguments $packageArgs -CaptureOutput
+    $exitCode = $result.ExitCode
     
     if ($exitCode -eq 0) {
         Write-Log "Extension packaged successfully!" -ForegroundColor Green
