@@ -56,10 +56,11 @@ function Build-Image {
     Write-Host "Using Dockerfile: $dockerfile" -ForegroundColor Gray
     Write-Host "Platform: $platform (compatible with AMD x64 and Intel x64)" -ForegroundColor Gray
     
+    # Note: When using --platform flag, Docker automatically sets TARGETPLATFORM build arg
+    # We don't need to pass it explicitly, and we don't need it in FROM statements
     $buildArgs = @(
         "build",
         "--platform", $platform,
-        "--build-arg", "TARGETPLATFORM=$platform",
         "-t", $Tag,
         "-f", $dockerfile
     )

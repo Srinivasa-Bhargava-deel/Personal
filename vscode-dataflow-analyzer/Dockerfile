@@ -8,9 +8,8 @@
 # ============================================================================
 # Using Ubuntu 22.04 AMD64 (x86_64) base image - works on AMD and Intel x64 processors
 # Platform is set via --platform flag in docker build command
-# Note: TARGETPLATFORM build arg is set by Docker automatically when using --platform flag
-ARG TARGETPLATFORM=linux/amd64
-FROM --platform=${TARGETPLATFORM} ubuntu:22.04 AS cpp-builder
+# Docker automatically sets TARGETPLATFORM when --platform is used, so we don't need to specify it in FROM
+FROM ubuntu:22.04 AS cpp-builder
 
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -175,8 +174,8 @@ RUN mkdir -p build && \
 # ============================================================================
 # Node.js 20 AMD64 image - compatible with AMD and Intel x64 processors
 # Platform is set via --platform flag in docker build command
-ARG TARGETPLATFORM=linux/amd64
-FROM --platform=${TARGETPLATFORM} node:20-slim AS extension-builder
+# Docker automatically sets TARGETPLATFORM when --platform is used, so we don't need to specify it in FROM
+FROM node:20-slim AS extension-builder
 
 # Install build tools for native modules (if needed)
 RUN apt-get update && apt-get install -y \
@@ -206,8 +205,8 @@ RUN npm run compile
 # ============================================================================
 # Final AMD64 image - compatible with AMD and Intel x64 processors
 # Platform is set via --platform flag in docker build command
-ARG TARGETPLATFORM=linux/amd64
-FROM --platform=${TARGETPLATFORM} node:20-slim
+# Docker automatically sets TARGETPLATFORM when --platform is used, so we don't need to specify it in FROM
+FROM node:20-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \

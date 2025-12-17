@@ -50,8 +50,9 @@ build_image() {
     echo "Building Docker image for $platform platform..."
     echo "Using Dockerfile: $dockerfile"
     
-    # Set platform via build arg to avoid warnings about hardcoded platform flags
-    docker build $NO_CACHE --platform "$platform" --build-arg "TARGETPLATFORM=$platform" -t "$TAG" -f "$dockerfile" .
+    # Note: When using --platform flag, Docker automatically sets TARGETPLATFORM build arg
+    # We don't need to pass it explicitly, and we don't need it in FROM statements
+    docker build $NO_CACHE --platform "$platform" -t "$TAG" -f "$dockerfile" .
     
     if [ $? -ne 0 ]; then
         echo "Build failed!" >&2

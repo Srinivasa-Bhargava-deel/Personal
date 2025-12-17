@@ -454,7 +454,105 @@ If you want to reduce warnings in the future:
 3. Remove unnecessary escape characters in regex patterns
 4. Use `const` instead of `let` for variables that aren't reassigned
 
-## Issue 12: Docker Compose Version Warning
+## Issue 12: RedundantTargetPlatform Warning
+
+### Symptoms
+```
+WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM} in FROM is redundant as this is the default behavior (line 13)
+WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM} in FROM is redundant as this is the default behavior (line 179)
+WARN: RedundantTargetPlatform: Setting platform to predefined ${TARGETPLATFORM} in FROM is redundant as this is the default behavior (line 210)
+```
+
+### Root Cause
+When using `--platform` flag in `docker build`, Docker automatically sets the `TARGETPLATFORM` build arg. Using `FROM --platform=${TARGETPLATFORM}` is redundant because Docker already handles platform selection based on the `--platform` flag.
+
+### Solution
+**Fixed in:** `Dockerfile`, `build-docker.ps1`, `build-docker.sh`
+
+Removed redundant `--platform=${TARGETPLATFORM}` from FROM statements:
+- Changed `FROM --platform=${TARGETPLATFORM} ubuntu:22.04` to `FROM ubuntu:22.04`
+- Changed `FROM --platform=${TARGETPLATFORM} node:20-slim` to `FROM node:20-slim`
+- Removed `--build-arg TARGETPLATFORM=$platform` from build scripts (Docker sets it automatically)
+
+**Before:**
+```dockerfile
+ARG TARGETPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} ubuntu:22.04 AS cpp-builder
+```
+
+**After:**
+```dockerfile
+# Docker automatically sets TARGETPLATFORM when --platform is used
+FROM ubuntu:22.04 AS cpp-builder
+```
+
+### Verification
+The warnings should no longer appear:
+```powershell
+.\build-docker.ps1 build
+```
+
+**Note:** The `--platform` flag in the build command is still required and works correctly. Docker handles platform selection automatically.
+
+## Issue 13: TypeScript Compilation Errors in Dev Container - "ENOENT: no such file or directory, mkdir"
+
+### Symptoms
+```
+error TS5033: Could not write file '/app/out/__mocks__/vscode.js': ENOENT: no such file or directory, mkdir '/app/out/__mocks__'.
+error TS5033: Could not write file '/app/out/analyzer/CPPParser.js': ENOENT: no such file or directory, mkdir '/app/out/analyzer'.
+```
+
+### Root Cause
+When `./out` directory is mounted from the host to `/app/out` in the container, if the directory doesn't exist on the host or has incorrect permissions, TypeScript cannot create subdirectories inside it. Docker creates the mount point but may not have proper permissions for the container user.
+
+### Solution
+**Fixed in:** `docker-compose.yml`
+
+Updated the dev service to ensure the out directory exists and has proper permissions:
+
+```yaml
+dev:
+  entrypoint: ["/bin/bash", "-c"]
+  command:
+    - |
+      echo "Setting up development environment..."
+      mkdir -p /app/out
+      chmod -R 777 /app/out || true
+      echo "Development environment ready!"
+      tail -f /dev/null
+```
+
+This ensures:
+1. The `/app/out` directory exists before TypeScript tries to write to it
+2. Proper permissions are set so TypeScript can create subdirectories
+3. The container continues running after setup
+
+### Alternative Solutions
+If the issue persists, you can also:
+
+1. **Create the directory on the host first:**
+   ```powershell
+   mkdir -p out
+   ```
+
+2. **Or use a named volume instead of bind mount:**
+   ```yaml
+   volumes:
+     - out-data:/app/out
+   volumes:
+     out-data:
+   ```
+
+### Verification
+After starting the dev container:
+```powershell
+docker-compose up -d dev
+docker-compose exec dev npm run compile
+```
+
+The compilation should succeed without ENOENT errors.
+
+## Issue 14: Docker Compose Version Warning
 
 ### Symptoms
 ```
