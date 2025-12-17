@@ -249,7 +249,9 @@ function Build-Image {
     Write-Log "[DEBUG] Build context: $(Get-Location)" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Build started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Build arguments count: $($buildArgs.Count)" -ForegroundColor DarkGray
-    Write-Log "[DEBUG] Build arguments: $($buildArgs | ForEach-Object { "'$_'" } | Join-String -Separator ', ')" -ForegroundColor DarkGray
+    # Build arguments string for logging (compatible with PowerShell 5.1)
+    $argsString = ($buildArgs | ForEach-Object { "'$_'" }) -join ', '
+    Write-Log "[DEBUG] Build arguments: $argsString" -ForegroundColor DarkGray
     
     # Test docker command first
     Write-Log "[DEBUG] Testing docker command..." -ForegroundColor DarkGray
