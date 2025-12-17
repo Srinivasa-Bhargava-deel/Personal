@@ -75,8 +75,12 @@ function Invoke-LoggedCommand {
             
             try {
                 # Execute using Start-Process with proper redirection
+                # For paths with spaces, we need to ensure arguments are passed correctly
+                # Start-Process handles argument arrays correctly, but we need to ensure paths are properly formatted
                 $process = Start-Process -FilePath $Command -ArgumentList $Arguments -NoNewWindow -PassThru -Wait -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
                 $exitCode = $process.ExitCode
+                
+                Write-Log "[DEBUG] Process exit code: $exitCode" -ForegroundColor DarkGray
                 
                 # Read captured output
                 if (Test-Path $stdoutFile) {
