@@ -113,22 +113,53 @@ function Invoke-LoggedCommand {
                 
                 # Read captured output
                 if (Test-Path $stdoutFile) {
-                    $output = Get-Content $stdoutFile -ErrorAction SilentlyContinue
-                    $output | ForEach-Object { 
-                        Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
-                        Write-Host $_
+                    $outputRaw = Get-Content $stdoutFile -ErrorAction SilentlyContinue -Raw
+                    if ($outputRaw -and $outputRaw.Trim().Length -gt 0) {
+                        $outputRaw -split "`n" | ForEach-Object { 
+                            if ($_.Trim().Length -gt 0) {
+                                Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
+                                Write-Host $_
+                            }
+                        }
+                        $output = $outputRaw -split "`n" | Where-Object { $_.Trim().Length -gt 0 }
+                    } else {
+                        $output = @()
                     }
+                } else {
+                    $output = @()
                 }
                 
                 if (Test-Path $stderrFile) {
-                    $errorOutput = Get-Content $stderrFile -ErrorAction SilentlyContinue
-                    $errorOutput | ForEach-Object { 
-                        Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
-                        Write-Host $_ -ForegroundColor Yellow
+                    $errorOutput = Get-Content $stderrFile -ErrorAction SilentlyContinue -Raw
+                    # Check if stderr contains actual errors or just informational output
+                    # docker-compose writes normal output to stderr, so we need to distinguish
+                    if ($errorOutput -and $errorOutput.Trim().Length -gt 0) {
+                        # For docker-compose, normal operations write to stderr but aren't errors
+                        # Only log as error if exit code is non-zero
+                        if ($exitCode -ne 0) {
+                            $errorOutput -split "`n" | ForEach-Object { 
+                                if ($_.Trim().Length -gt 0) {
+                                    Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
+                                    Write-Host $_ -ForegroundColor Yellow
+                                }
+                            }
+                        } else {
+                            # For successful docker-compose commands, stderr is just informational
+                            $errorOutput -split "`n" | ForEach-Object { 
+                                if ($_.Trim().Length -gt 0) {
+                                    Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
+                                    Write-Host $_ -ForegroundColor Gray
+                                }
+                            }
+                        }
                     }
+                    # Convert to array for return value
+                    $errorOutputArray = if ($errorOutput) { $errorOutput -split "`n" | Where-Object { $_.Trim().Length -gt 0 } } else { @() }
+                } else {
+                    $errorOutputArray = @()
                 }
                 
-                return @{ ExitCode = $exitCode; Output = $output; ErrorOutput = $errorOutput }
+                return @{ ExitCode = $exitCode; Output = $output; ErrorOutput = $errorOutputArray }
             } finally {
                 # Cleanup temp files
                 Remove-Item $stdoutFile -ErrorAction SilentlyContinue
@@ -373,7 +404,13 @@ function Run-Container {
 function Start-DevContainer {
     Write-Log "Starting development container..." -ForegroundColor Cyan
     
-    $exitCode = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("up", "-d", "dev")
+    # Use CaptureOutput to properly handle docker-compose output and get exit code
+    # docker-compose writes normal output to STDERR, so we need to check exit code, not just STDERR
+    $result = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("up", "-d", "dev") -CaptureOutput
+    
+    $exitCode = $result.ExitCode
+    
+    Write-Log "[DEBUG] docker-compose exit code: $exitCode" -ForegroundColor DarkGray
     
     if ($exitCode -eq 0) {
         Write-Log "Development container started!" -ForegroundColor Green
@@ -382,7 +419,11 @@ function Start-DevContainer {
         Write-Log "  docker-compose exec dev npm test" -ForegroundColor Gray
         Write-Log "  docker-compose exec dev bash" -ForegroundColor Gray
     } else {
-        Write-Log "Failed to start development container!" -ForegroundColor Red
+        Write-Log "Failed to start development container! Exit code: $exitCode" -ForegroundColor Red
+        if ($result.ErrorOutput) {
+            Write-Log "Error output:" -ForegroundColor Red
+            $result.ErrorOutput | ForEach-Object { Write-Log "  $_" -ForegroundColor Red }
+        }
         exit 1
     }
 }
