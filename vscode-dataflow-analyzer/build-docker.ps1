@@ -54,37 +54,104 @@ function Invoke-LoggedCommand {
             $output = @()
             $errorOutput = @()
             
-            # Use a script block to capture output streams
-            $scriptBlock = {
-                param($Cmd, $Args)
-                & $Cmd @Args 2>&1
+            # Build the full command string for logging
+            $commandString = if ($Arguments.Count -gt 0) {
+                "$Command $($Arguments -join ' ')"
+            } else {
+                $Command
             }
+            Write-Log "[DEBUG] Executing command: $commandString" -ForegroundColor DarkGray
             
-            # Execute and capture all output
-            $allOutput = & $scriptBlock -Cmd $Command -Args $Arguments
+            # Execute command directly with proper argument handling
+            # Use Start-Process for better control, or direct invocation
+            $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $processInfo.FileName = $Command
+            $processInfo.Arguments = $Arguments -join ' '
+            $processInfo.UseShellExecute = $false
+            $processInfo.RedirectStandardOutput = $true
+            $processInfo.RedirectStandardError = $true
+            $processInfo.CreateNoWindow = $true
             
-            # Process output and separate stdout from stderr
-            foreach ($line in $allOutput) {
-                if ($line -is [System.Management.Automation.ErrorRecord]) {
-                    $errorOutput += $line.ToString()
-                    Add-Content -Path $LogFile -Value "STDERR: $($line.ToString())" -ErrorAction SilentlyContinue
-                    Write-Host $line.ToString() -ForegroundColor Yellow
-                } else {
-                    $output += $line.ToString()
-                    Add-Content -Path $LogFile -Value $line.ToString() -ErrorAction SilentlyContinue
+            $process = New-Object System.Diagnostics.Process
+            $process.StartInfo = $processInfo
+            
+            # Add event handlers to capture output in real-time
+            $outputBuilder = New-Object System.Text.StringBuilder
+            $errorBuilder = New-Object System.Text.StringBuilder
+            
+            $script:outputReceived = $outputBuilder
+            $script:errorReceived = $errorBuilder
+            
+            $outputAction = {
+                if (-not [string]::IsNullOrEmpty($EventArgs.Data)) {
+                    $line = $EventArgs.Data
+                    $script:outputReceived.AppendLine($line) | Out-Null
+                    Add-Content -Path $LogFile -Value $line -ErrorAction SilentlyContinue
                     Write-Host $line
                 }
             }
             
-            return @{ ExitCode = $LASTEXITCODE; Output = $output; ErrorOutput = $errorOutput }
+            $errorAction = {
+                if (-not [string]::IsNullOrEmpty($EventArgs.Data)) {
+                    $line = $EventArgs.Data
+                    $script:errorReceived.AppendLine($line) | Out-Null
+                    Add-Content -Path $LogFile -Value "STDERR: $line" -ErrorAction SilentlyContinue
+                    Write-Host $line -ForegroundColor Yellow
+                }
+            }
+            
+            $process.add_OutputDataReceived($outputAction)
+            $process.add_ErrorDataReceived($errorAction)
+            
+            # Start process
+            $process.Start() | Out-Null
+            $process.BeginOutputReadLine()
+            $process.BeginErrorReadLine()
+            
+            # Wait for completion
+            $process.WaitForExit()
+            $exitCode = $process.ExitCode
+            
+            # Get final output
+            $output = $outputBuilder.ToString() -split "`n" | Where-Object { $_ -ne "" }
+            $errorOutput = $errorBuilder.ToString() -split "`n" | Where-Object { $_ -ne "" }
+            
+            $process.Dispose()
+            
+            return @{ ExitCode = $exitCode; Output = $output; ErrorOutput = $errorOutput }
         } elseif ($NoOutput) {
             # Suppress output but still log errors
             $result = & $Command @Arguments 2>&1 | Tee-Object -FilePath $LogFile -Append
             return $result
         } else {
-            # Show output and log everything
-            & $Command @Arguments 2>&1 | Tee-Object -FilePath $LogFile -Append
-            return $LASTEXITCODE
+            # Show output and log everything - use direct invocation for better compatibility
+            $fullCmd = "$Command $($Arguments -join ' ')"
+            Write-Log "[DEBUG] Direct execution: $fullCmd" -ForegroundColor DarkGray
+            
+            # Try direct execution first
+            try {
+                & $Command @Arguments 2>&1 | Tee-Object -FilePath $LogFile -Append
+                return $LASTEXITCODE
+            } catch {
+                # Fallback: try with explicit command construction
+                Write-Log "[DEBUG] Direct execution failed, trying alternative method" -ForegroundColor Yellow
+                $process = Start-Process -FilePath $Command -ArgumentList $Arguments -NoNewWindow -Wait -PassThru -RedirectStandardOutput "$env:TEMP\docker_output.txt" -RedirectStandardError "$env:TEMP\docker_error.txt"
+                
+                if (Test-Path "$env:TEMP\docker_output.txt") {
+                    Get-Content "$env:TEMP\docker_output.txt" | Tee-Object -FilePath $LogFile -Append | Write-Host
+                }
+                if (Test-Path "$env:TEMP\docker_error.txt") {
+                    Get-Content "$env:TEMP\docker_error.txt" | ForEach-Object { 
+                        Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
+                        Write-Host $_ -ForegroundColor Yellow
+                    }
+                }
+                
+                Remove-Item "$env:TEMP\docker_output.txt" -ErrorAction SilentlyContinue
+                Remove-Item "$env:TEMP\docker_error.txt" -ErrorAction SilentlyContinue
+                
+                return $process.ExitCode
+            }
         }
     } catch {
         $errorMsg = "[$timestamp] ERROR executing $fullCommand : $($_.Exception.Message)"
@@ -199,6 +266,17 @@ function Build-Image {
     Write-Log "Running: docker $($buildArgs -join ' ')" -ForegroundColor Gray
     Write-Log "[DEBUG] Build context: $(Get-Location)" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Build started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Build arguments count: $($buildArgs.Count)" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Build arguments: $($buildArgs | ForEach-Object { "'$_'" } | Join-String -Separator ', ')" -ForegroundColor DarkGray
+    
+    # Test docker command first
+    Write-Log "[DEBUG] Testing docker command..." -ForegroundColor DarkGray
+    $testResult = docker --version 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "ERROR: Docker command test failed: $testResult" -ForegroundColor Red
+        exit 1
+    }
+    Write-Log "[DEBUG] Docker command test passed: $testResult" -ForegroundColor DarkGray
     
     # Capture output for detailed error analysis
     $result = Invoke-LoggedCommand -Command "docker" -Arguments $buildArgs -CaptureOutput
