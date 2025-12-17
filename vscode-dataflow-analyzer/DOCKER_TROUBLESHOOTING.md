@@ -552,7 +552,116 @@ docker-compose exec dev npm run compile
 
 The compilation should succeed without ENOENT errors.
 
-## Issue 14: Docker Compose Version Warning
+## Issue 14: Missing Build Tools in Dev Container (llvm, gcc, g++, python)
+
+### Symptoms
+```
+command not found: clang
+command not found: gcc
+command not found: g++
+command not found: python
+```
+
+When running tests or trying to use ClangASTParser in the dev container, these tools are missing.
+
+### Root Cause
+The dev container was using the final production stage (stage-3) which only includes Node.js and ca-certificates. The production image doesn't need build tools, but the dev container does for:
+- Running tests that use ClangASTParser (which calls `clang` directly)
+- Rebuilding cfg-exporter if needed
+- General development work
+
+### Solution
+**Fixed in:** `Dockerfile`, `docker-compose.yml`
+
+Created a new dev-specific stage (stage-3) with all build tools:
+- LLVM/Clang 17 (for ClangASTParser)
+- gcc, g++ (for C++ compilation)
+- python3 (for scripts and native modules)
+- cmake, ninja-build (for building cfg-exporter)
+- build-essential (includes make and other tools)
+
+Updated docker-compose.yml to use the dev stage:
+```yaml
+dev:
+  build:
+    target: dev  # Use dev stage with all build tools
+```
+
+**Before:**
+- Dev container used final production stage (no build tools)
+- Tests failed because clang wasn't available
+- ClangASTParser couldn't find clang
+
+**After:**
+- Dev container uses dedicated dev stage with all tools
+- All build tools verified during Docker build
+- Tests can run successfully
+
+### Verification
+After rebuilding the dev container:
+```powershell
+docker-compose build dev
+docker-compose up -d dev
+docker-compose exec dev bash
+```
+
+Inside the container, verify tools are available:
+```bash
+clang-17 --version
+gcc --version
+g++ --version
+python3 --version
+cmake --version
+```
+
+All commands should work without "command not found" errors.
+
+## Issue 15: Excessive Logging Warnings During Tests
+
+### Symptoms
+```
+console.warn
+  [2025-12-17T01:33:21.798Z] [LoggingConfig] [DIAG] writeToFile SKIPPED: logFilePath is null
+```
+
+Many warnings appear during test runs about logFilePath being null.
+
+### Root Cause
+LoggingConfig tries to write to a file, but during tests, `initializeFileLogging()` hasn't been called, so `logFilePath` is null. This is expected behavior in tests, but the warnings create noise.
+
+### Solution
+**Fixed in:** `src/utils/LoggingConfig.ts`
+
+Suppressed warnings during test runs:
+```typescript
+if (!LoggingConfig.logFilePath) {
+  // Suppress warning in test environment to reduce noise
+  if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
+    const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile SKIPPED: logFilePath is null`;
+    LoggingConfig.originalConsoleWarn(warnMsg);
+  }
+  return;
+}
+```
+
+**Before:**
+- Warnings appeared for every log call during tests
+- Test output was cluttered with logging warnings
+
+**After:**
+- Warnings suppressed during test runs
+- Cleaner test output
+- Warnings still appear in production/development (when not in test mode)
+
+### Verification
+Run tests and verify warnings are suppressed:
+```bash
+npm test
+```
+
+The "writeToFile SKIPPED" warnings should no longer appear during test runs.
+
+## Issue 16: Docker Compose Version Warning
 
 ### Symptoms
 ```

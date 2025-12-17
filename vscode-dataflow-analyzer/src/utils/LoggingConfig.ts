@@ -373,9 +373,12 @@ export class LoggingConfig {
     }
     
     if (!LoggingConfig.logFilePath) {
-      // Log file not initialized yet - this can happen during early startup
-      const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile SKIPPED: logFilePath is null`;
-      LoggingConfig.originalConsoleWarn(warnMsg);
+      // Log file not initialized yet - this can happen during early startup or in tests
+      // Suppress warning in test environment to reduce noise
+      if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
+        const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile SKIPPED: logFilePath is null`;
+        LoggingConfig.originalConsoleWarn(warnMsg);
+      }
       return;
     }
     

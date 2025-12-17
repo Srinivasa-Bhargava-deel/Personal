@@ -15,6 +15,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: dev  # Use dev stage with all build tools
     volumes:
       # Mount source code for development
       - ./src:/app/src:ro

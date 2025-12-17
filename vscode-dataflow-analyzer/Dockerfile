@@ -201,7 +201,144 @@ COPY jest.config.js ./
 RUN npm run compile
 
 # ============================================================================
-# Stage 3: Final image - Package everything together
+# Stage 3: Development image - Full development environment with all tools
+# ============================================================================
+# Development image with all build tools for testing and development
+FROM node:20-slim AS dev
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install all development dependencies including build tools
+RUN apt-get update && apt-get install -y \
+    # Build essentials
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    wget \
+    curl \
+    ca-certificates \
+    gnupg \
+    # Python for scripts and native modules
+    python3 \
+    python3-pip \
+    # C/C++ compilers
+    gcc \
+    g++ \
+    make \
+    # LLVM/Clang for ClangASTParser
+    && rm -rf /var/lib/apt/lists/*
+
+# Install LLVM/Clang 17 (same as cpp-builder stage)
+RUN set -e && \
+    install_llvm() { \
+        local retry_count=0 && \
+        local max_retries=5 && \
+        local delay=10 && \
+        while [ $retry_count -lt $max_retries ]; do \
+            echo "Attempt $((retry_count + 1))/$max_retries: Installing LLVM..." && \
+            rm -f /etc/apt/sources.list.d/llvm.list /etc/apt/trusted.gpg.d/llvm-snapshot.gpg /tmp/llvm-snapshot.gpg.key 2>/dev/null || true && \
+            if ! wget --timeout=60 --tries=3 --retry-connrefused -O /tmp/llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key 2>&1; then \
+                echo "Failed to download GPG key" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && sleep $delay && delay=$((delay * 2)); \
+                fi && continue; \
+            fi && \
+            if ! gpg --dearmor < /tmp/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/llvm-snapshot.gpg 2>&1; then \
+                echo "Failed to convert GPG key" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && sleep $delay && delay=$((delay * 2)); \
+                fi && continue; \
+            fi && \
+            if [ ! -f /etc/apt/trusted.gpg.d/llvm-snapshot.gpg ]; then \
+                echo "GPG key file not found after conversion" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && sleep $delay && delay=$((delay * 2)); \
+                fi && continue; \
+            fi && \
+            echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" > /etc/apt/sources.list.d/llvm.list && \
+            if [ ! -f /etc/apt/sources.list.d/llvm.list ]; then \
+                echo "Failed to create repository file" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && sleep $delay && delay=$((delay * 2)); \
+                fi && continue; \
+            fi && \
+            if ! apt-get update 2>&1; then \
+                echo "apt-get update failed" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && sleep $delay && delay=$((delay * 2)); \
+                fi && continue; \
+            fi && \
+            if apt-get install -y --no-install-recommends \
+                   llvm-17 \
+                   clang-17 \
+                   libclang-17-dev \
+                   llvm-17-dev 2>&1; then \
+                echo "LLVM installation successful!" && \
+                rm -f /tmp/llvm-snapshot.gpg.key && \
+                return 0; \
+            else \
+                echo "Package installation failed" && \
+                retry_count=$((retry_count + 1)) && \
+                if [ $retry_count -lt $max_retries ]; then \
+                    echo "Waiting ${delay}s before retry..." && sleep $delay && delay=$((delay * 2)) && apt-get clean; \
+                fi; \
+            fi; \
+        done && \
+        echo "ERROR: Failed to install LLVM after $max_retries attempts" && \
+        rm -f /tmp/llvm-snapshot.gpg.key && \
+        return 1; \
+    } && \
+    install_llvm && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set LLVM paths for dev environment
+ENV LLVM_DIR=/usr/lib/llvm-17/lib/cmake/llvm
+ENV Clang_DIR=/usr/lib/llvm-17/lib/cmake/clang
+ENV PATH=/usr/lib/llvm-17/bin:/usr/bin:/usr/local/bin:$PATH
+
+WORKDIR /app
+
+# Copy built extension files
+COPY --from=extension-builder /build/out ./out
+COPY --from=extension-builder /build/node_modules ./node_modules
+COPY --from=extension-builder /build/package.json ./
+COPY --from=extension-builder /build/package-lock.json ./
+
+# Copy built C++ binary
+COPY --from=cpp-builder /build/cpp-tools/cfg-exporter/build/cfg-exporter ./cpp-tools/cfg-exporter/build/
+
+# Copy other necessary files
+COPY README.md ./
+COPY CHANGELOG.md ./
+
+# Create directory for extension output
+RUN mkdir -p /app/dist
+
+# Set environment variables
+ENV NODE_ENV=development
+ENV PATH=/app/cpp-tools/cfg-exporter/build:$PATH
+
+# Verify tools are available
+RUN echo "=== Verifying development tools ===" && \
+    clang-17 --version && \
+    gcc --version && \
+    g++ --version && \
+    python3 --version && \
+    cmake --version && \
+    echo "=== All development tools verified ==="
+
+# Default command - keep container running
+CMD ["tail", "-f", "/dev/null"]
+
+# ============================================================================
+# Stage 4: Final production image - Package everything together
 # ============================================================================
 # Final AMD64 image - compatible with AMD and Intel x64 processors
 # Platform is set via --platform flag in docker build command
