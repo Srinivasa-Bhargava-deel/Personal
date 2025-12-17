@@ -50,25 +50,33 @@ function Invoke-LoggedCommand {
     
     try {
         if ($CaptureOutput) {
-            # Capture all output for detailed error analysis
-            $process = Start-Process -FilePath $Command -ArgumentList $Arguments -NoNewWindow -PassThru -RedirectStandardOutput "$env:TEMP\docker_stdout.txt" -RedirectStandardError "$env:TEMP\docker_stderr.txt" -Wait
-            $exitCode = $process.ExitCode
+            # Capture all output for detailed error analysis while showing it in real-time
+            $output = @()
+            $errorOutput = @()
             
-            # Read captured output
-            if (Test-Path "$env:TEMP\docker_stdout.txt") {
-                $output = Get-Content "$env:TEMP\docker_stdout.txt" -ErrorAction SilentlyContinue
-                $output | ForEach-Object { Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue; Write-Host $_ }
-            }
-            if (Test-Path "$env:TEMP\docker_stderr.txt") {
-                $errorOutput = Get-Content "$env:TEMP\docker_stderr.txt" -ErrorAction SilentlyContinue
-                $errorOutput | ForEach-Object { Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue; Write-Host $_ -ForegroundColor Yellow }
+            # Use a script block to capture output streams
+            $scriptBlock = {
+                param($Cmd, $Args)
+                & $Cmd @Args 2>&1
             }
             
-            # Cleanup temp files
-            Remove-Item "$env:TEMP\docker_stdout.txt" -ErrorAction SilentlyContinue
-            Remove-Item "$env:TEMP\docker_stderr.txt" -ErrorAction SilentlyContinue
+            # Execute and capture all output
+            $allOutput = & $scriptBlock -Cmd $Command -Args $Arguments
             
-            return @{ ExitCode = $exitCode; Output = $output; ErrorOutput = $errorOutput }
+            # Process output and separate stdout from stderr
+            foreach ($line in $allOutput) {
+                if ($line -is [System.Management.Automation.ErrorRecord]) {
+                    $errorOutput += $line.ToString()
+                    Add-Content -Path $LogFile -Value "STDERR: $($line.ToString())" -ErrorAction SilentlyContinue
+                    Write-Host $line.ToString() -ForegroundColor Yellow
+                } else {
+                    $output += $line.ToString()
+                    Add-Content -Path $LogFile -Value $line.ToString() -ErrorAction SilentlyContinue
+                    Write-Host $line
+                }
+            }
+            
+            return @{ ExitCode = $LASTEXITCODE; Output = $output; ErrorOutput = $errorOutput }
         } elseif ($NoOutput) {
             # Suppress output but still log errors
             $result = & $Command @Arguments 2>&1 | Tee-Object -FilePath $LogFile -Append
