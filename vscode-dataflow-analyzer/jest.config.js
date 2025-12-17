@@ -17,9 +17,7 @@ module.exports = {
     '^vscode$': '<rootDir>/src/__mocks__/vscode.ts',
   },
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
-  // Set NODE_ENV=test to suppress logging warnings during tests
-  testEnvironmentOptions: {
-    NODE_ENV: 'test',
-  },
+  // Note: Jest automatically sets NODE_ENV=test, which is used by LoggingConfig
+  // to suppress warnings during test runs
 };
 

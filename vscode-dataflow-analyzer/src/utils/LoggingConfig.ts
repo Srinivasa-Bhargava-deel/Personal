@@ -375,7 +375,13 @@ export class LoggingConfig {
     if (!LoggingConfig.logFilePath) {
       // Log file not initialized yet - this can happen during early startup or in tests
       // Suppress warning in test environment to reduce noise
-      if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
+      // Check multiple ways to detect test environment
+      const isTestEnv = process.env.NODE_ENV === 'test' || 
+                       process.env.JEST_WORKER_ID !== undefined ||
+                       typeof jest !== 'undefined' ||
+                       (typeof process !== 'undefined' && process.argv && process.argv.some(arg => arg.includes('jest')));
+      
+      if (!isTestEnv) {
         const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile SKIPPED: logFilePath is null`;
         LoggingConfig.originalConsoleWarn(warnMsg);
       }
@@ -384,8 +390,16 @@ export class LoggingConfig {
     
     if (!LoggingConfig.logStream) {
       // Fallback: write directly to file if stream isn't available
-      const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile: logStream is null, using direct write`;
-      LoggingConfig.originalConsoleWarn(warnMsg);
+      // Suppress warning in test environment
+      const isTestEnv = process.env.NODE_ENV === 'test' || 
+                       process.env.JEST_WORKER_ID !== undefined ||
+                       typeof jest !== 'undefined' ||
+                       (typeof process !== 'undefined' && process.argv && process.argv.some(arg => arg.includes('jest')));
+      
+      if (!isTestEnv) {
+        const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile: logStream is null, using direct write`;
+        LoggingConfig.originalConsoleWarn(warnMsg);
+      }
       try {
         fs.appendFileSync(LoggingConfig.logFilePath, message + '\n', 'utf8');
       } catch (e) {
