@@ -1,5 +1,6 @@
 # PowerShell script to build and run VS Code Dataflow Analyzer in Docker
 # Usage: .\build-docker.ps1 [command] [options]
+# All output is logged to logs2.txt
 
 param(
     [Parameter(Position=0)]
@@ -12,6 +13,59 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# Log file path
+$LogFile = "logs2.txt"
+
+# Function to write to both console and log file
+function Write-Log {
+    param(
+        [string]$Message,
+        [string]$ForegroundColor = "White"
+    )
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logMessage = "[$timestamp] $Message"
+    Write-Host $Message -ForegroundColor $ForegroundColor
+    Add-Content -Path $LogFile -Value $logMessage -ErrorAction SilentlyContinue
+}
+
+# Function to execute command and log output
+function Invoke-LoggedCommand {
+    param(
+        [string]$Command,
+        [string[]]$Arguments = @(),
+        [switch]$NoOutput
+    )
+    
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $fullCommand = if ($Arguments.Count -gt 0) { "$Command $($Arguments -join ' ')" } else { $Command }
+    Add-Content -Path $LogFile -Value "[$timestamp] Executing: $fullCommand" -ErrorAction SilentlyContinue
+    
+    try {
+        if ($NoOutput) {
+            # Suppress output but still log errors
+            $result = & $Command @Arguments 2>&1 | Tee-Object -FilePath $LogFile -Append
+            return $result
+        } else {
+            # Show output and log everything
+            & $Command @Arguments 2>&1 | Tee-Object -FilePath $LogFile -Append
+            return $LASTEXITCODE
+        }
+    } catch {
+        $errorMsg = "[$timestamp] ERROR executing $fullCommand : $($_.Exception.Message)"
+        Write-Log $errorMsg -ForegroundColor Red
+        Add-Content -Path $LogFile -Value $errorMsg -ErrorAction SilentlyContinue
+        return 1
+    }
+}
+
+# Initialize log file
+$null = New-Item -ItemType File -Path $LogFile -Force -ErrorAction SilentlyContinue
+Write-Log "=== Starting Docker Build Script ===" -ForegroundColor Cyan
+Write-Log "Command: $Command" -ForegroundColor Gray
+Write-Log "Tag: $Tag" -ForegroundColor Gray
+Write-Log "Windows: $Windows" -ForegroundColor Gray
+Write-Log "NoCache: $NoCache" -ForegroundColor Gray
 
 function Show-Help {
     Write-Host @"
@@ -52,9 +106,9 @@ function Build-Image {
     $platform = if ($UseWindows) { "windows/amd64" } else { "linux/amd64" }
     $platformName = if ($UseWindows) { "Windows AMD x64" } else { "Linux AMD x64" }
     
-    Write-Host "Building Docker image for $platformName platform..." -ForegroundColor Cyan
-    Write-Host "Using Dockerfile: $dockerfile" -ForegroundColor Gray
-    Write-Host "Platform: $platform (compatible with AMD x64 and Intel x64)" -ForegroundColor Gray
+    Write-Log "Building Docker image for $platformName platform..." -ForegroundColor Cyan
+    Write-Log "Using Dockerfile: $dockerfile" -ForegroundColor Gray
+    Write-Log "Platform: $platform (compatible with AMD x64 and Intel x64)" -ForegroundColor Gray
     
     # Note: When using --platform flag, Docker automatically sets TARGETPLATFORM build arg
     # We don't need to pass it explicitly, and we don't need it in FROM statements
@@ -71,160 +125,188 @@ function Build-Image {
     
     $buildArgs += "."
     
-    Write-Host "Running: docker $($buildArgs -join ' ')" -ForegroundColor Gray
-    docker @buildArgs
+    Write-Log "Running: docker $($buildArgs -join ' ')" -ForegroundColor Gray
+    $exitCode = Invoke-LoggedCommand -Command "docker" -Arguments $buildArgs
     
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Build failed!" -ForegroundColor Red
+    if ($exitCode -ne 0) {
+        Write-Log "Build failed!" -ForegroundColor Red
         exit 1
     }
     
-    Write-Host "Build completed successfully!" -ForegroundColor Green
+    Write-Log "Build completed successfully!" -ForegroundColor Green
 }
 
 function Run-Container {
-    Write-Host "Running container interactively..." -ForegroundColor Cyan
+    Write-Log "Running container interactively..." -ForegroundColor Cyan
     
-    docker run -it --rm `
-        -v "${PWD}/src:/app/src" `
-        -v "${PWD}/out:/app/out" `
-        -v "${PWD}/tests:/app/tests" `
-        -w /app `
-        $Tag `
-        bash
+    $runArgs = @(
+        "run", "-it", "--rm",
+        "-v", "${PWD}/src:/app/src",
+        "-v", "${PWD}/out:/app/out",
+        "-v", "${PWD}/tests:/app/tests",
+        "-w", "/app",
+        $Tag,
+        "bash"
+    )
+    Invoke-LoggedCommand -Command "docker" -Arguments $runArgs
 }
 
 function Start-DevContainer {
-    Write-Host "Starting development container..." -ForegroundColor Cyan
+    Write-Log "Starting development container..." -ForegroundColor Cyan
     
-    docker-compose up -d dev
+    $exitCode = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("up", "-d", "dev")
     
-    Write-Host "Development container started!" -ForegroundColor Green
-    Write-Host "To execute commands:" -ForegroundColor Yellow
-    Write-Host "  docker-compose exec dev npm run compile" -ForegroundColor Gray
-    Write-Host "  docker-compose exec dev npm test" -ForegroundColor Gray
-    Write-Host "  docker-compose exec dev bash" -ForegroundColor Gray
+    if ($exitCode -eq 0) {
+        Write-Log "Development container started!" -ForegroundColor Green
+        Write-Log "To execute commands:" -ForegroundColor Yellow
+        Write-Log "  docker-compose exec dev npm run compile" -ForegroundColor Gray
+        Write-Log "  docker-compose exec dev npm test" -ForegroundColor Gray
+        Write-Log "  docker-compose exec dev bash" -ForegroundColor Gray
+    } else {
+        Write-Log "Failed to start development container!" -ForegroundColor Red
+        exit 1
+    }
 }
 
 function Package-Extension {
-    Write-Host "Packaging extension as .vsix..." -ForegroundColor Cyan
+    Write-Log "Packaging extension as .vsix..." -ForegroundColor Cyan
     
     # Ensure dist directory exists
     if (-not (Test-Path "dist")) {
         New-Item -ItemType Directory -Path "dist" | Out-Null
+        Write-Log "Created dist directory" -ForegroundColor Gray
     }
     
     # Copy helper script to container and use it
     # The helper script temporarily disables vscode:prepublish since code is already compiled
     # Using @vscode/vsce (newer maintained version) instead of deprecated vsce
     # Note: Script is mounted read-only, so we run it directly with bash instead of chmod
-    docker run --rm `
-        -v "${PWD}/dist:/app/dist" `
-        -v "${PWD}/docker-package.sh:/tmp/docker-package.sh:ro" `
-        -w /app `
-        $Tag `
-        bash /tmp/docker-package.sh
+    $packageArgs = @(
+        "run", "--rm",
+        "-v", "${PWD}/dist:/app/dist",
+        "-v", "${PWD}/docker-package.sh:/tmp/docker-package.sh:ro",
+        "-w", "/app",
+        $Tag,
+        "bash", "/tmp/docker-package.sh"
+    )
+    $exitCode = Invoke-LoggedCommand -Command "docker" -Arguments $packageArgs
     
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "Extension packaged successfully!" -ForegroundColor Green
-        Write-Host "VSIX file: dist/dataflow-analyzer.vsix" -ForegroundColor Yellow
+    if ($exitCode -eq 0) {
+        Write-Log "Extension packaged successfully!" -ForegroundColor Green
+        Write-Log "VSIX file: dist/dataflow-analyzer.vsix" -ForegroundColor Yellow
     } else {
-        Write-Host "Packaging failed!" -ForegroundColor Red
+        Write-Log "Packaging failed!" -ForegroundColor Red
         exit 1
     }
 }
 
 function Run-Tests {
-    Write-Host "Running tests in Docker container..." -ForegroundColor Cyan
+    Write-Log "Running tests in Docker container..." -ForegroundColor Cyan
     
     # Run tests in the container's /app directory (not mounted workspace)
     # This ensures node_modules and devDependencies are available
-    docker run --rm `
-        -v "${PWD}/src:/app/src:ro" `
-        -v "${PWD}/tests:/app/tests:ro" `
-        -w /app `
-        $Tag `
-        sh -c "npm test"
+    $testArgs = @(
+        "run", "--rm",
+        "-v", "${PWD}/src:/app/src:ro",
+        "-v", "${PWD}/tests:/app/tests:ro",
+        "-w", "/app",
+        $Tag,
+        "sh", "-c", "npm test"
+    )
+    $exitCode = Invoke-LoggedCommand -Command "docker" -Arguments $testArgs
     
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Tests failed!" -ForegroundColor Red
+    if ($exitCode -ne 0) {
+        Write-Log "Tests failed!" -ForegroundColor Red
         exit 1
     }
 }
 
 function Clean-Docker {
-    Write-Host "Cleaning Docker resources..." -ForegroundColor Cyan
+    Write-Log "Cleaning Docker resources..." -ForegroundColor Cyan
     
     # Stop and remove containers
-    docker-compose down 2>$null
+    Write-Log "Stopping containers..." -ForegroundColor Yellow
+    Invoke-LoggedCommand -Command "docker-compose" -Arguments @("down") -NoOutput
     
     # Remove images
-    docker rmi $Tag 2>$null
-    docker rmi "vscode-dataflow-analyzer" 2>$null
+    Write-Log "Removing images..." -ForegroundColor Yellow
+    Invoke-LoggedCommand -Command "docker" -Arguments @("rmi", $Tag) -NoOutput
+    Invoke-LoggedCommand -Command "docker" -Arguments @("rmi", "vscode-dataflow-analyzer") -NoOutput
     
     # Remove dangling images
-    docker image prune -f
+    Write-Log "Pruning images..." -ForegroundColor Yellow
+    Invoke-LoggedCommand -Command "docker" -Arguments @("image", "prune", "-f")
     
-    Write-Host "Cleanup completed!" -ForegroundColor Green
+    Write-Log "Cleanup completed!" -ForegroundColor Green
 }
 
 function Clean-All {
-    Write-Host "Performing complete Docker cleanup..." -ForegroundColor Cyan
+    Write-Log "Performing complete Docker cleanup..." -ForegroundColor Cyan
     
     # Stop containers
-    Write-Host "Stopping containers..." -ForegroundColor Yellow
-    docker-compose down 2>$null
+    Write-Log "Stopping containers..." -ForegroundColor Yellow
+    Invoke-LoggedCommand -Command "docker-compose" -Arguments @("down") -NoOutput
     
     # Remove containers
-    Write-Host "Removing containers..." -ForegroundColor Yellow
-    docker container prune -f
+    Write-Log "Removing containers..." -ForegroundColor Yellow
+    Invoke-LoggedCommand -Command "docker" -Arguments @("container", "prune", "-f")
     
     # Remove images
-    Write-Host "Removing images..." -ForegroundColor Yellow
-    docker rmi $Tag 2>$null
-    docker rmi "vscode-dataflow-analyzer" 2>$null
-    docker image prune -a -f
+    Write-Log "Removing images..." -ForegroundColor Yellow
+    Invoke-LoggedCommand -Command "docker" -Arguments @("rmi", $Tag) -NoOutput
+    Invoke-LoggedCommand -Command "docker" -Arguments @("rmi", "vscode-dataflow-analyzer") -NoOutput
+    Invoke-LoggedCommand -Command "docker" -Arguments @("image", "prune", "-a", "-f")
     
     # Clear build cache
-    Write-Host "Clearing build cache..." -ForegroundColor Yellow
-    docker builder prune -a -f
+    Write-Log "Clearing build cache..." -ForegroundColor Yellow
+    Invoke-LoggedCommand -Command "docker" -Arguments @("builder", "prune", "-a", "-f")
     
-    Write-Host "Complete cleanup finished!" -ForegroundColor Green
-    Write-Host "Run '.\build-docker.ps1 build -NoCache' for fresh build" -ForegroundColor Yellow
+    Write-Log "Complete cleanup finished!" -ForegroundColor Green
+    Write-Log "Run '.\build-docker.ps1 build -NoCache' for fresh build" -ForegroundColor Yellow
 }
 
 # Main execution
-switch ($Command) {
-    "build" {
-        Build-Image -UseWindows:$Windows
+try {
+    switch ($Command) {
+        "build" {
+            Build-Image -UseWindows:$Windows
+        }
+        "run" {
+            Build-Image -UseWindows:$Windows
+            Run-Container
+        }
+        "dev" {
+            Build-Image -UseWindows:$Windows
+            Start-DevContainer
+        }
+        "package" {
+            Build-Image -UseWindows:$Windows
+            Package-Extension
+        }
+        "test" {
+            Build-Image -UseWindows:$Windows
+            Run-Tests
+        }
+        "clean" {
+            Clean-Docker
+        }
+        "cleanall" {
+            Clean-All
+        }
+        "help" {
+            Show-Help | Tee-Object -FilePath $LogFile -Append
+        }
+        default {
+            Show-Help | Tee-Object -FilePath $LogFile -Append
+        }
     }
-    "run" {
-        Build-Image -UseWindows:$Windows
-        Run-Container
-    }
-    "dev" {
-        Build-Image -UseWindows:$Windows
-        Start-DevContainer
-    }
-    "package" {
-        Build-Image -UseWindows:$Windows
-        Package-Extension
-    }
-    "test" {
-        Build-Image -UseWindows:$Windows
-        Run-Tests
-    }
-    "clean" {
-        Clean-Docker
-    }
-    "cleanall" {
-        Clean-All
-    }
-    "help" {
-        Show-Help
-    }
-    default {
-        Show-Help
-    }
+    Write-Log "=== Script completed successfully ===" -ForegroundColor Green
+} catch {
+    Write-Log "=== Script failed with error ===" -ForegroundColor Red
+    Write-Log $_.Exception.Message -ForegroundColor Red
+    Write-Log $_.ScriptStackTrace -ForegroundColor Red
+    Add-Content -Path $LogFile -Value "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ERROR: $($_.Exception.Message)" -ErrorAction SilentlyContinue
+    Add-Content -Path $LogFile -Value "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] STACKTRACE: $($_.ScriptStackTrace)" -ErrorAction SilentlyContinue
+    exit 1
 }
 
