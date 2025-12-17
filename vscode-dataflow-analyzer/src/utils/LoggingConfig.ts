@@ -54,6 +54,15 @@ export class LoggingConfig {
   private static originalConsoleWarn: typeof console.warn = console.warn;
   private static isIntercepting: boolean = false;
   
+  // Helper to detect test environment
+  private static isTestEnvironment(): boolean {
+    if (typeof process === 'undefined') return false;
+    return process.env.NODE_ENV === 'test' || 
+           process.env.JEST_WORKER_ID !== undefined ||
+           (typeof global !== 'undefined' && (global as any).jest !== undefined) ||
+           (process.argv && process.argv.some(arg => arg.includes('jest')));
+  }
+  
   // CFG Visualization
   static CFGViz: boolean = true;
   static InterCFGViz: boolean = true;
@@ -375,13 +384,7 @@ export class LoggingConfig {
     if (!LoggingConfig.logFilePath) {
       // Log file not initialized yet - this can happen during early startup or in tests
       // Suppress warning in test environment to reduce noise
-      // Check multiple ways to detect test environment
-      const isTestEnv = process.env.NODE_ENV === 'test' || 
-                       process.env.JEST_WORKER_ID !== undefined ||
-                       typeof jest !== 'undefined' ||
-                       (typeof process !== 'undefined' && process.argv && process.argv.some(arg => arg.includes('jest')));
-      
-      if (!isTestEnv) {
+      if (!LoggingConfig.isTestEnvironment()) {
         const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile SKIPPED: logFilePath is null`;
         LoggingConfig.originalConsoleWarn(warnMsg);
       }
@@ -391,12 +394,7 @@ export class LoggingConfig {
     if (!LoggingConfig.logStream) {
       // Fallback: write directly to file if stream isn't available
       // Suppress warning in test environment
-      const isTestEnv = process.env.NODE_ENV === 'test' || 
-                       process.env.JEST_WORKER_ID !== undefined ||
-                       typeof jest !== 'undefined' ||
-                       (typeof process !== 'undefined' && process.argv && process.argv.some(arg => arg.includes('jest')));
-      
-      if (!isTestEnv) {
+      if (!LoggingConfig.isTestEnvironment()) {
         const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile: logStream is null, using direct write`;
         LoggingConfig.originalConsoleWarn(warnMsg);
       }
@@ -456,7 +454,9 @@ export class LoggingConfig {
       if (queueLength === 0) {
         LoggingConfig.originalConsoleLog(`[LoggingConfig] [DIAG] processWriteQueue: Queue empty, stopping`);
       } else {
-        LoggingConfig.originalConsoleWarn(`[LoggingConfig] [DIAG] processWriteQueue: No stream available!`);
+        if (!LoggingConfig.isTestEnvironment()) {
+          LoggingConfig.originalConsoleWarn(`[LoggingConfig] [DIAG] processWriteQueue: No stream available!`);
+        }
       }
       return;
     }
@@ -483,7 +483,9 @@ export class LoggingConfig {
         }
       });
     } else {
-      LoggingConfig.originalConsoleWarn(`[LoggingConfig] [DIAG] processWriteQueue: No message or stream!`);
+      if (!LoggingConfig.isTestEnvironment()) {
+        LoggingConfig.originalConsoleWarn(`[LoggingConfig] [DIAG] processWriteQueue: No message or stream!`);
+      }
       LoggingConfig.isWriting = false;
     }
   }

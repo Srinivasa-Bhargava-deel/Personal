@@ -9,3 +9,6 @@ node_modules/
 .vscode/logs.txt
 .vscode/.vscode/
 
+# PowerShell build logs
+logs2.txt
+
