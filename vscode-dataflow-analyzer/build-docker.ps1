@@ -480,7 +480,16 @@ function Start-DevContainer {
         
         Write-Log "[DEBUG] docker-compose exit code: $exitCode" -ForegroundColor DarkGray
         Write-Log "[DEBUG] Result type: $($result.GetType().FullName)" -ForegroundColor DarkGray
-        Write-Log "[DEBUG] Result keys: $($result.PSObject.Properties.Name -join ', ')" -ForegroundColor DarkGray
+        
+        # Show custom properties (for hashtables, use .Keys; for PSCustomObject, use Properties)
+        if ($result -is [hashtable]) {
+            Write-Log "[DEBUG] Result keys: $($result.Keys -join ', ')" -ForegroundColor DarkGray
+            Write-Log "[DEBUG] ExitCode value: $($result.ExitCode)" -ForegroundColor DarkGray
+            Write-Log "[DEBUG] Has Output: $(if ($result.Output) { 'Yes' } else { 'No' })" -ForegroundColor DarkGray
+            Write-Log "[DEBUG] Has ErrorOutput: $(if ($result.ErrorOutput) { 'Yes' } else { 'No' })" -ForegroundColor DarkGray
+        } else {
+            Write-Log "[DEBUG] Result properties: $($result.PSObject.Properties.Name -join ', ')" -ForegroundColor DarkGray
+        }
         
         if ($exitCode -eq 0) {
             Write-Log "Development container started!" -ForegroundColor Green
