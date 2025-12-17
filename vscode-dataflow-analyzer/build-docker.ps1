@@ -62,63 +62,45 @@ function Invoke-LoggedCommand {
             }
             Write-Log "[DEBUG] Executing command: $commandString" -ForegroundColor DarkGray
             
-            # Execute command directly with proper argument handling
-            # Use Start-Process for better control, or direct invocation
-            $processInfo = New-Object System.Diagnostics.ProcessStartInfo
-            $processInfo.FileName = $Command
-            $processInfo.Arguments = $Arguments -join ' '
-            $processInfo.UseShellExecute = $false
-            $processInfo.RedirectStandardOutput = $true
-            $processInfo.RedirectStandardError = $true
-            $processInfo.CreateNoWindow = $true
+            # Use Start-Process with proper argument handling
+            # Arguments must be a single string, properly escaped
+            $argumentsString = $Arguments -join ' '
+            Write-Log "[DEBUG] Arguments string: $argumentsString" -ForegroundColor DarkGray
+            Write-Log "[DEBUG] Arguments count: $($Arguments.Count)" -ForegroundColor DarkGray
+            Write-Log "[DEBUG] First argument: $($Arguments[0])" -ForegroundColor DarkGray
             
-            $process = New-Object System.Diagnostics.Process
-            $process.StartInfo = $processInfo
+            # Use temporary files for output capture
+            $stdoutFile = "$env:TEMP\docker_stdout_$(Get-Date -Format 'yyyyMMddHHmmss').txt"
+            $stderrFile = "$env:TEMP\docker_stderr_$(Get-Date -Format 'yyyyMMddHHmmss').txt"
             
-            # Add event handlers to capture output in real-time
-            $outputBuilder = New-Object System.Text.StringBuilder
-            $errorBuilder = New-Object System.Text.StringBuilder
-            
-            $script:outputReceived = $outputBuilder
-            $script:errorReceived = $errorBuilder
-            
-            $outputAction = {
-                if (-not [string]::IsNullOrEmpty($EventArgs.Data)) {
-                    $line = $EventArgs.Data
-                    $script:outputReceived.AppendLine($line) | Out-Null
-                    Add-Content -Path $LogFile -Value $line -ErrorAction SilentlyContinue
-                    Write-Host $line
+            try {
+                # Execute using Start-Process with proper redirection
+                $process = Start-Process -FilePath $Command -ArgumentList $Arguments -NoNewWindow -PassThru -Wait -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+                $exitCode = $process.ExitCode
+                
+                # Read captured output
+                if (Test-Path $stdoutFile) {
+                    $output = Get-Content $stdoutFile -ErrorAction SilentlyContinue
+                    $output | ForEach-Object { 
+                        Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
+                        Write-Host $_
+                    }
                 }
-            }
-            
-            $errorAction = {
-                if (-not [string]::IsNullOrEmpty($EventArgs.Data)) {
-                    $line = $EventArgs.Data
-                    $script:errorReceived.AppendLine($line) | Out-Null
-                    Add-Content -Path $LogFile -Value "STDERR: $line" -ErrorAction SilentlyContinue
-                    Write-Host $line -ForegroundColor Yellow
+                
+                if (Test-Path $stderrFile) {
+                    $errorOutput = Get-Content $stderrFile -ErrorAction SilentlyContinue
+                    $errorOutput | ForEach-Object { 
+                        Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
+                        Write-Host $_ -ForegroundColor Yellow
+                    }
                 }
+                
+                return @{ ExitCode = $exitCode; Output = $output; ErrorOutput = $errorOutput }
+            } finally {
+                # Cleanup temp files
+                Remove-Item $stdoutFile -ErrorAction SilentlyContinue
+                Remove-Item $stderrFile -ErrorAction SilentlyContinue
             }
-            
-            $process.add_OutputDataReceived($outputAction)
-            $process.add_ErrorDataReceived($errorAction)
-            
-            # Start process
-            $process.Start() | Out-Null
-            $process.BeginOutputReadLine()
-            $process.BeginErrorReadLine()
-            
-            # Wait for completion
-            $process.WaitForExit()
-            $exitCode = $process.ExitCode
-            
-            # Get final output
-            $output = $outputBuilder.ToString() -split "`n" | Where-Object { $_ -ne "" }
-            $errorOutput = $errorBuilder.ToString() -split "`n" | Where-Object { $_ -ne "" }
-            
-            $process.Dispose()
-            
-            return @{ ExitCode = $exitCode; Output = $output; ErrorOutput = $errorOutput }
         } elseif ($NoOutput) {
             # Suppress output but still log errors
             $result = & $Command @Arguments 2>&1 | Tee-Object -FilePath $LogFile -Append
