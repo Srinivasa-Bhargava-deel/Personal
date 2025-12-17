@@ -34,15 +34,42 @@ function Invoke-LoggedCommand {
     param(
         [string]$Command,
         [string[]]$Arguments = @(),
-        [switch]$NoOutput
+        [switch]$NoOutput,
+        [switch]$CaptureOutput
     )
     
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $fullCommand = if ($Arguments.Count -gt 0) { "$Command $($Arguments -join ' ')" } else { $Command }
     Add-Content -Path $LogFile -Value "[$timestamp] Executing: $fullCommand" -ErrorAction SilentlyContinue
+    Write-Log "[DEBUG] Full command: $fullCommand" -ForegroundColor DarkGray
+    
+    # Capture output to variable for detailed error reporting
+    $output = @()
+    $errorOutput = @()
+    $exitCode = 0
     
     try {
-        if ($NoOutput) {
+        if ($CaptureOutput) {
+            # Capture all output for detailed error analysis
+            $process = Start-Process -FilePath $Command -ArgumentList $Arguments -NoNewWindow -PassThru -RedirectStandardOutput "$env:TEMP\docker_stdout.txt" -RedirectStandardError "$env:TEMP\docker_stderr.txt" -Wait
+            $exitCode = $process.ExitCode
+            
+            # Read captured output
+            if (Test-Path "$env:TEMP\docker_stdout.txt") {
+                $output = Get-Content "$env:TEMP\docker_stdout.txt" -ErrorAction SilentlyContinue
+                $output | ForEach-Object { Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue; Write-Host $_ }
+            }
+            if (Test-Path "$env:TEMP\docker_stderr.txt") {
+                $errorOutput = Get-Content "$env:TEMP\docker_stderr.txt" -ErrorAction SilentlyContinue
+                $errorOutput | ForEach-Object { Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue; Write-Host $_ -ForegroundColor Yellow }
+            }
+            
+            # Cleanup temp files
+            Remove-Item "$env:TEMP\docker_stdout.txt" -ErrorAction SilentlyContinue
+            Remove-Item "$env:TEMP\docker_stderr.txt" -ErrorAction SilentlyContinue
+            
+            return @{ ExitCode = $exitCode; Output = $output; ErrorOutput = $errorOutput }
+        } elseif ($NoOutput) {
             # Suppress output but still log errors
             $result = & $Command @Arguments 2>&1 | Tee-Object -FilePath $LogFile -Append
             return $result
@@ -53,8 +80,11 @@ function Invoke-LoggedCommand {
         }
     } catch {
         $errorMsg = "[$timestamp] ERROR executing $fullCommand : $($_.Exception.Message)"
+        $errorDetails = $_.Exception | Format-List -Force | Out-String
         Write-Log $errorMsg -ForegroundColor Red
+        Write-Log "Exception details: $errorDetails" -ForegroundColor Red
         Add-Content -Path $LogFile -Value $errorMsg -ErrorAction SilentlyContinue
+        Add-Content -Path $LogFile -Value "Exception details: $errorDetails" -ErrorAction SilentlyContinue
         return 1
     }
 }
@@ -110,30 +140,107 @@ function Build-Image {
     Write-Log "Using Dockerfile: $dockerfile" -ForegroundColor Gray
     Write-Log "Platform: $platform (compatible with AMD x64 and Intel x64)" -ForegroundColor Gray
     
+    # Pre-build checks
+    Write-Log "[DEBUG] Pre-build validation..." -ForegroundColor DarkGray
+    if (-not (Test-Path $dockerfile)) {
+        Write-Log "ERROR: Dockerfile not found: $dockerfile" -ForegroundColor Red
+        Write-Log "Current directory: $(Get-Location)" -ForegroundColor Yellow
+        Write-Log "Files in current directory:" -ForegroundColor Yellow
+        Get-ChildItem -File | Select-Object -First 10 Name | ForEach-Object { Write-Log "  - $($_.Name)" -ForegroundColor Gray }
+        exit 1
+    }
+    Write-Log "[DEBUG] Dockerfile exists: $dockerfile" -ForegroundColor DarkGray
+    
+    # Check Docker daemon
+    Write-Log "[DEBUG] Checking Docker daemon..." -ForegroundColor DarkGray
+    $dockerInfo = docker info 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "ERROR: Docker daemon is not running or not accessible" -ForegroundColor Red
+        Write-Log "Docker info output: $dockerInfo" -ForegroundColor Yellow
+        exit 1
+    }
+    Write-Log "[DEBUG] Docker daemon is accessible" -ForegroundColor DarkGray
+    
+    # Check Docker version
+    Write-Log "[DEBUG] Docker version:" -ForegroundColor DarkGray
+    docker version --format '{{.Server.Version}}' | ForEach-Object { Write-Log "  Server: $_" -ForegroundColor Gray }
+    docker version --format '{{.Client.Version}}' | ForEach-Object { Write-Log "  Client: $_" -ForegroundColor Gray }
+    
+    # Check available disk space
+    Write-Log "[DEBUG] Checking disk space..." -ForegroundColor DarkGray
+    $diskSpace = Get-PSDrive C | Select-Object Used, Free
+    Write-Log "  Available: $([math]::Round($diskSpace.Free / 1GB, 2)) GB" -ForegroundColor Gray
+    
     # Note: When using --platform flag, Docker automatically sets TARGETPLATFORM build arg
     # We don't need to pass it explicitly, and we don't need it in FROM statements
     $buildArgs = @(
         "build",
         "--platform", $platform,
         "-t", $Tag,
-        "-f", $dockerfile
+        "-f", $dockerfile,
+        "--progress", "plain"  # Use plain progress for better logging
     )
     
     if ($NoCache) {
         $buildArgs += "--no-cache"
+        Write-Log "[DEBUG] Building without cache" -ForegroundColor DarkGray
     }
     
     $buildArgs += "."
     
     Write-Log "Running: docker $($buildArgs -join ' ')" -ForegroundColor Gray
-    $exitCode = Invoke-LoggedCommand -Command "docker" -Arguments $buildArgs
+    Write-Log "[DEBUG] Build context: $(Get-Location)" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Build started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor DarkGray
     
-    if ($exitCode -ne 0) {
-        Write-Log "Build failed!" -ForegroundColor Red
+    # Capture output for detailed error analysis
+    $result = Invoke-LoggedCommand -Command "docker" -Arguments $buildArgs -CaptureOutput
+    
+    if ($result.ExitCode -ne 0) {
+        Write-Log "`n=== BUILD FAILED ===" -ForegroundColor Red
+        Write-Log "Exit Code: $($result.ExitCode)" -ForegroundColor Red
+        
+        # Show last 50 lines of output for context
+        Write-Log "`n=== Last 50 lines of build output ===" -ForegroundColor Yellow
+        $lastLines = $result.Output | Select-Object -Last 50
+        $lastLines | ForEach-Object { Write-Log $_ -ForegroundColor Gray }
+        
+        # Show error output
+        if ($result.ErrorOutput -and $result.ErrorOutput.Count -gt 0) {
+            Write-Log "`n=== Error output ===" -ForegroundColor Red
+            $result.ErrorOutput | ForEach-Object { Write-Log $_ -ForegroundColor Red }
+        }
+        
+        # Show last 20 lines from log file
+        Write-Log "`n=== Last 20 lines from log file ===" -ForegroundColor Yellow
+        if (Test-Path $LogFile) {
+            Get-Content $LogFile -Tail 20 | ForEach-Object { Write-Log $_ -ForegroundColor Gray }
+        }
+        
+        # Common issues and suggestions
+        Write-Log "`n=== Troubleshooting suggestions ===" -ForegroundColor Cyan
+        Write-Log "1. Check Docker daemon is running: docker info" -ForegroundColor Gray
+        Write-Log "2. Check disk space: docker system df" -ForegroundColor Gray
+        Write-Log "3. Check Dockerfile syntax: docker build --dry-run ..." -ForegroundColor Gray
+        Write-Log "4. Check network connectivity (for apt/package downloads)" -ForegroundColor Gray
+        Write-Log "5. Review full log: Get-Content $LogFile -Tail 100" -ForegroundColor Gray
+        Write-Log "6. Try cleaning Docker: .\build-docker.ps1 cleanall" -ForegroundColor Gray
+        
+        Write-Log "`nFull build output has been logged to: $LogFile" -ForegroundColor Yellow
         exit 1
     }
     
+    Write-Log "[DEBUG] Build completed at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor DarkGray
     Write-Log "Build completed successfully!" -ForegroundColor Green
+    
+    # Verify image was created
+    Write-Log "[DEBUG] Verifying image creation..." -ForegroundColor DarkGray
+    $imageExists = docker images $Tag --format "{{.Repository}}:{{.Tag}}" 2>&1
+    if ($imageExists -and $imageExists -like "*$Tag*") {
+        Write-Log "Image verified: $Tag" -ForegroundColor Green
+        docker images $Tag --format "  Size: {{.Size}}, Created: {{.CreatedAt}}" | ForEach-Object { Write-Log $_ -ForegroundColor Gray }
+    } else {
+        Write-Log "WARNING: Image verification failed. Image may not have been created." -ForegroundColor Yellow
+    }
 }
 
 function Run-Container {
