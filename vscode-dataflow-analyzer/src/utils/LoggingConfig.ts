@@ -468,7 +468,6 @@ export class LoggingConfig {
     } else {
       LoggingConfig.originalConsoleWarn(`[LoggingConfig] [DIAG] processWriteQueue: No message or stream!`);
       LoggingConfig.isWriting = false;
-      LoggingConfig.isWriting = false;
     }
   }
   

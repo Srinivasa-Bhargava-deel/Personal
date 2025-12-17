@@ -27,16 +27,38 @@ import { AnalysisState, TaintSensitivity, TaintLabel } from '../../types';
 import { AnalysisConfig } from '../../types';
 
 describe('Visualization Data Sensitivity Testing Framework', () => {
-  const testFilePath = path.join(__dirname, '../../../test_control_dependent_taint.cpp');
+  // Try multiple possible paths for the test file
+  const possibleTestPaths = [
+    path.join(__dirname, '../../../test_control_dependent_taint.cpp'),
+    path.join(__dirname, '../../../tests/test_control_dependent_taint.cpp'),
+    path.join(process.cwd(), 'test_control_dependent_taint.cpp'),
+    path.join(process.cwd(), 'tests/test_control_dependent_taint.cpp'),
+    '/app/test_control_dependent_taint.cpp',
+    '/app/tests/test_control_dependent_taint.cpp',
+  ];
+  
+  let testFilePath: string | null = null;
   let testFileContent: string;
 
   beforeAll(() => {
-    // Read test file
-    if (fs.existsSync(testFilePath)) {
-      testFileContent = fs.readFileSync(testFilePath, 'utf-8');
-    } else {
-      throw new Error(`Test file not found: ${testFilePath}`);
+    // Find the test file in one of the possible locations
+    for (const possiblePath of possibleTestPaths) {
+      if (fs.existsSync(possiblePath)) {
+        testFilePath = possiblePath;
+        break;
+      }
     }
+    
+    if (!testFilePath) {
+      // Log all attempted paths for debugging
+      console.error('Test file not found. Attempted paths:');
+      possibleTestPaths.forEach(p => console.error(`  - ${p} (exists: ${fs.existsSync(p)})`));
+      throw new Error(`Test file not found in any of the expected locations. Current working directory: ${process.cwd()}, __dirname: ${__dirname}`);
+    }
+    
+    // Read test file
+    testFileContent = fs.readFileSync(testFilePath, 'utf-8');
+    console.log(`[TEST] Using test file: ${testFilePath}`);
   });
 
   /**
@@ -198,6 +220,9 @@ describe('Visualization Data Sensitivity Testing Framework', () => {
    * Helper function to analyze a file with a specific sensitivity level
    */
   async function analyzeWithSensitivity(sensitivity: TaintSensitivity): Promise<AnalysisState> {
+    if (!testFilePath) {
+      throw new Error('Test file path not initialized');
+    }
     const workspacePath = path.dirname(testFilePath);
     const config: AnalysisConfig = {
       updateMode: 'save',
