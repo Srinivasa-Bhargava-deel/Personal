@@ -455,24 +455,49 @@ function Start-DevContainer {
     
     # Use CaptureOutput to properly handle docker-compose output and get exit code
     # docker-compose writes normal output to STDERR, so we need to check exit code, not just STDERR
-    $result = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("up", "-d", "dev") -CaptureOutput
-    
-    $exitCode = $result.ExitCode
-    
-    Write-Log "[DEBUG] docker-compose exit code: $exitCode" -ForegroundColor DarkGray
-    
-    if ($exitCode -eq 0) {
-        Write-Log "Development container started!" -ForegroundColor Green
-        Write-Log "To execute commands:" -ForegroundColor Yellow
-        Write-Log "  docker-compose exec dev npm run compile" -ForegroundColor Gray
-        Write-Log "  docker-compose exec dev npm test" -ForegroundColor Gray
-        Write-Log "  docker-compose exec dev bash" -ForegroundColor Gray
-    } else {
-        Write-Log "Failed to start development container! Exit code: $exitCode" -ForegroundColor Red
-        if ($result.ErrorOutput) {
-            Write-Log "Error output:" -ForegroundColor Red
-            $result.ErrorOutput | ForEach-Object { Write-Log "  $_" -ForegroundColor Red }
+    try {
+        $result = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("up", "-d", "dev") -CaptureOutput
+        
+        # Validate result structure
+        if (-not $result) {
+            Write-Log "ERROR: Invoke-LoggedCommand returned null or empty result" -ForegroundColor Red
+            exit 1
         }
+        
+        if (-not $result.PSObject.Properties.Name -contains "ExitCode") {
+            Write-Log "ERROR: Result object missing ExitCode property. Result type: $($result.GetType().FullName)" -ForegroundColor Red
+            Write-Log "Result content: $($result | ConvertTo-Json -Depth 3)" -ForegroundColor Yellow
+            exit 1
+        }
+        
+        $exitCode = $result.ExitCode
+        
+        Write-Log "[DEBUG] docker-compose exit code: $exitCode" -ForegroundColor DarkGray
+        Write-Log "[DEBUG] Result type: $($result.GetType().FullName)" -ForegroundColor DarkGray
+        Write-Log "[DEBUG] Result keys: $($result.PSObject.Properties.Name -join ', ')" -ForegroundColor DarkGray
+        
+        if ($exitCode -eq 0) {
+            Write-Log "Development container started!" -ForegroundColor Green
+            Write-Log "To execute commands:" -ForegroundColor Yellow
+            Write-Log "  docker-compose exec dev npm run compile" -ForegroundColor Gray
+            Write-Log "  docker-compose exec dev npm test" -ForegroundColor Gray
+            Write-Log "  docker-compose exec dev bash" -ForegroundColor Gray
+        } else {
+            Write-Log "Failed to start development container! Exit code: $exitCode" -ForegroundColor Red
+            if ($result.ErrorOutput) {
+                Write-Log "Error output:" -ForegroundColor Red
+                $result.ErrorOutput | ForEach-Object { Write-Log "  $_" -ForegroundColor Red }
+            }
+            if ($result.Output) {
+                Write-Log "Output:" -ForegroundColor Yellow
+                $result.Output | Select-Object -Last 20 | ForEach-Object { Write-Log "  $_" -ForegroundColor Gray }
+            }
+            exit 1
+        }
+    } catch {
+        Write-Log "ERROR: Exception in Start-DevContainer: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log "Exception type: $($_.Exception.GetType().FullName)" -ForegroundColor Red
+        Write-Log "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Yellow
         exit 1
     }
 }
