@@ -255,7 +255,13 @@ function Invoke-LoggedCommand {
         Write-Log "Exception details: $errorDetails" -ForegroundColor Red
         Add-Content -Path $LogFile -Value $errorMsg -ErrorAction SilentlyContinue
         Add-Content -Path $LogFile -Value "Exception details: $errorDetails" -ErrorAction SilentlyContinue
-        return 1
+        
+        # Return consistent structure: hash table if CaptureOutput was requested, integer otherwise
+        if ($CaptureOutput) {
+            return @{ ExitCode = 1; Output = @(); ErrorOutput = @($errorMsg, $errorDetails) }
+        } else {
+            return 1
+        }
     }
 }
 
