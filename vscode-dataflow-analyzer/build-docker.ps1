@@ -181,22 +181,71 @@ function Invoke-LoggedCommand {
             } catch {
                 # Fallback: try with explicit command construction
                 Write-Log "[DEBUG] Direct execution failed, trying alternative method" -ForegroundColor Yellow
-                $process = Start-Process -FilePath $Command -ArgumentList $Arguments -NoNewWindow -Wait -PassThru -RedirectStandardOutput "$env:TEMP\docker_output.txt" -RedirectStandardError "$env:TEMP\docker_error.txt"
+                Write-Log "[DEBUG] Exception: $($_.Exception.Message)" -ForegroundColor DarkGray
                 
-                if (Test-Path "$env:TEMP\docker_output.txt") {
-                    Get-Content "$env:TEMP\docker_output.txt" | Tee-Object -FilePath $LogFile -Append | Write-Host
-                }
-                if (Test-Path "$env:TEMP\docker_error.txt") {
-                    Get-Content "$env:TEMP\docker_error.txt" | ForEach-Object { 
-                        Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
-                        Write-Host $_ -ForegroundColor Yellow
+                # Handle volume mount arguments with spaces (same logic as CaptureOutput path)
+                $quotedArguments = @()
+                $i = 0
+                while ($i -lt $Arguments.Count) {
+                    $arg = $Arguments[$i]
+                    if ($arg -eq "-v" -and $i + 1 -lt $Arguments.Count) {
+                        $volumeArg = $Arguments[$i + 1]
+                        if ($volumeArg -match ' ') {
+                            $quotedArguments += $arg
+                            $quotedArguments += "`"$volumeArg`""
+                            $i += 2
+                        } else {
+                            $quotedArguments += $arg
+                            $i++
+                        }
+                    } else {
+                        $quotedArguments += $arg
+                        $i++
                     }
                 }
                 
-                Remove-Item "$env:TEMP\docker_output.txt" -ErrorAction SilentlyContinue
-                Remove-Item "$env:TEMP\docker_error.txt" -ErrorAction SilentlyContinue
+                $stdoutFile = "$env:TEMP\docker_output_$(Get-Date -Format 'yyyyMMddHHmmss').txt"
+                $stderrFile = "$env:TEMP\docker_error_$(Get-Date -Format 'yyyyMMddHHmmss').txt"
                 
-                return $process.ExitCode
+                $process = Start-Process -FilePath $Command -ArgumentList $quotedArguments -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+                $exitCode = $process.ExitCode
+                
+                Write-Log "[DEBUG] Alternative method exit code: $exitCode" -ForegroundColor DarkGray
+                
+                if (Test-Path $stdoutFile) {
+                    $stdoutContent = Get-Content $stdoutFile -ErrorAction SilentlyContinue -Raw
+                    if ($stdoutContent -and $stdoutContent.Trim().Length -gt 0) {
+                        $stdoutContent -split "`n" | ForEach-Object {
+                            if ($_.Trim().Length -gt 0) {
+                                Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
+                                Write-Host $_
+                            }
+                        }
+                    }
+                }
+                
+                if (Test-Path $stderrFile) {
+                    $stderrContent = Get-Content $stderrFile -ErrorAction SilentlyContinue -Raw
+                    if ($stderrContent -and $stderrContent.Trim().Length -gt 0) {
+                        # For docker-compose, stderr is informational when exit code is 0
+                        $stderrContent -split "`n" | ForEach-Object {
+                            if ($_.Trim().Length -gt 0) {
+                                if ($exitCode -ne 0) {
+                                    Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
+                                    Write-Host $_ -ForegroundColor Yellow
+                                } else {
+                                    Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
+                                    Write-Host $_ -ForegroundColor Gray
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Remove-Item $stdoutFile -ErrorAction SilentlyContinue
+                Remove-Item $stderrFile -ErrorAction SilentlyContinue
+                
+                return $exitCode
             }
         }
     } catch {
