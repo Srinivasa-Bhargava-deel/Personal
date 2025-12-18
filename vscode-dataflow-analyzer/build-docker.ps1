@@ -672,7 +672,7 @@ function Test-NpmCompile {
         
         # Run comprehensive diagnostics first
         Write-Log "Running diagnostics..." -ForegroundColor Yellow
-        $diagnosticsCmd = @"
+        $diagnosticsCmd = @'
 echo "=== NPM COMPILE DIAGNOSTICS ==="
 echo ""
 echo "1. Checking Node.js and npm:"
@@ -680,13 +680,13 @@ node --version 2>&1 || echo "ERROR: node not found"
 npm --version 2>&1 || echo "ERROR: npm not found"
 echo ""
 echo "2. Checking PATH:"
-echo "PATH=\$PATH"
+echo "PATH=$PATH"
 echo ""
 echo "3. Checking node_modules:"
 if [ -d "/app/node_modules" ]; then
   echo "✓ node_modules directory exists"
-  echo "  Size: \$(du -sh /app/node_modules | cut -f1)"
-  echo "  File count: \$(find /app/node_modules -type f | wc -l)"
+  echo "  Size: $(du -sh /app/node_modules | cut -f1)"
+  echo "  File count: $(find /app/node_modules -type f | wc -l)"
 else
   echo "✗ ERROR: node_modules directory missing"
 fi
@@ -711,13 +711,13 @@ echo "5. Checking config files:"
 [ -f "/app/package.json" ] && echo "✓ package.json exists" || echo "✗ ERROR: package.json missing"
 echo ""
 echo "6. Checking source directory:"
-[ -d "/app/src" ] && echo "✓ src directory exists (\$(find /app/src -name '*.ts' | wc -l) TypeScript files)" || echo "✗ ERROR: src directory missing"
+[ -d "/app/src" ] && echo "✓ src directory exists ($(find /app/src -name '*.ts' | wc -l) TypeScript files)" || echo "✗ ERROR: src directory missing"
 echo ""
 echo "7. Checking out directory:"
 [ -d "/app/out" ] && echo "✓ out directory exists (writable)" || echo "⚠ WARNING: out directory missing (will be created)"
 echo ""
 echo "=== END DIAGNOSTICS ==="
-"@
+'@
         
         $diagnosticsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("exec", "-T", "dev", "bash", "-c", $diagnosticsCmd) -CaptureOutput
         if ($diagnosticsResult.ExitCode -eq 0) {
