@@ -249,12 +249,15 @@ function Invoke-LoggedCommand {
             }
         }
     } catch {
-        $errorMsg = "[$timestamp] ERROR executing $fullCommand : $($_.Exception.Message)"
+        # Safely escape strings to avoid quote issues
+        $exceptionMsg = $_.Exception.Message -replace '"', '""'
+        $errorMsg = "[$timestamp] ERROR executing $fullCommand : $exceptionMsg"
         $errorDetails = $_.Exception | Format-List -Force | Out-String
+        $errorDetailsEscaped = $errorDetails -replace '"', '""'
         Write-Log $errorMsg -ForegroundColor Red
         Write-Log "Exception details: $errorDetails" -ForegroundColor Red
         Add-Content -Path $LogFile -Value $errorMsg -ErrorAction SilentlyContinue
-        Add-Content -Path $LogFile -Value "Exception details: $errorDetails" -ErrorAction SilentlyContinue
+        Add-Content -Path $LogFile -Value "Exception details: $errorDetailsEscaped" -ErrorAction SilentlyContinue
         
         # Return consistent structure: hash table if CaptureOutput was requested, integer otherwise
         if ($CaptureOutput) {
@@ -475,9 +478,13 @@ function Run-Container {
             Write-Log "Container exited with non-zero code: $exitCode" -ForegroundColor Yellow
         }
     } catch {
-        Write-Log "ERROR: Failed to run container interactively: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Log "Exception details: $($_.Exception | Format-List -Force | Out-String)" -ForegroundColor DarkGray
-        $logEntry = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ERROR: Failed to run container: $($_.Exception.Message)`n"
+        # Safely escape exception message to avoid quote issues
+        $exceptionMsg = $_.Exception.Message -replace '"', '""'
+        Write-Log "ERROR: Failed to run container interactively: $exceptionMsg" -ForegroundColor Red
+        $exceptionDetails = $_.Exception | Format-List -Force | Out-String
+        Write-Log "Exception details: $exceptionDetails" -ForegroundColor DarkGray
+        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+        $logEntry = "[$timestamp] ERROR: Failed to run container: $exceptionMsg`n"
         Add-Content -Path $LogFile -Value $logEntry
         exit 1
     }
@@ -930,8 +937,14 @@ try {
     Write-Log "=== Script failed with error ===" -ForegroundColor Red
     Write-Log $_.Exception.Message -ForegroundColor Red
     Write-Log $_.ScriptStackTrace -ForegroundColor Red
-    Add-Content -Path $LogFile -Value "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ERROR: $($_.Exception.Message)" -ErrorAction SilentlyContinue
-    Add-Content -Path $LogFile -Value "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] STACKTRACE: $($_.ScriptStackTrace)" -ErrorAction SilentlyContinue
+    
+    # Safely escape strings for logging to avoid quote issues
+    $errorMsg = $_.Exception.Message -replace '"', '""'
+    $stackTrace = $_.ScriptStackTrace -replace '"', '""'
+    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    
+    Add-Content -Path $LogFile -Value "[$timestamp] ERROR: $errorMsg" -ErrorAction SilentlyContinue
+    Add-Content -Path $LogFile -Value "[$timestamp] STACKTRACE: $stackTrace" -ErrorAction SilentlyContinue
     exit 1
 }
 
