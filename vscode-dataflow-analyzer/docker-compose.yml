@@ -32,8 +32,8 @@ services:
       - ./package-lock.json:/app/package-lock.json:ro
     environment:
       - NODE_ENV=development
-      # Ensure PATH includes LLVM and build tools
-      - PATH=/usr/lib/llvm-17/bin:/usr/bin:/usr/local/bin:/app/cpp-tools/cfg-exporter/build:$PATH
+      # Ensure PATH includes LLVM, build tools, and node_modules/.bin for npm scripts
+      - PATH=/app/node_modules/.bin:/usr/lib/llvm-17/bin:/usr/bin:/usr/local/bin:/app/cpp-tools/cfg-exporter/build:$PATH
       - LLVM_DIR=/usr/lib/llvm-17/lib/cmake/llvm
       - Clang_DIR=/usr/lib/llvm-17/lib/cmake/clang
     working_dir: /app
@@ -78,6 +78,54 @@ services:
           echo "✓ cfg-exporter: $(cfg-exporter --version 2>&1 || echo 'available')"
         else
           echo "⚠ WARNING: cfg-exporter not found in PATH (may need full path)"
+        fi
+        echo ""
+        echo "=== Verifying Node.js and npm setup ==="
+        if command -v node >/dev/null 2>&1; then
+          echo "✓ node: $(node --version)"
+        else
+          echo "✗ ERROR: node not found in PATH"
+        fi
+        if command -v npm >/dev/null 2>&1; then
+          echo "✓ npm: $(npm --version)"
+        else
+          echo "✗ ERROR: npm not found in PATH"
+        fi
+        if [ -d "/app/node_modules" ]; then
+          echo "✓ node_modules directory exists"
+          if [ -f "/app/node_modules/.bin/tsc" ]; then
+            echo "✓ TypeScript compiler (tsc) found in node_modules/.bin"
+          else
+            echo "⚠ WARNING: tsc not found in node_modules/.bin"
+            echo "  Checking for TypeScript package..."
+            if [ -d "/app/node_modules/typescript" ]; then
+              echo "  ✓ typescript package found, but tsc binary missing"
+            else
+              echo "  ✗ ERROR: typescript package not found in node_modules"
+            fi
+          fi
+        else
+          echo "✗ ERROR: node_modules directory not found at /app/node_modules"
+        fi
+        if [ -f "/app/tsconfig.json" ]; then
+          echo "✓ tsconfig.json found"
+        else
+          echo "✗ ERROR: tsconfig.json not found at /app/tsconfig.json"
+        fi
+        if [ -f "/app/package.json" ]; then
+          echo "✓ package.json found"
+        else
+          echo "✗ ERROR: package.json not found at /app/package.json"
+        fi
+        if [ -d "/app/src" ]; then
+          echo "✓ src directory found"
+        else
+          echo "✗ ERROR: src directory not found at /app/src"
+        fi
+        if [ -d "/app/out" ]; then
+          echo "✓ out directory exists and is writable"
+        else
+          echo "⚠ WARNING: out directory not found (will be created on compile)"
         fi
         echo ""
         echo "=== Development environment ready ==="
