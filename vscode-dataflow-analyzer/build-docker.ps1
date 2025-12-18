@@ -577,25 +577,32 @@ function Start-DevContainer {
         }
         
         if (-not $hasExitCode) {
-            Write-Log "ERROR: Result object missing ExitCode property. Result type: $($result.GetType().FullName)" -ForegroundColor Red
+            $resultType = $result.GetType().FullName
+            Write-Log "ERROR: Result object missing ExitCode property. Result type: $resultType" -ForegroundColor Red
             if ($result -is [hashtable]) {
-                Write-Log "Hashtable keys: $($result.Keys -join ', ')" -ForegroundColor Yellow
+                $hashtableKeys = $result.Keys -join ', '
+                Write-Log "Hashtable keys: $hashtableKeys" -ForegroundColor Yellow
             } else {
-                Write-Log "Result properties: $($result.PSObject.Properties.Name -join ', ')" -ForegroundColor Yellow
+                $resultProps = $result.PSObject.Properties.Name -join ', '
+                Write-Log "Result properties: $resultProps" -ForegroundColor Yellow
             }
-            Write-Log "Result content: $($result | ConvertTo-Json -Depth 3)" -ForegroundColor Yellow
+            $resultJson = $result | ConvertTo-Json -Depth 3
+            Write-Log "Result content: $resultJson" -ForegroundColor Yellow
             exit 1
         }
         
         $exitCode = $result.ExitCode
         
         Write-Log "[DEBUG] docker-compose exit code: $exitCode" -ForegroundColor DarkGray
-        Write-Log "[DEBUG] Result type: $($result.GetType().FullName)" -ForegroundColor DarkGray
+        $resultType = $result.GetType().FullName
+        Write-Log "[DEBUG] Result type: $resultType" -ForegroundColor DarkGray
         
         # Show custom properties (for hashtables, use .Keys; for PSCustomObject, use Properties)
         if ($result -is [hashtable]) {
-            Write-Log "[DEBUG] Result keys: $($result.Keys -join ', ')" -ForegroundColor DarkGray
-            Write-Log "[DEBUG] ExitCode value: $($result.ExitCode)" -ForegroundColor DarkGray
+            $resultKeys = $result.Keys -join ', '
+            $resultExitCode = $result.ExitCode
+            Write-Log "[DEBUG] Result keys: $resultKeys" -ForegroundColor DarkGray
+            Write-Log "[DEBUG] ExitCode value: $resultExitCode" -ForegroundColor DarkGray
             
             # For docker-compose, output often goes to ErrorOutput (stderr) not Output (stdout)
             $outputCount = if ($result.Output) { $result.Output.Count } else { 0 }
@@ -607,7 +614,8 @@ function Start-DevContainer {
                 $previewLines = [Math]::Min(3, $errorOutputCount)
                 Write-Log "[DEBUG] ErrorOutput preview (first $previewLines lines):" -ForegroundColor DarkGray
                 for ($i = 0; $i -lt $previewLines; $i++) {
-                    Write-Log "[DEBUG]   [$i]: $($result.ErrorOutput[$i])" -ForegroundColor DarkGray
+                    $errorLine = $result.ErrorOutput[$i]
+                    Write-Log "[DEBUG]   [$i]: $errorLine" -ForegroundColor DarkGray
                 }
             }
             
@@ -616,11 +624,13 @@ function Start-DevContainer {
                 $previewLines = [Math]::Min(3, $outputCount)
                 Write-Log "[DEBUG] Output preview (first $previewLines lines):" -ForegroundColor DarkGray
                 for ($i = 0; $i -lt $previewLines; $i++) {
-                    Write-Log "[DEBUG]   [$i]: $($result.Output[$i])" -ForegroundColor DarkGray
+                    $outputLine = $result.Output[$i]
+                    Write-Log "[DEBUG]   [$i]: $outputLine" -ForegroundColor DarkGray
                 }
             }
         } else {
-            Write-Log "[DEBUG] Result properties: $($result.PSObject.Properties.Name -join ', ')" -ForegroundColor DarkGray
+            $resultProps = $result.PSObject.Properties.Name -join ', '
+            Write-Log "[DEBUG] Result properties: $resultProps" -ForegroundColor DarkGray
         }
         
         if ($exitCode -eq 0) {
