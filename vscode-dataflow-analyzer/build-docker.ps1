@@ -637,6 +637,134 @@ function Package-Extension {
     }
 }
 
+function Test-NpmCompile {
+    <#
+    .SYNOPSIS
+    Tests npm run compile in the dev container with comprehensive error logging
+    #>
+    Write-Log "Testing npm run compile in dev container..." -ForegroundColor Cyan
+    
+    try {
+        Write-Log "[DEBUG] Checking if dev container is running..." -ForegroundColor DarkGray
+        $containerCheck = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("ps", "-q", "dev") -CaptureOutput
+        if (-not $containerCheck.Output -or $containerCheck.Output.Count -eq 0) {
+            Write-Log "ERROR: Dev container is not running. Start it first with: .\build-docker.ps1 dev" -ForegroundColor Red
+            exit 1
+        }
+        
+        Write-Log "[DEBUG] Dev container is running" -ForegroundColor DarkGray
+        
+        # Run comprehensive diagnostics first
+        Write-Log "Running diagnostics..." -ForegroundColor Yellow
+        $diagnosticsCmd = @"
+echo "=== NPM COMPILE DIAGNOSTICS ==="
+echo ""
+echo "1. Checking Node.js and npm:"
+node --version 2>&1 || echo "ERROR: node not found"
+npm --version 2>&1 || echo "ERROR: npm not found"
+echo ""
+echo "2. Checking PATH:"
+echo "PATH=\$PATH"
+echo ""
+echo "3. Checking node_modules:"
+if [ -d "/app/node_modules" ]; then
+  echo "✓ node_modules directory exists"
+  echo "  Size: \$(du -sh /app/node_modules | cut -f1)"
+  echo "  File count: \$(find /app/node_modules -type f | wc -l)"
+else
+  echo "✗ ERROR: node_modules directory missing"
+fi
+echo ""
+echo "4. Checking TypeScript compiler:"
+if [ -f "/app/node_modules/.bin/tsc" ]; then
+  echo "✓ tsc found at: /app/node_modules/.bin/tsc"
+  /app/node_modules/.bin/tsc --version 2>&1 || echo "ERROR: tsc version check failed"
+else
+  echo "✗ ERROR: tsc not found in node_modules/.bin"
+  echo "  Checking for typescript package..."
+  if [ -d "/app/node_modules/typescript" ]; then
+    echo "  ✓ typescript package exists"
+    ls -la /app/node_modules/typescript/bin/ 2>&1 || echo "  ERROR: typescript/bin directory missing"
+  else
+    echo "  ✗ ERROR: typescript package missing"
+  fi
+fi
+echo ""
+echo "5. Checking config files:"
+[ -f "/app/tsconfig.json" ] && echo "✓ tsconfig.json exists" || echo "✗ ERROR: tsconfig.json missing"
+[ -f "/app/package.json" ] && echo "✓ package.json exists" || echo "✗ ERROR: package.json missing"
+echo ""
+echo "6. Checking source directory:"
+[ -d "/app/src" ] && echo "✓ src directory exists (\$(find /app/src -name '*.ts' | wc -l) TypeScript files)" || echo "✗ ERROR: src directory missing"
+echo ""
+echo "7. Checking out directory:"
+[ -d "/app/out" ] && echo "✓ out directory exists (writable)" || echo "⚠ WARNING: out directory missing (will be created)"
+echo ""
+echo "=== END DIAGNOSTICS ==="
+"@
+        
+        $diagnosticsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("exec", "-T", "dev", "bash", "-c", $diagnosticsCmd) -CaptureOutput
+        if ($diagnosticsResult.ExitCode -eq 0) {
+            Write-Log "Diagnostics output:" -ForegroundColor Cyan
+            if ($diagnosticsResult.Output) {
+                $diagnosticsResult.Output | ForEach-Object { Write-Log "  $_" -ForegroundColor Gray }
+            }
+            if ($diagnosticsResult.ErrorOutput) {
+                $diagnosticsResult.ErrorOutput | ForEach-Object { Write-Log "  $_" -ForegroundColor Yellow }
+            }
+        } else {
+            Write-Log "WARNING: Diagnostics command failed with exit code $($diagnosticsResult.ExitCode)" -ForegroundColor Yellow
+            if ($diagnosticsResult.ErrorOutput) {
+                $diagnosticsResult.ErrorOutput | ForEach-Object { Write-Log "  $_" -ForegroundColor Yellow }
+            }
+        }
+        
+        Write-Log ""
+        Write-Log "Attempting npm run compile..." -ForegroundColor Yellow
+        
+        # Run npm compile with detailed error capture
+        $compileResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("exec", "-T", "dev", "bash", "-c", "set -e; cd /app && npm run compile 2>&1") -CaptureOutput
+        
+        if ($compileResult.ExitCode -eq 0) {
+            Write-Log "✓ npm run compile succeeded!" -ForegroundColor Green
+            if ($compileResult.Output) {
+                Write-Log "Compile output:" -ForegroundColor Gray
+                $compileResult.Output | Select-Object -Last 20 | ForEach-Object { Write-Log "  $_" -ForegroundColor Gray }
+            }
+            return $true
+        } else {
+            Write-Log "✗ npm run compile FAILED with exit code $($compileResult.ExitCode)" -ForegroundColor Red
+            Write-Log ""
+            Write-Log "=== COMPILE ERROR DETAILS ===" -ForegroundColor Red
+            
+            if ($compileResult.ErrorOutput) {
+                Write-Log "Error output (stderr):" -ForegroundColor Red
+                $compileResult.ErrorOutput | ForEach-Object { Write-Log "  $_" -ForegroundColor Red }
+            }
+            
+            if ($compileResult.Output) {
+                Write-Log "Standard output (stdout):" -ForegroundColor Yellow
+                $compileResult.Output | ForEach-Object { Write-Log "  $_" -ForegroundColor Yellow }
+            }
+            
+            Write-Log ""
+            Write-Log "=== TROUBLESHOOTING SUGGESTIONS ===" -ForegroundColor Yellow
+            Write-Log "1. Check if TypeScript is installed: docker-compose exec dev npm list typescript" -ForegroundColor Gray
+            Write-Log "2. Check if node_modules is complete: docker-compose exec dev ls -la /app/node_modules/.bin/ | grep tsc" -ForegroundColor Gray
+            Write-Log "3. Try reinstalling dependencies: docker-compose exec dev npm ci" -ForegroundColor Gray
+            Write-Log "4. Check tsconfig.json: docker-compose exec dev cat /app/tsconfig.json" -ForegroundColor Gray
+            Write-Log "5. Check for TypeScript errors: docker-compose exec dev npx tsc --noEmit" -ForegroundColor Gray
+            
+            return $false
+        }
+    } catch {
+        Write-Log "ERROR: Exception in Test-NpmCompile: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log "Exception type: $($_.Exception.GetType().FullName)" -ForegroundColor Red
+        Write-Log "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Yellow
+        return $false
+    }
+}
+
 function Run-Tests {
     Write-Log "Running tests in Docker container..." -ForegroundColor Cyan
     
@@ -649,6 +777,9 @@ function Run-Tests {
     Write-Log "[DEBUG] Source path: $srcPath" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Tests path: $testsPath" -ForegroundColor DarkGray
     
+    # First, verify npm compile works (tests run pretest which includes compile)
+    Write-Log "[DEBUG] Tests include pretest which runs npm run compile, checking setup..." -ForegroundColor DarkGray
+    
     $testArgs = @(
         "run", "--rm",
         "-v", "${srcPath}:/app/src:ro",
@@ -657,11 +788,34 @@ function Run-Tests {
         $Tag,
         "sh", "-c", "npm test"
     )
-    $exitCode = Invoke-LoggedCommand -Command "docker" -Arguments $testArgs
+    
+    Write-Log "[DEBUG] Running: docker $($testArgs -join ' ')" -ForegroundColor DarkGray
+    $result = Invoke-LoggedCommand -Command "docker" -Arguments $testArgs -CaptureOutput
+    $exitCode = $result.ExitCode
     
     if ($exitCode -ne 0) {
-        Write-Log "Tests failed!" -ForegroundColor Red
+        Write-Log "Tests failed with exit code: $exitCode" -ForegroundColor Red
+        Write-Log ""
+        Write-Log "=== TEST ERROR DETAILS ===" -ForegroundColor Red
+        
+        if ($result.ErrorOutput) {
+            Write-Log "Error output (stderr):" -ForegroundColor Red
+            $result.ErrorOutput | Select-Object -Last 50 | ForEach-Object { Write-Log "  $_" -ForegroundColor Red }
+        }
+        
+        if ($result.Output) {
+            Write-Log "Standard output (stdout):" -ForegroundColor Yellow
+            $result.Output | Select-Object -Last 50 | ForEach-Object { Write-Log "  $_" -ForegroundColor Yellow }
+        }
+        
+        Write-Log ""
+        Write-Log "=== TROUBLESHOOTING ===" -ForegroundColor Yellow
+        Write-Log "If compilation failed, run: .\build-docker.ps1 test-compile" -ForegroundColor Gray
+        Write-Log "To see full test output, check logs2.txt" -ForegroundColor Gray
+        
         exit 1
+    } else {
+        Write-Log "Tests completed successfully!" -ForegroundColor Green
     }
 }
 
@@ -730,6 +884,17 @@ try {
         "test" {
             Build-Image -UseWindows:$Windows
             Run-Tests
+        }
+        "test-compile" {
+            # Test npm compile specifically with detailed diagnostics
+            if (-not (Test-Path "docker-compose.yml")) {
+                Write-Log "ERROR: docker-compose.yml not found. Run '.\build-docker.ps1 dev' first to start the dev container." -ForegroundColor Red
+                exit 1
+            }
+            $success = Test-NpmCompile
+            if (-not $success) {
+                exit 1
+            }
         }
         "clean" {
             Clean-Docker

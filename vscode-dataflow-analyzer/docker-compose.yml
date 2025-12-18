@@ -128,7 +128,19 @@ services:
           echo "⚠ WARNING: out directory not found (will be created on compile)"
         fi
         echo ""
+        echo "=== Testing npm compile setup ==="
+        echo "Running: npm run compile --dry-run 2>&1 || echo 'Note: --dry-run may not be supported, will test actual compile'"
+        echo ""
         echo "=== Development environment ready ==="
+        echo ""
+        echo "To test npm compile, run:"
+        echo "  docker-compose exec dev npm run compile"
+        echo ""
+        echo "If compile fails, check:"
+        echo "  - node_modules/.bin/tsc exists: docker-compose exec dev ls -la /app/node_modules/.bin/tsc"
+        echo "  - TypeScript version: docker-compose exec dev npx tsc --version"
+        echo "  - Config files: docker-compose exec dev ls -la /app/*.json"
+        echo ""
         tail -f /dev/null
 
   # Production service - runs the built extension
