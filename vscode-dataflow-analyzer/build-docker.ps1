@@ -126,13 +126,13 @@ function Invoke-LoggedCommand {
                 if (Test-Path $stdoutFile) {
                     $outputRaw = Get-Content $stdoutFile -ErrorAction SilentlyContinue -Raw
                     if ($outputRaw -and $outputRaw.Trim().Length -gt 0) {
-                        $outputRaw -split "`n" | ForEach-Object { 
+                        $outputRaw -split [Environment]::NewLine | ForEach-Object { 
                             if ($_.Trim().Length -gt 0) {
                                 Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
                                 Write-Host $_
                             }
                         }
-                        $output = $outputRaw -split "`n" | Where-Object { $_.Trim().Length -gt 0 }
+                        $output = $outputRaw -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 }
                     } else {
                         $output = @()
                     }
@@ -148,7 +148,7 @@ function Invoke-LoggedCommand {
                         # For docker-compose, normal operations write to stderr but aren't errors
                         # Only log as error if exit code is non-zero
                         if ($exitCode -ne 0) {
-                            $errorOutput -split "`n" | ForEach-Object { 
+                            $errorOutput -split [Environment]::NewLine | ForEach-Object { 
                                 if ($_.Trim().Length -gt 0) {
                                     Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
                                     Write-Host $_ -ForegroundColor Yellow
@@ -156,7 +156,7 @@ function Invoke-LoggedCommand {
                             }
                         } else {
                             # For successful docker-compose commands, stderr is just informational
-                            $errorOutput -split "`n" | ForEach-Object { 
+                            $errorOutput -split [Environment]::NewLine | ForEach-Object { 
                                 if ($_.Trim().Length -gt 0) {
                                     Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
                                     Write-Host $_ -ForegroundColor Gray
@@ -165,7 +165,7 @@ function Invoke-LoggedCommand {
                         }
                     }
                     # Convert to array for return value
-                    $errorOutputArray = if ($errorOutput) { $errorOutput -split "`n" | Where-Object { $_.Trim().Length -gt 0 } } else { @() }
+                    $errorOutputArray = if ($errorOutput) { $errorOutput -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 } } else { @() }
                 } else {
                     $errorOutputArray = @()
                 }
@@ -229,7 +229,7 @@ function Invoke-LoggedCommand {
                 if (Test-Path $stdoutFile) {
                     $stdoutContent = Get-Content $stdoutFile -ErrorAction SilentlyContinue -Raw
                     if ($stdoutContent -and $stdoutContent.Trim().Length -gt 0) {
-                        $stdoutContent -split "`n" | ForEach-Object {
+                        $stdoutContent -split [Environment]::NewLine | ForEach-Object {
                             if ($_.Trim().Length -gt 0) {
                                 Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
                                 Write-Host $_
@@ -242,7 +242,7 @@ function Invoke-LoggedCommand {
                     $stderrContent = Get-Content $stderrFile -ErrorAction SilentlyContinue -Raw
                     if ($stderrContent -and $stderrContent.Trim().Length -gt 0) {
                         # For docker-compose, stderr is informational when exit code is 0
-                        $stderrContent -split "`n" | ForEach-Object {
+                        $stderrContent -split [Environment]::NewLine | ForEach-Object {
                             if ($_.Trim().Length -gt 0) {
                                 if ($exitCode -ne 0) {
                                     Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
