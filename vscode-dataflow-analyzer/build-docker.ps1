@@ -192,7 +192,8 @@ function Invoke-LoggedCommand {
             } catch {
                 # Fallback: try with explicit command construction
                 Write-Log "[DEBUG] Direct execution failed, trying alternative method" -ForegroundColor Yellow
-                Write-Log "[DEBUG] Exception: $($_.Exception.Message)" -ForegroundColor DarkGray
+                $exceptionMsg = $_.Exception.Message
+                Write-Log "[DEBUG] Exception: $exceptionMsg" -ForegroundColor DarkGray
                 
                 # Handle volume mount arguments with spaces (same logic as CaptureOutput path)
                 $quotedArguments = @()
@@ -644,9 +645,12 @@ function Start-DevContainer {
             exit 1
         }
     } catch {
-        Write-Log "ERROR: Exception in Start-DevContainer: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Log "Exception type: $($_.Exception.GetType().FullName)" -ForegroundColor Red
-        Write-Log "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Yellow
+        $exceptionMsg = $_.Exception.Message
+        $exceptionType = $_.Exception.GetType().FullName
+        $stackTrace = $_.ScriptStackTrace
+        Write-Log "ERROR: Exception in Start-DevContainer: $exceptionMsg" -ForegroundColor Red
+        Write-Log "Exception type: $exceptionType" -ForegroundColor Red
+        Write-Log "Stack trace: $stackTrace" -ForegroundColor Yellow
         exit 1
     }
 }
@@ -840,9 +844,12 @@ npm run compile 2>&1
             return $false
         }
     } catch {
-        Write-Log "ERROR: Exception in Test-NpmCompile: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Log "Exception type: $($_.Exception.GetType().FullName)" -ForegroundColor Red
-        Write-Log "Stack trace: $($_.ScriptStackTrace)" -ForegroundColor Yellow
+        $exceptionMsg = $_.Exception.Message
+        $exceptionType = $_.Exception.GetType().FullName
+        $stackTrace = $_.ScriptStackTrace
+        Write-Log "ERROR: Exception in Test-NpmCompile: $exceptionMsg" -ForegroundColor Red
+        Write-Log "Exception type: $exceptionType" -ForegroundColor Red
+        Write-Log "Stack trace: $stackTrace" -ForegroundColor Yellow
         return $false
     }
 }
