@@ -42,7 +42,9 @@ function Invoke-LoggedCommand {
     $fullCommand = if ($Arguments.Count -gt 0) { "$Command $($Arguments -join ' ')" } else { $Command }
     # Escape quotes in command string to prevent parsing issues
     $fullCommandEscaped = $fullCommand -replace '"', '""'
-    Add-Content -Path $LogFile -Value "[$timestamp] Executing: $fullCommandEscaped" -ErrorAction SilentlyContinue
+    # Build log entry using concatenation to avoid string interpolation issues
+    $logEntry = '[' + $timestamp + '] Executing: ' + $fullCommandEscaped
+    Add-Content -Path $LogFile -Value $logEntry -ErrorAction SilentlyContinue
     Write-Log "[DEBUG] Full command: $fullCommand" -ForegroundColor DarkGray
     
     # Capture output to variable for detailed error reporting
@@ -252,14 +254,19 @@ function Invoke-LoggedCommand {
         }
     } catch {
         # Safely escape strings to avoid quote issues
-        $exceptionMsg = $_.Exception.Message -replace '"', '""'
-        $errorMsg = "[$timestamp] ERROR executing $fullCommand : $exceptionMsg"
+        # Build log entries using concatenation to avoid string interpolation issues
+        $exceptionMsgRaw = $_.Exception.Message
         $errorDetails = $_.Exception | Format-List -Force | Out-String
+        
+        # Build error message using concatenation
+        $errorMsg = '[' + $timestamp + '] ERROR executing ' + ($fullCommand -replace '"', '""') + ' : ' + ($exceptionMsgRaw -replace '"', '""')
         $errorDetailsEscaped = $errorDetails -replace '"', '""'
+        $errorDetailsLogEntry = 'Exception details: ' + $errorDetailsEscaped
+        
         Write-Log $errorMsg -ForegroundColor Red
         Write-Log "Exception details: $errorDetails" -ForegroundColor Red
         Add-Content -Path $LogFile -Value $errorMsg -ErrorAction SilentlyContinue
-        Add-Content -Path $LogFile -Value "Exception details: $errorDetailsEscaped" -ErrorAction SilentlyContinue
+        Add-Content -Path $LogFile -Value $errorDetailsLogEntry -ErrorAction SilentlyContinue
         
         # Return consistent structure: hash table if CaptureOutput was requested, integer otherwise
         if ($CaptureOutput) {
@@ -472,11 +479,11 @@ function Run-Container {
         Write-Log "[DEBUG] Container exited with code: $exitCode" -ForegroundColor DarkGray
         
         # Log the command execution (but not the interactive output)
-        # Escape any quotes in the command string to avoid parsing issues
+        # Build log entries using concatenation to avoid string interpolation issues
         $commandStr = ($runArgs -join ' ') -replace '"', '""'
         $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        $logEntry = "[$timestamp] Executed interactive docker command: docker $commandStr`n"
-        $logEntry += "[$timestamp] Container exited with code: $exitCode`n"
+        $logEntry = '[' + $timestamp + '] Executed interactive docker command: docker ' + $commandStr + "`n"
+        $logEntry += '[' + $timestamp + '] Container exited with code: ' + $exitCode + "`n"
         Add-Content -Path $LogFile -Value $logEntry
         
         if ($exitCode -ne 0) {
@@ -484,12 +491,14 @@ function Run-Container {
         }
     } catch {
         # Safely escape exception message to avoid quote issues
-        $exceptionMsg = $_.Exception.Message -replace '"', '""'
+        # Build log entries using concatenation to avoid string interpolation issues
+        $exceptionMsgRaw = $_.Exception.Message
+        $exceptionMsg = $exceptionMsgRaw -replace '"', '""'
         Write-Log "ERROR: Failed to run container interactively: $exceptionMsg" -ForegroundColor Red
         $exceptionDetails = $_.Exception | Format-List -Force | Out-String
         Write-Log "Exception details: $exceptionDetails" -ForegroundColor DarkGray
         $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        $logEntry = "[$timestamp] ERROR: Failed to run container: $exceptionMsg`n"
+        $logEntry = '[' + $timestamp + '] ERROR: Failed to run container: ' + $exceptionMsg + "`n"
         Add-Content -Path $LogFile -Value $logEntry
         exit 1
     }
@@ -944,12 +953,18 @@ try {
     Write-Log $_.ScriptStackTrace -ForegroundColor Red
     
     # Safely escape strings for logging to avoid quote issues
-    $errorMsg = $_.Exception.Message -replace '"', '""'
-    $stackTrace = $_.ScriptStackTrace -replace '"', '""'
+    # Build log entries using concatenation to avoid string interpolation issues
+    $errorMsgRaw = $_.Exception.Message
+    $stackTraceRaw = $_.ScriptStackTrace
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     
-    Add-Content -Path $LogFile -Value "[$timestamp] ERROR: $errorMsg" -ErrorAction SilentlyContinue
-    Add-Content -Path $LogFile -Value "[$timestamp] STACKTRACE: $stackTrace" -ErrorAction SilentlyContinue
+    # Build log entries using string concatenation instead of interpolation
+    # This prevents PowerShell from trying to parse special characters in the variables
+    $errorLogEntry = '[' + $timestamp + '] ERROR: ' + ($errorMsgRaw -replace '"', '""')
+    $stackTraceLogEntry = '[' + $timestamp + '] STACKTRACE: ' + ($stackTraceRaw -replace '"', '""')
+    
+    Add-Content -Path $LogFile -Value $errorLogEntry -ErrorAction SilentlyContinue
+    Add-Content -Path $LogFile -Value $stackTraceLogEntry -ErrorAction SilentlyContinue
     exit 1
 }
 
