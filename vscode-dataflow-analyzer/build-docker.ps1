@@ -41,7 +41,10 @@ function Invoke-LoggedCommand {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $fullCommand = if ($Arguments.Count -gt 0) { "$Command $($Arguments -join ' ')" } else { $Command }
     # Escape quotes in command string to prevent parsing issues
-    $fullCommandEscaped = $fullCommand -replace '"', '""'
+    # Use variables for replacement strings to avoid quote parsing issues
+    $doubleQuote = '"'
+    $doubleDoubleQuote = '""'
+    $fullCommandEscaped = $fullCommand -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
     # Build log entry using concatenation to avoid string interpolation issues
     $logEntry = '[' + $timestamp + '] Executing: ' + $fullCommandEscaped
     Add-Content -Path $LogFile -Value $logEntry -ErrorAction SilentlyContinue
@@ -258,9 +261,15 @@ function Invoke-LoggedCommand {
         $exceptionMsgRaw = $_.Exception.Message
         $errorDetails = $_.Exception | Format-List -Force | Out-String
         
+        # Use variables for replacement strings to avoid quote parsing issues
+        $doubleQuote = '"'
+        $doubleDoubleQuote = '""'
+        
         # Build error message using concatenation
-        $errorMsg = '[' + $timestamp + '] ERROR executing ' + ($fullCommand -replace '"', '""') + ' : ' + ($exceptionMsgRaw -replace '"', '""')
-        $errorDetailsEscaped = $errorDetails -replace '"', '""'
+        $fullCommandEscaped = $fullCommand -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
+        $exceptionMsgEscaped = $exceptionMsgRaw -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
+        $errorMsg = '[' + $timestamp + '] ERROR executing ' + $fullCommandEscaped + ' : ' + $exceptionMsgEscaped
+        $errorDetailsEscaped = $errorDetails -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
         $errorDetailsLogEntry = 'Exception details: ' + $errorDetailsEscaped
         
         Write-Log $errorMsg -ForegroundColor Red
@@ -480,7 +489,10 @@ function Run-Container {
         
         # Log the command execution (but not the interactive output)
         # Build log entries using concatenation to avoid string interpolation issues
-        $commandStr = ($runArgs -join ' ') -replace '"', '""'
+        # Use variables for replacement strings to avoid quote parsing issues
+        $doubleQuote = '"'
+        $doubleDoubleQuote = '""'
+        $commandStr = ($runArgs -join ' ') -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
         $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         $logEntry = '[' + $timestamp + '] Executed interactive docker command: docker ' + $commandStr + "`n"
         $logEntry += '[' + $timestamp + '] Container exited with code: ' + $exitCode + "`n"
@@ -492,8 +504,11 @@ function Run-Container {
     } catch {
         # Safely escape exception message to avoid quote issues
         # Build log entries using concatenation to avoid string interpolation issues
+        # Use variables for replacement strings to avoid quote parsing issues
+        $doubleQuote = '"'
+        $doubleDoubleQuote = '""'
         $exceptionMsgRaw = $_.Exception.Message
-        $exceptionMsg = $exceptionMsgRaw -replace '"', '""'
+        $exceptionMsg = $exceptionMsgRaw -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
         Write-Log "ERROR: Failed to run container interactively: $exceptionMsg" -ForegroundColor Red
         $exceptionDetails = $_.Exception | Format-List -Force | Out-String
         Write-Log "Exception details: $exceptionDetails" -ForegroundColor DarkGray
@@ -958,10 +973,16 @@ try {
     $stackTraceRaw = $_.ScriptStackTrace
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     
+    # Use a variable for replacement string to avoid quote parsing issues
+    $doubleQuote = '"'
+    $doubleDoubleQuote = '""'
+    
     # Build log entries using string concatenation instead of interpolation
     # This prevents PowerShell from trying to parse special characters in the variables
-    $errorLogEntry = '[' + $timestamp + '] ERROR: ' + ($errorMsgRaw -replace '"', '""')
-    $stackTraceLogEntry = '[' + $timestamp + '] STACKTRACE: ' + ($stackTraceRaw -replace '"', '""')
+    $errorMsgEscaped = $errorMsgRaw -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
+    $stackTraceEscaped = $stackTraceRaw -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
+    $errorLogEntry = '[' + $timestamp + '] ERROR: ' + $errorMsgEscaped
+    $stackTraceLogEntry = '[' + $timestamp + '] STACKTRACE: ' + $stackTraceEscaped
     
     Add-Content -Path $LogFile -Value $errorLogEntry -ErrorAction SilentlyContinue
     Add-Content -Path $LogFile -Value $stackTraceLogEntry -ErrorAction SilentlyContinue
