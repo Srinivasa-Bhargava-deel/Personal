@@ -75,11 +75,14 @@ function Invoke-LoggedCommand {
             # However, we need to ensure paths with spaces are properly quoted in the array
             $argumentsString = $Arguments -join ' '
             Write-Log "[DEBUG] Arguments string: $argumentsString" -ForegroundColor DarkGray
-            Write-Log "[DEBUG] Arguments count: $($Arguments.Count)" -ForegroundColor DarkGray
-            Write-Log "[DEBUG] First argument: $($Arguments[0])" -ForegroundColor DarkGray
+            $argsCount = $Arguments.Count
+            $firstArg = if ($Arguments.Count -gt 0) { $Arguments[0] } else { 'none' }
+            Write-Log "[DEBUG] Arguments count: $argsCount" -ForegroundColor DarkGray
+            Write-Log "[DEBUG] First argument: $firstArg" -ForegroundColor DarkGray
             # Show all arguments for debugging (use -join for PowerShell 5.1 compatibility)
             $argsDebug = $Arguments | ForEach-Object { "'$_'" } | ForEach-Object { $_ }
-            Write-Log "[DEBUG] All arguments: $($argsDebug -join ', ')" -ForegroundColor DarkGray
+            $argsDebugStr = $argsDebug -join ', '
+            Write-Log "[DEBUG] All arguments: $argsDebugStr" -ForegroundColor DarkGray
             
             # Use temporary files for output capture
             $stdoutFile = "$env:TEMP\docker_stdout_$(Get-Date -Format 'yyyyMMddHHmmss').txt"
@@ -350,9 +353,13 @@ function Build-Image {
     Write-Log "[DEBUG] Pre-build validation..." -ForegroundColor DarkGray
     if (-not (Test-Path $dockerfile)) {
         Write-Log "ERROR: Dockerfile not found: $dockerfile" -ForegroundColor Red
-        Write-Log "Current directory: $(Get-Location)" -ForegroundColor Yellow
+        $currentDir = Get-Location
+        Write-Log "Current directory: $currentDir" -ForegroundColor Yellow
         Write-Log "Files in current directory:" -ForegroundColor Yellow
-        Get-ChildItem -File | Select-Object -First 10 Name | ForEach-Object { Write-Log "  - $($_.Name)" -ForegroundColor Gray }
+        Get-ChildItem -File | Select-Object -First 10 Name | ForEach-Object { 
+            $fileName = $_.Name
+            Write-Log "  - $fileName" -ForegroundColor Gray 
+        }
         exit 1
     }
     Write-Log "[DEBUG] Dockerfile exists: $dockerfile" -ForegroundColor DarkGray
@@ -375,7 +382,8 @@ function Build-Image {
     # Check available disk space
     Write-Log "[DEBUG] Checking disk space..." -ForegroundColor DarkGray
     $diskSpace = Get-PSDrive C | Select-Object Used, Free
-    Write-Log "  Available: $([math]::Round($diskSpace.Free / 1GB, 2)) GB" -ForegroundColor Gray
+    $availableGB = [math]::Round($diskSpace.Free / 1GB, 2)
+    Write-Log "  Available: $availableGB GB" -ForegroundColor Gray
     
     # Note: When using --platform flag, Docker automatically sets TARGETPLATFORM build arg
     # We don't need to pass it explicitly, and we don't need it in FROM statements
