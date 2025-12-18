@@ -40,7 +40,9 @@ function Invoke-LoggedCommand {
     
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $fullCommand = if ($Arguments.Count -gt 0) { "$Command $($Arguments -join ' ')" } else { $Command }
-    Add-Content -Path $LogFile -Value "[$timestamp] Executing: $fullCommand" -ErrorAction SilentlyContinue
+    # Escape quotes in command string to prevent parsing issues
+    $fullCommandEscaped = $fullCommand -replace '"', '""'
+    Add-Content -Path $LogFile -Value "[$timestamp] Executing: $fullCommandEscaped" -ErrorAction SilentlyContinue
     Write-Log "[DEBUG] Full command: $fullCommand" -ForegroundColor DarkGray
     
     # Capture output to variable for detailed error reporting
