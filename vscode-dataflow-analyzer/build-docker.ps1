@@ -130,57 +130,180 @@ function Invoke-LoggedCommand {
                 }
                 
                 Write-Log "[DEBUG] Using quoted arguments for volume mounts with spaces" -ForegroundColor DarkGray
-                $process = Start-Process -FilePath $Command -ArgumentList $quotedArguments -NoNewWindow -PassThru -Wait -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
-                $exitCode = $process.ExitCode
                 
-                Write-Log "[DEBUG] Process exit code: $exitCode" -ForegroundColor DarkGray
+                # Initialize output variables
+                $output = @()
+                $errorOutputArray = @()
                 
-                # Read captured output
-                if (Test-Path $stdoutFile) {
-                    $outputRaw = Get-Content $stdoutFile -ErrorAction SilentlyContinue -Raw
-                    if ($outputRaw -and $outputRaw.Trim().Length -gt 0) {
-                        $outputRaw -split [Environment]::NewLine | ForEach-Object { 
-                            if ($_.Trim().Length -gt 0) {
-                                Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
-                                Write-Host $_
+                # Special handling for long-running commands like docker build
+                # Use real-time streaming instead of waiting for completion
+                $isLongRunningCommand = ($Command -eq "docker" -and $Arguments.Count -gt 0 -and $Arguments[0] -eq "build")
+                
+                if ($isLongRunningCommand) {
+                    Write-Log "[DEBUG] Detected long-running docker build command, using real-time streaming" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG] Starting process with real-time output streaming..." -ForegroundColor DarkGray
+                    
+                    # For docker build, use direct invocation with real-time output
+                    # This prevents hanging and shows progress immediately
+                    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+                    $processInfo.FileName = $Command
+                    $processInfo.Arguments = $quotedArguments -join ' '
+                    $processInfo.UseShellExecute = $false
+                    $processInfo.RedirectStandardOutput = $true
+                    $processInfo.RedirectStandardError = $true
+                    $processInfo.CreateNoWindow = $true
+                    
+                    $process = New-Object System.Diagnostics.Process
+                    $process.StartInfo = $processInfo
+                    
+                    # Set up output handlers for real-time streaming
+                    $outputBuilder = New-Object System.Text.StringBuilder
+                    $errorBuilder = New-Object System.Text.StringBuilder
+                    
+                    $outputHandler = {
+                        $line = $EventArgs.Data
+                        if ($line) {
+                            [void]$outputBuilder.AppendLine($line)
+                            Write-Host $line
+                            Add-Content -Path $LogFile -Value $line -ErrorAction SilentlyContinue
+                        }
+                    }
+                    
+                    $errorHandler = {
+                        $line = $EventArgs.Data
+                        if ($line) {
+                            [void]$errorBuilder.AppendLine($line)
+                            Write-Host $line -ForegroundColor Yellow
+                            Add-Content -Path $LogFile -Value "STDERR: $line" -ErrorAction SilentlyContinue
+                        }
+                    }
+                    
+                    $process.add_OutputDataReceived($outputHandler)
+                    $process.add_ErrorDataReceived($errorHandler)
+                    
+                    Write-Log "[DEBUG] Starting process..." -ForegroundColor DarkGray
+                    $processStarted = $process.Start()
+                    if (-not $processStarted) {
+                        throw "Failed to start process: $Command"
+                    }
+                    
+                    Write-Log "[DEBUG] Process started, PID: $($process.Id)" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG] Beginning asynchronous output reading..." -ForegroundColor DarkGray
+                    
+                    $process.BeginOutputReadLine()
+                    $process.BeginErrorReadLine()
+                    
+                    Write-Log "[DEBUG] Waiting for process to complete (with timeout monitoring)..." -ForegroundColor DarkGray
+                    
+                    # Wait for process with timeout monitoring
+                    $timeoutSeconds = 3600  # 1 hour timeout for docker build
+                    $startTime = Get-Date
+                    $lastOutputTime = Get-Date
+                    $noOutputTimeoutSeconds = 300  # 5 minutes without output = potential hang
+                    
+                    while (-not $process.HasExited) {
+                        Start-Sleep -Milliseconds 500
+                        $elapsed = (Get-Date) - $startTime
+                        
+                        # Check for overall timeout
+                        if ($elapsed.TotalSeconds -gt $timeoutSeconds) {
+                            Write-Log "[DEBUG] Process timeout reached ($timeoutSeconds seconds), terminating..." -ForegroundColor Red
+                            $process.Kill()
+                            throw "Process exceeded timeout of $timeoutSeconds seconds"
+                        }
+                        
+                        # Check for no output timeout (potential hang detection)
+                        $outputLength = $outputBuilder.Length
+                        if ($outputLength -gt 0) {
+                            $lastOutputTime = Get-Date
+                        } else {
+                            $noOutputElapsed = (Get-Date) - $lastOutputTime
+                            if ($noOutputElapsed.TotalSeconds -gt $noOutputTimeoutSeconds) {
+                                Write-Log "[DEBUG] No output for $noOutputTimeoutSeconds seconds, process may be hung" -ForegroundColor Yellow
+                                Write-Log "[DEBUG] Process state: HasExited=$($process.HasExited), Responding=$($process.Responding)" -ForegroundColor Yellow
+                                # Don't kill yet, just log - docker build can take time
+                                $lastOutputTime = Get-Date  # Reset timer
                             }
                         }
-                        $output = $outputRaw -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 }
+                        
+                        # Log progress every 30 seconds
+                        if ([math]::Floor($elapsed.TotalSeconds) % 30 -eq 0 -and $elapsed.TotalSeconds -gt 0) {
+                            Write-Log "[DEBUG] Process still running, elapsed: $([math]::Floor($elapsed.TotalSeconds))s, output length: $outputLength chars" -ForegroundColor DarkGray
+                        }
+                    }
+                    
+                    Write-Log "[DEBUG] Process exited, waiting for async output to finish..." -ForegroundColor DarkGray
+                    $process.WaitForExit()
+                    
+                    # Give async handlers time to finish
+                    Start-Sleep -Milliseconds 1000
+                    
+                    $exitCode = $process.ExitCode
+                    Write-Log "[DEBUG] Process exit code: $exitCode" -ForegroundColor DarkGray
+                    
+                    # Get final output
+                    $outputRaw = $outputBuilder.ToString()
+                    $errorOutputRaw = $errorBuilder.ToString()
+                    
+                    $output = if ($outputRaw) { $outputRaw -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 } } else { @() }
+                    $errorOutputArray = if ($errorOutputRaw) { $errorOutputRaw -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 } } else { @() }
+                    
+                    $process.Dispose()
+                } else {
+                    # For shorter commands, use the original method
+                    Write-Log "[DEBUG] Using standard Start-Process with file redirection" -ForegroundColor DarkGray
+                    $process = Start-Process -FilePath $Command -ArgumentList $quotedArguments -NoNewWindow -PassThru -Wait -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+                    $exitCode = $process.ExitCode
+                    
+                    Write-Log "[DEBUG] Process exit code: $exitCode" -ForegroundColor DarkGray
+                    
+                    # Read captured output from files (only for non-long-running commands)
+                    if (Test-Path $stdoutFile) {
+                        $outputRaw = Get-Content $stdoutFile -ErrorAction SilentlyContinue -Raw
+                        if ($outputRaw -and $outputRaw.Trim().Length -gt 0) {
+                            $outputRaw -split [Environment]::NewLine | ForEach-Object { 
+                                if ($_.Trim().Length -gt 0) {
+                                    Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
+                                    Write-Host $_
+                                }
+                            }
+                            $output = $outputRaw -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 }
+                        } else {
+                            $output = @()
+                        }
                     } else {
                         $output = @()
                     }
-                } else {
-                    $output = @()
-                }
-                
-                if (Test-Path $stderrFile) {
-                    $errorOutput = Get-Content $stderrFile -ErrorAction SilentlyContinue -Raw
-                    # Check if stderr contains actual errors or just informational output
-                    # docker-compose writes normal output to stderr, so we need to distinguish
-                    if ($errorOutput -and $errorOutput.Trim().Length -gt 0) {
-                        # For docker-compose, normal operations write to stderr but aren't errors
-                        # Only log as error if exit code is non-zero
-                        if ($exitCode -ne 0) {
-                            $errorOutput -split [Environment]::NewLine | ForEach-Object { 
-                                if ($_.Trim().Length -gt 0) {
-                                    Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
-                                    Write-Host $_ -ForegroundColor Yellow
+                    
+                    if (Test-Path $stderrFile) {
+                        $errorOutput = Get-Content $stderrFile -ErrorAction SilentlyContinue -Raw
+                        # Check if stderr contains actual errors or just informational output
+                        # docker-compose writes normal output to stderr, so we need to distinguish
+                        if ($errorOutput -and $errorOutput.Trim().Length -gt 0) {
+                            # For docker-compose, normal operations write to stderr but aren't errors
+                            # Only log as error if exit code is non-zero
+                            if ($exitCode -ne 0) {
+                                $errorOutput -split [Environment]::NewLine | ForEach-Object { 
+                                    if ($_.Trim().Length -gt 0) {
+                                        Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
+                                        Write-Host $_ -ForegroundColor Yellow
+                                    }
                                 }
-                            }
-                        } else {
-                            # For successful docker-compose commands, stderr is just informational
-                            $errorOutput -split [Environment]::NewLine | ForEach-Object { 
-                                if ($_.Trim().Length -gt 0) {
-                                    Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
-                                    Write-Host $_ -ForegroundColor Gray
+                            } else {
+                                # For successful docker-compose commands, stderr is just informational
+                                $errorOutput -split [Environment]::NewLine | ForEach-Object { 
+                                    if ($_.Trim().Length -gt 0) {
+                                        Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
+                                        Write-Host $_ -ForegroundColor Gray
+                                    }
                                 }
                             }
                         }
+                        # Convert to array for return value
+                        $errorOutputArray = if ($errorOutput) { $errorOutput -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 } } else { @() }
+                    } else {
+                        $errorOutputArray = @()
                     }
-                    # Convert to array for return value
-                    $errorOutputArray = if ($errorOutput) { $errorOutput -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 } } else { @() }
-                } else {
-                    $errorOutputArray = @()
                 }
                 
                 return @{ ExitCode = $exitCode; Output = $output; ErrorOutput = $errorOutputArray }
