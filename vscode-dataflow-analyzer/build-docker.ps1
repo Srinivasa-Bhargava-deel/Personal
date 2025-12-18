@@ -303,7 +303,7 @@ Write-Log "Windows: $Windows" -ForegroundColor Gray
 Write-Log "NoCache: $NoCache" -ForegroundColor Gray
 
 function Show-Help {
-    Write-Host @"
+    Write-Host @'
 VS Code Dataflow Analyzer - Docker Build Script
 
 Usage: .\build-docker.ps1 [command] [options]
@@ -331,7 +331,7 @@ Examples:
   .\build-docker.ps1 package
   .\build-docker.ps1 package -NoCache
   .\build-docker.ps1 clean
-"@
+'@
 }
 
 function Build-Image {
@@ -446,7 +446,8 @@ function Build-Image {
         Write-Log "3. Check Dockerfile syntax: docker build --dry-run ..." -ForegroundColor Gray
         Write-Log "4. Check network connectivity (for apt/package downloads)" -ForegroundColor Gray
         Write-Log "5. Review full log: Get-Content $LogFile -Tail 100" -ForegroundColor Gray
-        Write-Log "6. Try cleaning Docker: .\build-docker.ps1 cleanall" -ForegroundColor Gray
+        $cleanCmd = '.\\build-docker.ps1 cleanall'
+        Write-Log "6. Try cleaning Docker: $cleanCmd" -ForegroundColor Gray
         
         Write-Log ""
         Write-Log "Full build output has been logged to: $LogFile" -ForegroundColor Yellow
@@ -614,7 +615,8 @@ function Start-DevContainer {
             Write-Log "  docker-compose exec dev bash" -ForegroundColor Gray
             Write-Log ""
             Write-Log "To test npm compile with diagnostics:" -ForegroundColor Yellow
-            Write-Log "  .\build-docker.ps1 test-compile" -ForegroundColor Gray
+            $testCompileCmd = '.\\build-docker.ps1 test-compile'
+            Write-Log "  $testCompileCmd" -ForegroundColor Gray
             Write-Log ""
             Write-Log "[DEBUG] Checking container logs for any startup errors..." -ForegroundColor DarkGray
             $logsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("logs", "--tail=20", "dev") -CaptureOutput
@@ -718,7 +720,8 @@ function Test-NpmCompile {
         Write-Log "[DEBUG] Checking if dev container is running..." -ForegroundColor DarkGray
         $containerCheck = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("ps", "-q", "dev") -CaptureOutput
         if (-not $containerCheck.Output -or $containerCheck.Output.Count -eq 0) {
-            Write-Log "ERROR: Dev container is not running. Start it first with: .\build-docker.ps1 dev" -ForegroundColor Red
+            $startCmd = '.\\build-docker.ps1 dev'
+            Write-Log "ERROR: Dev container is not running. Start it first with: $startCmd" -ForegroundColor Red
             exit 1
         }
         
@@ -886,7 +889,8 @@ function Run-Tests {
         
         Write-Log ""
         Write-Log "=== TROUBLESHOOTING ===" -ForegroundColor Yellow
-        Write-Log "If compilation failed, run: .\build-docker.ps1 test-compile" -ForegroundColor Gray
+        $testCompileCmd = '.\\build-docker.ps1 test-compile'
+        Write-Log "If compilation failed, run: $testCompileCmd" -ForegroundColor Gray
         Write-Log "To see full test output, check logs2.txt" -ForegroundColor Gray
         
         exit 1
@@ -936,7 +940,8 @@ function Clean-All {
     Invoke-LoggedCommand -Command "docker" -Arguments @("builder", "prune", "-a", "-f")
     
     Write-Log "Complete cleanup finished!" -ForegroundColor Green
-    Write-Log "Run '.\build-docker.ps1 build -NoCache' for fresh build" -ForegroundColor Yellow
+    $rebuildCmd = '.\\build-docker.ps1 build -NoCache'
+    Write-Log "Run '$rebuildCmd' for fresh build" -ForegroundColor Yellow
 }
 
 # Main execution
@@ -964,7 +969,8 @@ try {
         "test-compile" {
             # Test npm compile specifically with detailed diagnostics
             if (-not (Test-Path "docker-compose.yml")) {
-                Write-Log "ERROR: docker-compose.yml not found. Run '.\build-docker.ps1 dev' first to start the dev container." -ForegroundColor Red
+                $devCmd = '.\\build-docker.ps1 dev'
+                Write-Log "ERROR: docker-compose.yml not found. Run '$devCmd' first to start the dev container." -ForegroundColor Red
                 exit 1
             }
             $success = Test-NpmCompile
