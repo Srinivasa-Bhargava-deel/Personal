@@ -100,8 +100,11 @@ function Invoke-LoggedCommand {
                         $volumeArg = $Arguments[$i + 1]
                         if ($volumeArg -match ' ') {
                             # Quote the entire volume mount specification
+                            # Use string concatenation to avoid backtick parsing issues
+                            $doubleQuote = [char]34
+                            $quotedVolumeArg = $doubleQuote + $volumeArg + $doubleQuote
                             $quotedArguments += $arg
-                            $quotedArguments += "`"$volumeArg`""
+                            $quotedArguments += $quotedVolumeArg
                             $i += 2
                         } else {
                             $quotedArguments += $arg
@@ -199,8 +202,11 @@ function Invoke-LoggedCommand {
                     if ($arg -eq "-v" -and $i + 1 -lt $Arguments.Count) {
                         $volumeArg = $Arguments[$i + 1]
                         if ($volumeArg -match ' ') {
+                            # Use string concatenation to avoid backtick parsing issues
+                            $doubleQuote = [char]34
+                            $quotedVolumeArg = $doubleQuote + $volumeArg + $doubleQuote
                             $quotedArguments += $arg
-                            $quotedArguments += "`"$volumeArg`""
+                            $quotedArguments += $quotedVolumeArg
                             $i += 2
                         } else {
                             $quotedArguments += $arg
