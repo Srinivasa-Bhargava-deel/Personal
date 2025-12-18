@@ -402,10 +402,14 @@ function Build-Image {
     
     $buildArgs += "."
     
-    Write-Log "Running: docker $($buildArgs -join ' ')" -ForegroundColor Gray
-    Write-Log "[DEBUG] Build context: $(Get-Location)" -ForegroundColor DarkGray
-    Write-Log "[DEBUG] Build started at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor DarkGray
-    Write-Log "[DEBUG] Build arguments count: $($buildArgs.Count)" -ForegroundColor DarkGray
+    $buildArgsStr = $buildArgs -join ' '
+    $buildContext = Get-Location
+    $buildStartTime = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    $buildArgsCount = $buildArgs.Count
+    Write-Log "Running: docker $buildArgsStr" -ForegroundColor Gray
+    Write-Log "[DEBUG] Build context: $buildContext" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Build started at: $buildStartTime" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Build arguments count: $buildArgsCount" -ForegroundColor DarkGray
     # Build arguments string for logging (compatible with PowerShell 5.1)
     $argsString = ($buildArgs | ForEach-Object { "'$_'" }) -join ', '
     Write-Log "[DEBUG] Build arguments: $argsString" -ForegroundColor DarkGray
@@ -425,7 +429,8 @@ function Build-Image {
     if ($result.ExitCode -ne 0) {
         Write-Log ""
         Write-Log "=== BUILD FAILED ===" -ForegroundColor Red
-        Write-Log "Exit Code: $($result.ExitCode)" -ForegroundColor Red
+        $exitCode = $result.ExitCode
+        Write-Log "Exit Code: $exitCode" -ForegroundColor Red
         
         # Show last 50 lines of output for context
         Write-Log ""
@@ -464,7 +469,8 @@ function Build-Image {
         exit 1
     }
     
-    Write-Log "[DEBUG] Build completed at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor DarkGray
+    $buildEndTime = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    Write-Log "[DEBUG] Build completed at: $buildEndTime" -ForegroundColor DarkGray
     Write-Log "Build completed successfully!" -ForegroundColor Green
     
     # Verify image was created
@@ -500,7 +506,8 @@ function Run-Container {
         "bash"
     )
     
-    Write-Log "Executing: docker $($runArgs -join ' ')" -ForegroundColor Cyan
+    $runArgsStr = $runArgs -join ' '
+    Write-Log "Executing: docker $runArgsStr" -ForegroundColor Cyan
     Write-Log "[DEBUG] Interactive command detected (-it flag). Executing without output redirection..." -ForegroundColor DarkGray
     
     # For interactive commands (-it), we cannot use Invoke-LoggedCommand with output redirection
@@ -682,9 +689,11 @@ function Package-Extension {
     $distPathRaw = (Resolve-Path "dist").Path -replace '\\', '/'
     $scriptPathRaw = (Resolve-Path "docker-package.sh").Path -replace '\\', '/'
     
-    Write-Log "[DEBUG] Dist path (original): $((Resolve-Path 'dist').Path)" -ForegroundColor DarkGray
+    $distPathOriginal = (Resolve-Path 'dist').Path
+    $scriptPathOriginal = (Resolve-Path 'docker-package.sh').Path
+    Write-Log "[DEBUG] Dist path (original): $distPathOriginal" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Dist path (converted): $distPathRaw" -ForegroundColor DarkGray
-    Write-Log "[DEBUG] Script path (original): $((Resolve-Path 'docker-package.sh').Path)" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Script path (original): $scriptPathOriginal" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Script path (converted): $scriptPathRaw" -ForegroundColor DarkGray
     
     # Build volume mount arguments - the entire "host_path:container_path" must be a single argument
@@ -708,7 +717,8 @@ function Package-Extension {
         "bash", "/tmp/docker-package.sh"
     )
     
-    Write-Log "[DEBUG] Package arguments: $($packageArgs -join ' ')" -ForegroundColor DarkGray
+    $packageArgsStr = $packageArgs -join ' '
+    Write-Log "[DEBUG] Package arguments: $packageArgsStr" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Using CaptureOutput for better path handling" -ForegroundColor DarkGray
     
     $result = Invoke-LoggedCommand -Command "docker" -Arguments $packageArgs -CaptureOutput
@@ -801,7 +811,8 @@ echo "=== END DIAGNOSTICS ==="
                 $diagnosticsResult.ErrorOutput | ForEach-Object { Write-Log "  $_" -ForegroundColor Yellow }
             }
         } else {
-            Write-Log "WARNING: Diagnostics command failed with exit code $($diagnosticsResult.ExitCode)" -ForegroundColor Yellow
+            $diagnosticsExitCode = $diagnosticsResult.ExitCode
+            Write-Log "WARNING: Diagnostics command failed with exit code $diagnosticsExitCode" -ForegroundColor Yellow
             if ($diagnosticsResult.ErrorOutput) {
                 $diagnosticsResult.ErrorOutput | ForEach-Object { Write-Log "  $_" -ForegroundColor Yellow }
             }
@@ -827,7 +838,8 @@ npm run compile 2>&1
             }
             return $true
         } else {
-            Write-Log "✗ npm run compile FAILED with exit code $($compileResult.ExitCode)" -ForegroundColor Red
+            $compileExitCode = $compileResult.ExitCode
+            Write-Log "✗ npm run compile FAILED with exit code $compileExitCode" -ForegroundColor Red
             Write-Log ""
             Write-Log "=== COMPILE ERROR DETAILS ===" -ForegroundColor Red
             
@@ -886,7 +898,8 @@ function Run-Tests {
         "sh", "-c", "npm test"
     )
     
-    Write-Log "[DEBUG] Running: docker $($testArgs -join ' ')" -ForegroundColor DarkGray
+    $testArgsStr = $testArgs -join ' '
+    Write-Log "[DEBUG] Running: docker $testArgsStr" -ForegroundColor DarkGray
     $result = Invoke-LoggedCommand -Command "docker" -Arguments $testArgs -CaptureOutput
     $exitCode = $result.ExitCode
     
