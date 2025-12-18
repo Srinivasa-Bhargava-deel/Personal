@@ -649,7 +649,8 @@ function Start-DevContainer {
             Write-Log "[DEBUG] Checking container logs for any startup errors..." -ForegroundColor DarkGray
             $logsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("logs", "--tail=20", "dev") -CaptureOutput
             if ($logsResult.ExitCode -eq 0 -and $logsResult.Output) {
-                $errorLines = $logsResult.Output | Where-Object { $_ -match "ERROR|error|✗|WARNING|warning" }
+                $errorPattern = "ERROR|error|WARNING|warning"
+                $errorLines = $logsResult.Output | Where-Object { $_ -match $errorPattern }
                 if ($errorLines) {
                     Write-Log "Found potential issues in container logs:" -ForegroundColor Yellow
                     $errorLines | ForEach-Object { Write-Log "  $_" -ForegroundColor Yellow }
@@ -748,7 +749,8 @@ function Test-NpmCompile {
     .SYNOPSIS
     Tests npm run compile in the dev container with comprehensive error logging
     #>
-    Write-Log "Testing npm run compile in dev container..." -ForegroundColor Cyan
+    $testMsg = "Testing npm run compile in dev container..."
+    Write-Log $testMsg -ForegroundColor Cyan
     
     try {
         Write-Log "[DEBUG] Checking if dev container is running..." -ForegroundColor DarkGray
@@ -776,37 +778,37 @@ echo "PATH=$PATH"
 echo ""
 echo "3. Checking node_modules:"
 if [ -d "/app/node_modules" ]; then
-  echo "✓ node_modules directory exists"
+  echo "[OK] node_modules directory exists"
   echo "  Size: $(du -sh /app/node_modules | cut -f1)"
   echo "  File count: $(find /app/node_modules -type f | wc -l)"
 else
-  echo "✗ ERROR: node_modules directory missing"
+  echo "[FAIL] ERROR: node_modules directory missing"
 fi
 echo ""
 echo "4. Checking TypeScript compiler:"
 if [ -f "/app/node_modules/.bin/tsc" ]; then
-  echo "✓ tsc found at: /app/node_modules/.bin/tsc"
+  echo "[OK] tsc found at: /app/node_modules/.bin/tsc"
   /app/node_modules/.bin/tsc --version 2>&1 || echo "ERROR: tsc version check failed"
 else
-  echo "✗ ERROR: tsc not found in node_modules/.bin"
+  echo "[FAIL] ERROR: tsc not found in node_modules/.bin"
   echo "  Checking for typescript package..."
   if [ -d "/app/node_modules/typescript" ]; then
-    echo "  ✓ typescript package exists"
+    echo "  [OK] typescript package exists"
     ls -la /app/node_modules/typescript/bin/ 2>&1 || echo "  ERROR: typescript/bin directory missing"
   else
-    echo "  ✗ ERROR: typescript package missing"
+    echo "  [FAIL] ERROR: typescript package missing"
   fi
 fi
 echo ""
 echo "5. Checking config files:"
-[ -f "/app/tsconfig.json" ] && echo "✓ tsconfig.json exists" || echo "✗ ERROR: tsconfig.json missing"
-[ -f "/app/package.json" ] && echo "✓ package.json exists" || echo "✗ ERROR: package.json missing"
+[ -f "/app/tsconfig.json" ] && echo "[OK] tsconfig.json exists" || echo "[FAIL] ERROR: tsconfig.json missing"
+[ -f "/app/package.json" ] && echo "[OK] package.json exists" || echo "[FAIL] ERROR: package.json missing"
 echo ""
 echo "6. Checking source directory:"
-[ -d "/app/src" ] && echo "✓ src directory exists ($(find /app/src -name '*.ts' | wc -l) TypeScript files)" || echo "✗ ERROR: src directory missing"
+[ -d "/app/src" ] && echo "[OK] src directory exists ($(find /app/src -name '*.ts' | wc -l) TypeScript files)" || echo "[FAIL] ERROR: src directory missing"
 echo ""
 echo "7. Checking out directory:"
-[ -d "/app/out" ] && echo "✓ out directory exists (writable)" || echo "⚠ WARNING: out directory missing (will be created)"
+[ -d "/app/out" ] && echo "[OK] out directory exists (writable)" || echo "[WARNING] WARNING: out directory missing (will be created)"
 echo ""
 echo "=== END DIAGNOSTICS ==="
 '@
@@ -841,7 +843,8 @@ npm run compile 2>&1
         $compileResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("exec", "-T", "dev", "bash", "-c", $compileCmd) -CaptureOutput
         
         if ($compileResult.ExitCode -eq 0) {
-            Write-Log "✓ npm run compile succeeded!" -ForegroundColor Green
+            $successMsg = "SUCCESS: npm run compile succeeded!"
+            Write-Log $successMsg -ForegroundColor Green
             if ($compileResult.Output) {
                 Write-Log "Compile output:" -ForegroundColor Gray
                 $compileResult.Output | Select-Object -Last 20 | ForEach-Object { Write-Log "  $_" -ForegroundColor Gray }
@@ -849,9 +852,11 @@ npm run compile 2>&1
             return $true
         } else {
             $compileExitCode = $compileResult.ExitCode
-            Write-Log "✗ npm run compile FAILED with exit code $compileExitCode" -ForegroundColor Red
+            $failMsg = "npm run compile FAILED with exit code $compileExitCode"
+            Write-Log $failMsg -ForegroundColor Red
             Write-Log ""
-            Write-Log "=== COMPILE ERROR DETAILS ===" -ForegroundColor Red
+            $errorDetailsHeader = "=== COMPILE ERROR DETAILS ==="
+            Write-Log $errorDetailsHeader -ForegroundColor Red
             
             if ($compileResult.ErrorOutput) {
                 Write-Log "Error output (stderr):" -ForegroundColor Red
@@ -864,7 +869,8 @@ npm run compile 2>&1
             }
             
             Write-Log ""
-            Write-Log "=== TROUBLESHOOTING SUGGESTIONS ===" -ForegroundColor Yellow
+            $troubleshootingHeader = "=== TROUBLESHOOTING SUGGESTIONS ==="
+            Write-Log $troubleshootingHeader -ForegroundColor Yellow
             Write-Log "1. Check if TypeScript is installed: docker-compose exec dev npm list typescript" -ForegroundColor Gray
             Write-Log "2. Check if node_modules is complete: docker-compose exec dev ls -la /app/node_modules/.bin/ | grep tsc" -ForegroundColor Gray
             Write-Log "3. Try reinstalling dependencies: docker-compose exec dev npm ci" -ForegroundColor Gray
@@ -1035,9 +1041,11 @@ try {
             Show-Help | Tee-Object -FilePath $LogFile -Append
         }
     }
-    Write-Log "=== Script completed successfully ===" -ForegroundColor Green
+    $successHeader = "=== Script completed successfully ==="
+    Write-Log $successHeader -ForegroundColor Green
 } catch {
-    Write-Log "=== Script failed with error ===" -ForegroundColor Red
+    $errorHeader = "=== Script failed with error ==="
+    Write-Log $errorHeader -ForegroundColor Red
     $exceptionMsg = $_.Exception.Message
     $stackTrace = $_.ScriptStackTrace
     Write-Log $exceptionMsg -ForegroundColor Red
