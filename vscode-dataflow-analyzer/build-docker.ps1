@@ -779,7 +779,13 @@ echo "=== END DIAGNOSTICS ==="
         Write-Log "Attempting npm run compile..." -ForegroundColor Yellow
         
         # Run npm compile with detailed error capture
-        $compileResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("exec", "-T", "dev", "bash", "-c", "set -e; cd /app && npm run compile 2>&1") -CaptureOutput
+        # Use here-string to avoid parsing issues with special characters in bash command
+        $compileCmd = @'
+set -e
+cd /app
+npm run compile 2>&1
+'@
+        $compileResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("exec", "-T", "dev", "bash", "-c", $compileCmd) -CaptureOutput
         
         if ($compileResult.ExitCode -eq 0) {
             Write-Log "✓ npm run compile succeeded!" -ForegroundColor Green
