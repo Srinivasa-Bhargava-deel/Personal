@@ -42,8 +42,9 @@ function Invoke-LoggedCommand {
     $fullCommand = if ($Arguments.Count -gt 0) { "$Command $($Arguments -join ' ')" } else { $Command }
     # Escape quotes in command string to prevent parsing issues
     # Use variables for replacement strings to avoid quote parsing issues
-    $doubleQuote = '"'
-    $doubleDoubleQuote = '""'
+    # Construct double quote using char code to avoid parsing issues
+    $doubleQuote = [char]34
+    $doubleDoubleQuote = [char]34 + [char]34
     $fullCommandEscaped = $fullCommand -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
     # Build log entry using concatenation to avoid string interpolation issues
     $logEntry = '[' + $timestamp + '] Executing: ' + $fullCommandEscaped
@@ -262,8 +263,9 @@ function Invoke-LoggedCommand {
         $errorDetails = $_.Exception | Format-List -Force | Out-String
         
         # Use variables for replacement strings to avoid quote parsing issues
-        $doubleQuote = '"'
-        $doubleDoubleQuote = '""'
+        # Construct double quote using char code to avoid parsing issues
+        $doubleQuote = [char]34
+        $doubleDoubleQuote = [char]34 + [char]34
         
         # Build error message using concatenation
         $fullCommandEscaped = $fullCommand -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
@@ -490,8 +492,9 @@ function Run-Container {
         # Log the command execution (but not the interactive output)
         # Build log entries using concatenation to avoid string interpolation issues
         # Use variables for replacement strings to avoid quote parsing issues
-        $doubleQuote = '"'
-        $doubleDoubleQuote = '""'
+        # Construct double quote using char code to avoid parsing issues
+        $doubleQuote = [char]34
+        $doubleDoubleQuote = [char]34 + [char]34
         $commandStr = ($runArgs -join ' ') -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
         $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
         $logEntry = '[' + $timestamp + '] Executed interactive docker command: docker ' + $commandStr + "`n"
@@ -505,8 +508,9 @@ function Run-Container {
         # Safely escape exception message to avoid quote issues
         # Build log entries using concatenation to avoid string interpolation issues
         # Use variables for replacement strings to avoid quote parsing issues
-        $doubleQuote = '"'
-        $doubleDoubleQuote = '""'
+        # Construct double quote using char code to avoid parsing issues
+        $doubleQuote = [char]34
+        $doubleDoubleQuote = [char]34 + [char]34
         $exceptionMsgRaw = $_.Exception.Message
         $exceptionMsg = $exceptionMsgRaw -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
         Write-Log "ERROR: Failed to run container interactively: $exceptionMsg" -ForegroundColor Red
@@ -974,8 +978,9 @@ try {
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     
     # Use a variable for replacement string to avoid quote parsing issues
-    $doubleQuote = '"'
-    $doubleDoubleQuote = '""'
+    # Construct double quote using char code to avoid parsing issues
+    $doubleQuote = [char]34
+    $doubleDoubleQuote = [char]34 + [char]34
     
     # Build log entries using string concatenation instead of interpolation
     # This prevents PowerShell from trying to parse special characters in the variables
