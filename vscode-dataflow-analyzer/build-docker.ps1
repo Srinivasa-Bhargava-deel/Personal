@@ -94,8 +94,10 @@ function Invoke-LoggedCommand {
                 # When paths contain spaces, Docker sees them as separate arguments (e.g., "sem" and "7/Program")
                 # Solution: Build a single quoted argument string for paths with spaces
                 # For Docker volume mounts with spaces, we need to quote the entire "host_path:container_path" value
+                # Also handle -c flag (for sh -c) to ensure the command string is properly quoted
                 $quotedArguments = @()
                 $i = 0
+                $doubleQuote = [char]34
                 while ($i -lt $Arguments.Count) {
                     $arg = $Arguments[$i]
                     # Check if this is a volume mount argument (-v) and the next argument contains spaces
@@ -104,7 +106,6 @@ function Invoke-LoggedCommand {
                         if ($volumeArg -match ' ') {
                             # Quote the entire volume mount specification
                             # Use string concatenation to avoid backtick parsing issues
-                            $doubleQuote = [char]34
                             $quotedVolumeArg = $doubleQuote + $volumeArg + $doubleQuote
                             $quotedArguments += $arg
                             $quotedArguments += $quotedVolumeArg
@@ -113,6 +114,15 @@ function Invoke-LoggedCommand {
                             $quotedArguments += $arg
                             $i++
                         }
+                    } elseif ($arg -eq "-c" -and $i + 1 -lt $Arguments.Count) {
+                        # Handle -c flag: ensure the command string is properly quoted
+                        # This is critical for sh -c to receive the command as a single string
+                        # PowerShell string values don't include quotes, so we always add them
+                        $commandArg = $Arguments[$i + 1]
+                        $quotedCommandArg = $doubleQuote + $commandArg + $doubleQuote
+                        $quotedArguments += $arg
+                        $quotedArguments += $quotedCommandArg
+                        $i += 2
                     } else {
                         $quotedArguments += $arg
                         $i++
@@ -199,15 +209,16 @@ function Invoke-LoggedCommand {
                 Write-Log "[DEBUG] Exception: $exceptionMsg" -ForegroundColor DarkGray
                 
                 # Handle volume mount arguments with spaces (same logic as CaptureOutput path)
+                # Also handle -c flag for proper command quoting
                 $quotedArguments = @()
                 $i = 0
+                $doubleQuote = [char]34
                 while ($i -lt $Arguments.Count) {
                     $arg = $Arguments[$i]
                     if ($arg -eq "-v" -and $i + 1 -lt $Arguments.Count) {
                         $volumeArg = $Arguments[$i + 1]
                         if ($volumeArg -match ' ') {
                             # Use string concatenation to avoid backtick parsing issues
-                            $doubleQuote = [char]34
                             $quotedVolumeArg = $doubleQuote + $volumeArg + $doubleQuote
                             $quotedArguments += $arg
                             $quotedArguments += $quotedVolumeArg
@@ -216,6 +227,14 @@ function Invoke-LoggedCommand {
                             $quotedArguments += $arg
                             $i++
                         }
+                    } elseif ($arg -eq "-c" -and $i + 1 -lt $Arguments.Count) {
+                        # Handle -c flag: ensure the command string is properly quoted
+                        # PowerShell string values don't include quotes, so we always add them
+                        $commandArg = $Arguments[$i + 1]
+                        $quotedCommandArg = $doubleQuote + $commandArg + $doubleQuote
+                        $quotedArguments += $arg
+                        $quotedArguments += $quotedCommandArg
+                        $i += 2
                     } else {
                         $quotedArguments += $arg
                         $i++
@@ -905,6 +924,8 @@ function Run-Tests {
     # First, verify npm compile works (tests run pretest which includes compile)
     Write-Log "[DEBUG] Tests include pretest which runs npm run compile, checking setup..." -ForegroundColor DarkGray
     
+    # Build test command for sh -c
+    # The argument processor will handle quoting automatically
     $testArgs = @(
         "run", "--rm",
         "-v", "${srcPath}:/app/src:ro",
