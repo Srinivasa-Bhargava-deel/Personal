@@ -524,8 +524,29 @@ function Start-DevContainer {
         if ($result -is [hashtable]) {
             Write-Log "[DEBUG] Result keys: $($result.Keys -join ', ')" -ForegroundColor DarkGray
             Write-Log "[DEBUG] ExitCode value: $($result.ExitCode)" -ForegroundColor DarkGray
-            Write-Log "[DEBUG] Has Output: $(if ($result.Output) { 'Yes' } else { 'No' })" -ForegroundColor DarkGray
-            Write-Log "[DEBUG] Has ErrorOutput: $(if ($result.ErrorOutput) { 'Yes' } else { 'No' })" -ForegroundColor DarkGray
+            
+            # For docker-compose, output often goes to ErrorOutput (stderr) not Output (stdout)
+            $outputCount = if ($result.Output) { $result.Output.Count } else { 0 }
+            $errorOutputCount = if ($result.ErrorOutput) { $result.ErrorOutput.Count } else { 0 }
+            Write-Log "[DEBUG] Output lines: $outputCount, ErrorOutput lines: $errorOutputCount" -ForegroundColor DarkGray
+            
+            # Show first few lines of ErrorOutput if present (docker-compose writes to stderr)
+            if ($errorOutputCount -gt 0 -and $result.ErrorOutput) {
+                $previewLines = [Math]::Min(3, $errorOutputCount)
+                Write-Log "[DEBUG] ErrorOutput preview (first $previewLines lines):" -ForegroundColor DarkGray
+                for ($i = 0; $i -lt $previewLines; $i++) {
+                    Write-Log "[DEBUG]   [$i]: $($result.ErrorOutput[$i])" -ForegroundColor DarkGray
+                }
+            }
+            
+            # Show first few lines of Output if present
+            if ($outputCount -gt 0 -and $result.Output) {
+                $previewLines = [Math]::Min(3, $outputCount)
+                Write-Log "[DEBUG] Output preview (first $previewLines lines):" -ForegroundColor DarkGray
+                for ($i = 0; $i -lt $previewLines; $i++) {
+                    Write-Log "[DEBUG]   [$i]: $($result.Output[$i])" -ForegroundColor DarkGray
+                }
+            }
         } else {
             Write-Log "[DEBUG] Result properties: $($result.PSObject.Properties.Name -join ', ')" -ForegroundColor DarkGray
         }
