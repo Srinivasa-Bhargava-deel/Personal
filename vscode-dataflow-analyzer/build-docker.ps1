@@ -994,8 +994,10 @@ try {
     Write-Log "=== Script completed successfully ===" -ForegroundColor Green
 } catch {
     Write-Log "=== Script failed with error ===" -ForegroundColor Red
-    Write-Log $_.Exception.Message -ForegroundColor Red
-    Write-Log $_.ScriptStackTrace -ForegroundColor Red
+    $exceptionMsg = $_.Exception.Message
+    $stackTrace = $_.ScriptStackTrace
+    Write-Log $exceptionMsg -ForegroundColor Red
+    Write-Log $stackTrace -ForegroundColor Red
     
     # Safely escape strings for logging to avoid quote issues
     # Build log entries using concatenation to avoid string interpolation issues
