@@ -181,12 +181,34 @@ export class ClangASTParser {
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { execSync } = require('child_process');
-      const clangPath = this.clangPath || '/opt/homebrew/opt/llvm/bin/clang';
+      const os = require('os');
+      const platform = os.platform();
+      
+      // Determine clang path based on platform
+      let clangPath = this.clangPath;
+      if (!clangPath) {
+        if (platform === 'linux') {
+          // Linux: try clang-17 first (from LLVM 17), then clang
+          try {
+            execSync('which clang-17', { encoding: 'utf8', stdio: 'ignore' });
+            clangPath = 'clang-17';
+          } catch {
+            clangPath = 'clang';
+          }
+        } else if (platform === 'darwin') {
+          // macOS: try Homebrew LLVM first
+          clangPath = '/opt/homebrew/opt/llvm/bin/clang';
+        } else {
+          clangPath = 'clang';
+        }
+      }
       
       try {
         // Run clang in verbose mode to see where it looks for headers
         // This gives us the exact SDK and system paths clang is using
-        const output = execSync(`${clangPath} -E -v -x c++ /dev/null 2>&1`, {
+        // Use /dev/null on Unix, NUL on Windows
+        const nullDevice = platform === 'win32' ? 'NUL' : '/dev/null';
+        const output = execSync(`${clangPath} -E -v -x c++ ${nullDevice} 2>&1`, {
           encoding: 'utf8',
           maxBuffer: 10 * 1024 * 1024
         });
@@ -197,13 +219,13 @@ export class ClangASTParser {
         
         for (const line of lines) {
           // Start collecting after "search list:" marker
-          if (line.includes('search list:')) {
+          if (line.includes('search list:') || line.includes('#include <...>')) {
             inSearchPaths = true;
             continue;
           }
           
           // Stop at the end of search paths (empty line or new section)
-          if (inSearchPaths && line.trim() === '') {
+          if (inSearchPaths && (line.trim() === '' || line.includes('End of search list'))) {
             break;
           }
           
@@ -218,33 +240,58 @@ export class ClangASTParser {
         
         LoggingConfig.detail('Parser', `Discovered clang include paths: ${paths.length > 0 ? paths.join(', ') : 'none found'}`);
       } catch (verboseError) {
-        LoggingConfig.detail('Parser', 'Verbose clang query failed, trying xcrun for SDK path');
+        LoggingConfig.detail('Parser', `Verbose clang query failed: ${verboseError}, using platform-specific fallbacks`);
         
-        // Fallback: use xcrun to get SDK path on macOS
-        try {
-          const sdkPath = execSync('xcrun --show-sdk-path 2>/dev/null', {
-            encoding: 'utf8'
-          }).trim();
-          
-          if (sdkPath) {
-            paths.push(`-isysroot${sdkPath}`);
-            paths.push(`-isystem${sdkPath}/usr/include`);
+        if (platform === 'linux') {
+          // Linux fallback paths (Ubuntu/Debian)
+          paths.push('-isystem/usr/include');
+          paths.push('-isystem/usr/include/c++/11');
+          paths.push('-isystem/usr/include/x86_64-linux-gnu/c++/11');
+          paths.push('-isystem/usr/lib/llvm-17/include');
+          paths.push('-isystem/usr/include/c++/v1');
+        } else if (platform === 'darwin') {
+          // macOS fallback: use xcrun to get SDK path
+          try {
+            const sdkPath = execSync('xcrun --show-sdk-path 2>/dev/null', {
+              encoding: 'utf8'
+            }).trim();
+            
+            if (sdkPath) {
+              paths.push(`-isysroot${sdkPath}`);
+              paths.push(`-isystem${sdkPath}/usr/include`);
+            }
+          } catch (sdkError) {
+            // Ignore SDK discovery failure
           }
-        } catch (sdkError) {
-          // Ignore SDK discovery failure
+          
+          // Add Homebrew LLVM paths as fallback
+          paths.push('-I/opt/homebrew/opt/llvm/include/c++/v1');
+          paths.push('-I/opt/homebrew/opt/llvm/lib/clang/21.1.5/include');
+          paths.push('-isystem/usr/include');
+        } else {
+          // Windows or other: generic fallback
+          paths.push('-isystem/usr/include');
         }
-        
-        // Add Homebrew LLVM paths as fallback
+      }
+    } catch (err) {
+      LoggingConfig.warn('Parser', `Include path discovery failed completely: ${err}, using hardcoded fallbacks`);
+      const os = require('os');
+      const platform = os.platform();
+      
+      if (platform === 'linux') {
+        // Linux fallback paths
+        paths.push('-isystem/usr/include');
+        paths.push('-isystem/usr/include/c++/11');
+        paths.push('-isystem/usr/lib/llvm-17/include');
+      } else if (platform === 'darwin') {
+        // macOS fallback
         paths.push('-I/opt/homebrew/opt/llvm/include/c++/v1');
         paths.push('-I/opt/homebrew/opt/llvm/lib/clang/21.1.5/include');
         paths.push('-isystem/usr/include');
+      } else {
+        // Windows or other
+        paths.push('-isystem/usr/include');
       }
-    } catch (err) {
-      LoggingConfig.warn('Parser', 'Include path discovery failed completely, using hardcoded fallbacks');
-      // Absolute fallback
-      paths.push('-I/opt/homebrew/opt/llvm/include/c++/v1');
-      paths.push('-I/opt/homebrew/opt/llvm/lib/clang/21.1.5/include');
-      paths.push('-isystem/usr/include');
     }
     
     return paths;
@@ -263,17 +310,48 @@ export class ClangASTParser {
    * @returns Path to clang executable, or null if not found
    */
   private findClang(): string | null {
-    // List of possible installation locations (platform-agnostic)
-    const possiblePaths = [
-      'clang',
-      'clang++',
-      '/usr/bin/clang',
-      '/usr/bin/clang++',
-      '/usr/local/bin/clang',
-      '/usr/local/bin/clang++',
-      '/opt/homebrew/bin/clang',
-      '/opt/homebrew/bin/clang++'
-    ];
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const os = require('os');
+    const platform = os.platform();
+    
+    // List of possible installation locations (platform-specific)
+    let possiblePaths: string[] = [];
+    
+    if (platform === 'linux') {
+      // Linux: prioritize clang-17 (from LLVM 17), then standard clang
+      possiblePaths = [
+        'clang-17',
+        'clang++-17',
+        '/usr/bin/clang-17',
+        '/usr/bin/clang++-17',
+        'clang',
+        'clang++',
+        '/usr/bin/clang',
+        '/usr/bin/clang++',
+        '/usr/local/bin/clang',
+        '/usr/local/bin/clang++'
+      ];
+    } else if (platform === 'darwin') {
+      // macOS: Homebrew LLVM first, then system clang
+      possiblePaths = [
+        '/opt/homebrew/opt/llvm/bin/clang',
+        '/opt/homebrew/opt/llvm/bin/clang++',
+        '/opt/homebrew/bin/clang',
+        '/opt/homebrew/bin/clang++',
+        '/usr/bin/clang',
+        '/usr/bin/clang++',
+        'clang',
+        'clang++'
+      ];
+    } else {
+      // Windows or other: generic paths
+      possiblePaths = [
+        'clang',
+        'clang++',
+        'clang.exe',
+        'clang++.exe'
+      ];
+    }
 
     // Try each location using 'which' command
     for (const clang of possiblePaths) {

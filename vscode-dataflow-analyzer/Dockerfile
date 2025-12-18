@@ -373,8 +373,9 @@ RUN apt-get update && \
     2>&1 | (grep -v "update-alternatives: warning" || true) && \
     rm -rf /var/lib/apt/lists/*
 
-# Install LLVM-17 runtime libraries (needed by cfg-exporter binary)
+# Install LLVM-17 runtime libraries and clang (needed by cfg-exporter binary and include path discovery)
 # cfg-exporter requires libLLVM-17.so.1 which is provided by llvm-17 package
+# clang-17 is needed for include path discovery in ClangASTParser
 RUN set -e && \
     install_llvm_runtime() { \
         rm -f /etc/apt/sources.list.d/llvm.list /etc/apt/trusted.gpg.d/llvm-snapshot.gpg /tmp/llvm-snapshot.gpg.key 2>/dev/null || true && \
@@ -382,11 +383,18 @@ RUN set -e && \
         gpg --dearmor < /tmp/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/llvm-snapshot.gpg && \
         echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" > /etc/apt/sources.list.d/llvm.list && \
         apt-get update && \
-        apt-get install -y --no-install-recommends llvm-17 && \
+        apt-get install -y --no-install-recommends llvm-17 clang-17 && \
         rm -f /tmp/llvm-snapshot.gpg.key && \
         rm -rf /var/lib/apt/lists/*; \
     } && \
     install_llvm_runtime
+
+# Install C standard library headers (needed for stdio.h and other standard headers)
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    libc6-dev \
+    2>&1 | (grep -v "update-alternatives: warning" || true) && \
+    rm -rf /var/lib/apt/lists/*
 
 # Upgrade npm to latest version (11.7.0) to avoid version warnings
 RUN npm install -g npm@11.7.0
