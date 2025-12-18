@@ -363,13 +363,30 @@ CMD ["tail", "-f", "/dev/null"]
 # Docker automatically sets TARGETPLATFORM when --platform is used, so we don't need to specify it in FROM
 FROM node:20-slim
 
-# Install runtime dependencies
+# Install runtime dependencies including LLVM libraries for cfg-exporter
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ca-certificates \
+    wget \
+    gnupg \
     2>&1 | (grep -v "update-alternatives: warning" || true) && \
     rm -rf /var/lib/apt/lists/*
+
+# Install LLVM-17 runtime libraries (needed by cfg-exporter binary)
+# cfg-exporter requires libLLVM-17.so.1 which is provided by llvm-17 package
+RUN set -e && \
+    install_llvm_runtime() { \
+        rm -f /etc/apt/sources.list.d/llvm.list /etc/apt/trusted.gpg.d/llvm-snapshot.gpg /tmp/llvm-snapshot.gpg.key 2>/dev/null || true && \
+        wget --timeout=60 --tries=3 --retry-connrefused -O /tmp/llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key && \
+        gpg --dearmor < /tmp/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/llvm-snapshot.gpg && \
+        echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" > /etc/apt/sources.list.d/llvm.list && \
+        apt-get update && \
+        apt-get install -y --no-install-recommends llvm-17 && \
+        rm -f /tmp/llvm-snapshot.gpg.key && \
+        rm -rf /var/lib/apt/lists/*; \
+    } && \
+    install_llvm_runtime
 
 # Upgrade npm to latest version (11.7.0) to avoid version warnings
 RUN npm install -g npm@11.7.0
