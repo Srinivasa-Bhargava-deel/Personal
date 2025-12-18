@@ -307,6 +307,9 @@ RUN set -e && \
     install_llvm && \
     rm -rf /var/lib/apt/lists/*
 
+# Upgrade npm to latest version (11.7.0) to avoid version warnings
+RUN npm install -g npm@11.7.0
+
 # Set LLVM paths for dev environment
 ENV LLVM_DIR=/usr/lib/llvm-17/lib/cmake/llvm
 ENV Clang_DIR=/usr/lib/llvm-17/lib/cmake/clang
@@ -319,6 +322,8 @@ COPY --from=extension-builder /build/out ./out
 COPY --from=extension-builder /build/node_modules ./node_modules
 COPY --from=extension-builder /build/package.json ./
 COPY --from=extension-builder /build/package-lock.json ./
+# Copy tsconfig.json for tests that need to compile
+COPY --from=extension-builder /build/tsconfig.json ./
 
 # Copy built C++ binary
 COPY --from=cpp-builder /build/cpp-tools/cfg-exporter/build/cfg-exporter ./cpp-tools/cfg-exporter/build/
@@ -363,6 +368,9 @@ RUN apt-get update && \
     2>&1 | (grep -v "update-alternatives: warning" || true) && \
     rm -rf /var/lib/apt/lists/*
 
+# Upgrade npm to latest version (11.7.0) to avoid version warnings
+RUN npm install -g npm@11.7.0
+
 WORKDIR /app
 
 # Copy built extension files
@@ -370,6 +378,8 @@ COPY --from=extension-builder /build/out ./out
 COPY --from=extension-builder /build/node_modules ./node_modules
 COPY --from=extension-builder /build/package.json ./
 COPY --from=extension-builder /build/package-lock.json ./
+# Copy tsconfig.json for tests that need to compile
+COPY --from=extension-builder /build/tsconfig.json ./
 
 # Copy built C++ binary
 COPY --from=cpp-builder /build/cpp-tools/cfg-exporter/build/cfg-exporter ./cpp-tools/cfg-exporter/build/
