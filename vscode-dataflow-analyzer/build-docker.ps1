@@ -553,10 +553,26 @@ function Start-DevContainer {
         
         if ($exitCode -eq 0) {
             Write-Log "Development container started!" -ForegroundColor Green
+            Write-Log ""
             Write-Log "To execute commands:" -ForegroundColor Yellow
             Write-Log "  docker-compose exec dev npm run compile" -ForegroundColor Gray
             Write-Log "  docker-compose exec dev npm test" -ForegroundColor Gray
             Write-Log "  docker-compose exec dev bash" -ForegroundColor Gray
+            Write-Log ""
+            Write-Log "To test npm compile with diagnostics:" -ForegroundColor Yellow
+            Write-Log "  .\build-docker.ps1 test-compile" -ForegroundColor Gray
+            Write-Log ""
+            Write-Log "[DEBUG] Checking container logs for any startup errors..." -ForegroundColor DarkGray
+            $logsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("logs", "--tail=20", "dev") -CaptureOutput
+            if ($logsResult.ExitCode -eq 0 -and $logsResult.Output) {
+                $errorLines = $logsResult.Output | Where-Object { $_ -match "ERROR|error|✗|WARNING|warning" }
+                if ($errorLines) {
+                    Write-Log "Found potential issues in container logs:" -ForegroundColor Yellow
+                    $errorLines | ForEach-Object { Write-Log "  $_" -ForegroundColor Yellow }
+                } else {
+                    Write-Log "[DEBUG] No errors found in container startup logs" -ForegroundColor DarkGray
+                }
+            }
         } else {
             Write-Log "Failed to start development container! Exit code: $exitCode" -ForegroundColor Red
             if ($result.ErrorOutput) {
