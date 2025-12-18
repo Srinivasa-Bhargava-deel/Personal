@@ -470,8 +470,11 @@ function Run-Container {
         Write-Log "[DEBUG] Container exited with code: $exitCode" -ForegroundColor DarkGray
         
         # Log the command execution (but not the interactive output)
-        $logEntry = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Executed interactive docker command: docker $($runArgs -join ' ')`n"
-        $logEntry += "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Container exited with code: $exitCode`n"
+        # Escape any quotes in the command string to avoid parsing issues
+        $commandStr = ($runArgs -join ' ') -replace '"', '""'
+        $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+        $logEntry = "[$timestamp] Executed interactive docker command: docker $commandStr`n"
+        $logEntry += "[$timestamp] Container exited with code: $exitCode`n"
         Add-Content -Path $LogFile -Value $logEntry
         
         if ($exitCode -ne 0) {
