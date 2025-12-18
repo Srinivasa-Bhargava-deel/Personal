@@ -195,6 +195,7 @@ WORKDIR /build
 # Copy package files
 COPY package*.json ./
 COPY tsconfig.json ./
+COPY .eslintrc.json ./
 
 # Install dependencies
 RUN npm ci
@@ -324,6 +325,8 @@ COPY --from=extension-builder /build/package.json ./
 COPY --from=extension-builder /build/package-lock.json ./
 # Copy tsconfig.json for tests that need to compile
 COPY --from=extension-builder /build/tsconfig.json ./
+# Copy .eslintrc.json for linting
+COPY --from=extension-builder /build/.eslintrc.json ./
 
 # Copy built C++ binary
 COPY --from=cpp-builder /build/cpp-tools/cfg-exporter/build/cfg-exporter ./cpp-tools/cfg-exporter/build/
@@ -380,6 +383,8 @@ COPY --from=extension-builder /build/package.json ./
 COPY --from=extension-builder /build/package-lock.json ./
 # Copy tsconfig.json for tests that need to compile
 COPY --from=extension-builder /build/tsconfig.json ./
+# Copy .eslintrc.json for linting
+COPY --from=extension-builder /build/.eslintrc.json ./
 
 # Copy built C++ binary
 COPY --from=cpp-builder /build/cpp-tools/cfg-exporter/build/cfg-exporter ./cpp-tools/cfg-exporter/build/
