@@ -332,7 +332,8 @@ RUN mkdir -p /app/dist
 
 # Set environment variables
 ENV NODE_ENV=development
-ENV PATH=/app/cpp-tools/cfg-exporter/build:$PATH
+# Include node_modules/.bin in PATH so npm scripts can find tsc and other binaries
+ENV PATH=/app/node_modules/.bin:/app/cpp-tools/cfg-exporter/build:$PATH
 
 # Verify tools are available
 RUN echo "=== Verifying development tools ===" && \
