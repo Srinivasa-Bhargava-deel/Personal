@@ -414,28 +414,33 @@ function Build-Image {
     $result = Invoke-LoggedCommand -Command "docker" -Arguments $buildArgs -CaptureOutput
     
     if ($result.ExitCode -ne 0) {
-        Write-Log "`n=== BUILD FAILED ===" -ForegroundColor Red
+        Write-Log ""
+        Write-Log "=== BUILD FAILED ===" -ForegroundColor Red
         Write-Log "Exit Code: $($result.ExitCode)" -ForegroundColor Red
         
         # Show last 50 lines of output for context
-        Write-Log "`n=== Last 50 lines of build output ===" -ForegroundColor Yellow
+        Write-Log ""
+        Write-Log "=== Last 50 lines of build output ===" -ForegroundColor Yellow
         $lastLines = $result.Output | Select-Object -Last 50
         $lastLines | ForEach-Object { Write-Log $_ -ForegroundColor Gray }
         
         # Show error output
         if ($result.ErrorOutput -and $result.ErrorOutput.Count -gt 0) {
-            Write-Log "`n=== Error output ===" -ForegroundColor Red
+            Write-Log ""
+            Write-Log "=== Error output ===" -ForegroundColor Red
             $result.ErrorOutput | ForEach-Object { Write-Log $_ -ForegroundColor Red }
         }
         
         # Show last 20 lines from log file
-        Write-Log "`n=== Last 20 lines from log file ===" -ForegroundColor Yellow
+        Write-Log ""
+        Write-Log "=== Last 20 lines from log file ===" -ForegroundColor Yellow
         if (Test-Path $LogFile) {
             Get-Content $LogFile -Tail 20 | ForEach-Object { Write-Log $_ -ForegroundColor Gray }
         }
         
         # Common issues and suggestions
-        Write-Log "`n=== Troubleshooting suggestions ===" -ForegroundColor Cyan
+        Write-Log ""
+        Write-Log "=== Troubleshooting suggestions ===" -ForegroundColor Cyan
         Write-Log "1. Check Docker daemon is running: docker info" -ForegroundColor Gray
         Write-Log "2. Check disk space: docker system df" -ForegroundColor Gray
         Write-Log "3. Check Dockerfile syntax: docker build --dry-run ..." -ForegroundColor Gray
@@ -443,7 +448,8 @@ function Build-Image {
         Write-Log "5. Review full log: Get-Content $LogFile -Tail 100" -ForegroundColor Gray
         Write-Log "6. Try cleaning Docker: .\build-docker.ps1 cleanall" -ForegroundColor Gray
         
-        Write-Log "`nFull build output has been logged to: $LogFile" -ForegroundColor Yellow
+        Write-Log ""
+        Write-Log "Full build output has been logged to: $LogFile" -ForegroundColor Yellow
         exit 1
     }
     
@@ -503,8 +509,9 @@ function Run-Container {
         $doubleDoubleQuote = [char]34 + [char]34
         $commandStr = ($runArgs -join ' ') -replace [regex]::Escape($doubleQuote), $doubleDoubleQuote
         $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        $logEntry = '[' + $timestamp + '] Executed interactive docker command: docker ' + $commandStr + "`n"
-        $logEntry += '[' + $timestamp + '] Container exited with code: ' + $exitCode + "`n"
+        $newline = [Environment]::NewLine
+        $logEntry = '[' + $timestamp + '] Executed interactive docker command: docker ' + $commandStr + $newline
+        $logEntry += '[' + $timestamp + '] Container exited with code: ' + $exitCode + $newline
         Add-Content -Path $LogFile -Value $logEntry
         
         if ($exitCode -ne 0) {
@@ -523,7 +530,8 @@ function Run-Container {
         $exceptionDetails = $_.Exception | Format-List -Force | Out-String
         Write-Log "Exception details: $exceptionDetails" -ForegroundColor DarkGray
         $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        $logEntry = '[' + $timestamp + '] ERROR: Failed to run container: ' + $exceptionMsg + "`n"
+        $newline = [Environment]::NewLine
+        $logEntry = '[' + $timestamp + '] ERROR: Failed to run container: ' + $exceptionMsg + $newline
         Add-Content -Path $LogFile -Value $logEntry
         exit 1
     }
