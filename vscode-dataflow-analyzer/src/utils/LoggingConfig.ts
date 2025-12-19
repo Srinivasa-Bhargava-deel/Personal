@@ -374,19 +374,36 @@ export class LoggingConfig {
     
     if (!LoggingConfig.logFilePath) {
       // Log file not initialized yet - this can happen during early startup
-      const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile SKIPPED: logFilePath is null`;
-      LoggingConfig.originalConsoleWarn(warnMsg);
+      // Suppress warning in test environment to reduce noise
+      if (process.env.NODE_ENV !== 'test' && !process.env.JEST_WORKER_ID) {
+        const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile SKIPPED: logFilePath is null`;
+        // Use fallback to console.warn if originalConsoleWarn is not available
+        if (LoggingConfig.originalConsoleWarn) {
+          LoggingConfig.originalConsoleWarn(warnMsg);
+        } else {
+          console.warn(warnMsg);
+        }
+      }
       return;
     }
     
     if (!LoggingConfig.logStream) {
       // Fallback: write directly to file if stream isn't available
       const warnMsg = `[${new Date().toISOString()}] [LoggingConfig] [DIAG] writeToFile: logStream is null, using direct write`;
-      LoggingConfig.originalConsoleWarn(warnMsg);
+      // Use fallback to console.warn if originalConsoleWarn is not available
+      if (LoggingConfig.originalConsoleWarn) {
+        LoggingConfig.originalConsoleWarn(warnMsg);
+      } else {
+        console.warn(warnMsg);
+      }
       try {
         fs.appendFileSync(LoggingConfig.logFilePath, message + '\n', 'utf8');
       } catch (e) {
-        LoggingConfig.originalConsoleError(`[LoggingConfig] [DIAG] Direct write also failed:`, e);
+        if (LoggingConfig.originalConsoleError) {
+          LoggingConfig.originalConsoleError(`[LoggingConfig] [DIAG] Direct write also failed:`, e);
+        } else {
+          console.error(`[LoggingConfig] [DIAG] Direct write also failed:`, e);
+        }
       }
       return;
     }
@@ -439,7 +456,12 @@ export class LoggingConfig {
       if (queueLength === 0) {
         LoggingConfig.originalConsoleLog(`[LoggingConfig] [DIAG] processWriteQueue: Queue empty, stopping`);
       } else {
-        LoggingConfig.originalConsoleWarn(`[LoggingConfig] [DIAG] processWriteQueue: No stream available!`);
+        const warnMsg = `[LoggingConfig] [DIAG] processWriteQueue: No stream available!`;
+        if (LoggingConfig.originalConsoleWarn) {
+          LoggingConfig.originalConsoleWarn(warnMsg);
+        } else {
+          console.warn(warnMsg);
+        }
       }
       return;
     }
@@ -466,7 +488,12 @@ export class LoggingConfig {
         }
       });
     } else {
-      LoggingConfig.originalConsoleWarn(`[LoggingConfig] [DIAG] processWriteQueue: No message or stream!`);
+      const warnMsg = `[LoggingConfig] [DIAG] processWriteQueue: No message or stream!`;
+      if (LoggingConfig.originalConsoleWarn) {
+        LoggingConfig.originalConsoleWarn(warnMsg);
+      } else {
+        console.warn(warnMsg);
+      }
       LoggingConfig.isWriting = false;
     }
   }

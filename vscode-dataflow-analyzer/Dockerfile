@@ -424,6 +424,18 @@ RUN mkdir -p /app/dist
 # Set environment variables
 ENV NODE_ENV=production
 ENV PATH=/app/cpp-tools/cfg-exporter/build:$PATH
+# Set LD_LIBRARY_PATH to include LLVM shared libraries
+ENV LD_LIBRARY_PATH=/usr/lib/llvm-17/lib:$LD_LIBRARY_PATH
+
+# Verify cfg-exporter binary and its dependencies
+RUN echo "=== Verifying cfg-exporter binary ===" && \
+    ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+    file /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+    echo "=== Checking LLVM library location ===" && \
+    find /usr/lib/llvm-17 -name "libLLVM-17.so*" 2>/dev/null | head -5 && \
+    echo "=== Testing cfg-exporter with ldd ===" && \
+    ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "ldd check completed" && \
+    echo "=== Verification complete ==="
 
 # Default command - can be overridden
 CMD ["node", "--version"]
