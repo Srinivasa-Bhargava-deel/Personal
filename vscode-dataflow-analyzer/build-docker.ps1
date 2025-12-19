@@ -157,12 +157,29 @@ function Invoke-LoggedCommand {
                         
                         # Use Start-Job for true async execution that we can monitor
                         Write-Log "[DEBUG-L3] Creating background job for docker build..." -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L3] Preparing arguments for job..." -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L3] Arguments array type: $($Arguments.GetType().FullName)" -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L3] Arguments array count: $($Arguments.Count)" -ForegroundColor DarkGray
+                        $argsDebug = ($Arguments | ForEach-Object { "'$_'" }) -join ', '
+                        Write-Log "[DEBUG-L3] Arguments array contents: $argsDebug" -ForegroundColor DarkGray
+                        
+                        # Serialize arguments as a comma-separated string to avoid PowerShell job serialization issues
+                        # Then reconstruct the array in the job script
+                        $argsString = $Arguments -join '|ARGSEP|'
+                        Write-Log "[DEBUG-L3] Serialized arguments string length: $($argsString.Length)" -ForegroundColor DarkGray
+                        
                         $jobScript = {
-                            param($Cmd, $Args)
+                            param($Cmd, $ArgsString)
                             Write-Output "[JOB-START] Job started at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff')"
                             Write-Output "[JOB-INFO] Command: $Cmd"
+                            
+                            # Reconstruct arguments array from serialized string
+                            $Args = $ArgsString -split '\|ARGSEP\|'
+                            Write-Output "[JOB-INFO] Arguments count: $($Args.Count)"
                             Write-Output "[JOB-INFO] Arguments: $($Args -join ' ')"
+                            
                             try {
+                                Write-Output "[JOB-INFO] Executing: $Cmd $($Args -join ' ')"
                                 & $Cmd @Args 2>&1 | ForEach-Object {
                                     Write-Output $_
                                 }
@@ -171,13 +188,14 @@ function Invoke-LoggedCommand {
                                 return $exitCode
                             } catch {
                                 Write-Output "[JOB-ERROR] Exception: $($_.Exception.Message)"
+                                Write-Output "[JOB-ERROR] Stack trace: $($_.ScriptStackTrace)"
                                 return 1
                             }
                         }
                         
                         Write-Log "[DEBUG-L3] Job script created, starting job..." -ForegroundColor DarkGray
                         $jobStartTime = Get-Date
-                        $job = Start-Job -ScriptBlock $jobScript -ArgumentList $Command, $Arguments
+                        $job = Start-Job -ScriptBlock $jobScript -ArgumentList $Command, $argsString
                         Write-Log "[DEBUG-L3] Job started successfully, Job ID: $($job.Id)" -ForegroundColor Green
                         Write-Log "[DEBUG-L3] Job state: $($job.State)" -ForegroundColor DarkGray
                         Write-Log "[DEBUG-L3] Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff')" -ForegroundColor DarkGray
@@ -638,10 +656,30 @@ function Build-Image {
     # Capture output for detailed error analysis
     $result = Invoke-LoggedCommand -Command "docker" -Arguments $buildArgs -CaptureOutput
     
-    if ($result.ExitCode -ne 0) {
+    # Check if build actually succeeded
+    $buildSucceeded = $false
+    if ($result.ExitCode -eq 0) {
+        # Check if docker build actually ran (not just showing help)
+        $buildOutput = $result.Output -join "`n"
+        if ($buildOutput -match "Successfully built|Successfully tagged|^#\d+") {
+            $buildSucceeded = $true
+        } elseif ($buildOutput -match "Usage:\s+docker|Common Commands:") {
+            Write-Log ""
+            Write-Log "=== BUILD FAILED: Docker command executed without arguments ===" -ForegroundColor Red
+            Write-Log "The docker build command appears to have been called without arguments." -ForegroundColor Red
+            Write-Log "This indicates an argument passing issue in the job." -ForegroundColor Red
+            $buildSucceeded = $false
+        } else {
+            # Build may have completed but check image exists
+            Write-Log "[DEBUG] Build exit code is 0, checking if image was created..." -ForegroundColor DarkGray
+            $buildSucceeded = $true
+        }
+    }
+    
+    if (-not $buildSucceeded -or $result.ExitCode -ne 0) {
         Write-Log ""
         Write-Log "=== BUILD FAILED ===" -ForegroundColor Red
-        $exitCode = $result.ExitCode
+        $exitCode = if ($result.ExitCode -ne 0) { $result.ExitCode } else { 1 }
         Write-Log "Exit Code: $exitCode" -ForegroundColor Red
         
         # Show last 50 lines of output for context
@@ -678,7 +716,7 @@ function Build-Image {
         
         Write-Log ""
         Write-Log "Full build output has been logged to: $LogFile" -ForegroundColor Yellow
-        exit 1
+        exit $exitCode
     }
     
     $buildEndTime = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
@@ -687,12 +725,16 @@ function Build-Image {
     
     # Verify image was created
     Write-Log "[DEBUG] Verifying image creation..." -ForegroundColor DarkGray
-    $imageExists = docker images $Tag --format "{{.Repository}}:{{.Tag}}" 2>&1
-    if ($imageExists -and $imageExists -like "*$Tag*") {
+    $imageCheck = docker images $Tag --format "{{.Repository}}:{{.Tag}}" 2>&1
+    if ($imageCheck -and $imageCheck -like "*$Tag*" -and -not ($imageCheck -match "Error|error")) {
         Write-Log "Image verified: $Tag" -ForegroundColor Green
         docker images $Tag --format "  Size: {{.Size}}, Created: {{.CreatedAt}}" | ForEach-Object { Write-Log $_ -ForegroundColor Gray }
     } else {
-        Write-Log "WARNING: Image verification failed. Image may not have been created." -ForegroundColor Yellow
+        Write-Log "ERROR: Image verification failed. Image '$Tag' was not created." -ForegroundColor Red
+        Write-Log "This indicates the build did not complete successfully despite exit code 0." -ForegroundColor Red
+        Write-Log "Checking available images..." -ForegroundColor Yellow
+        docker images | Select-Object -First 10 | ForEach-Object { Write-Log $_ -ForegroundColor Gray }
+        exit 1
     }
 }
 
