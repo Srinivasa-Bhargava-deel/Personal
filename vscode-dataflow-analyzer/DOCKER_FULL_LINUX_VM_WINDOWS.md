@@ -63,15 +63,11 @@ Windows AMD x64 PC
 ### Step 1: Verify System Architecture
 
 ```powershell
-# Open PowerShell and verify AMD x64 architecture
 systeminfo | findstr /C:"System Type"
-# Expected: x64-based PC
-
 wmic cpu get name
-# Should show your AMD processor (e.g., AMD Ryzen 7 5800X)
 ```
 
-### Step 2: Enable Virtualization (If Not Enabled)
+### Step 2: Enable Virtualization
 
 **For AMD Processors:**
 1. Restart computer → Enter BIOS/UEFI (F2, F10, or Del)
@@ -82,19 +78,17 @@ wmic cpu get name
 **Verify virtualization:**
 ```powershell
 systeminfo | findstr /C:"Hyper-V"
-# Should show: "A hypervisor has been detected"
 ```
 
 ### Step 3: Install WSL 2
 
 ```powershell
-# Run PowerShell as Administrator
 wsl --install
+```
 
-# Restart computer when prompted
-# After restart, verify WSL 2:
+Restart computer when prompted, then verify:
+```powershell
 wsl --version
-# Should show: WSL version 2.x.x
 ```
 
 ### Step 4: Install Docker Desktop
@@ -106,8 +100,8 @@ wsl --version
 
 2. **Run Installer**
    - Right-click installer → **Run as Administrator**
-   - ✅ Check **"Use WSL 2 instead of Hyper-V"** (recommended)
-   - ✅ Check **"Add shortcut to desktop"**
+   - Check **"Use WSL 2 instead of Hyper-V"**
+   - Check **"Add shortcut to desktop"**
    - Click **"OK"** to install
 
 3. **Restart Computer**
@@ -117,140 +111,100 @@ wsl --version
 4. **Configure Docker Desktop**
    - Open Docker Desktop
    - Click **Settings** (gear icon)
-   
-   **General Tab:**
-   - ✅ **"Use the WSL 2 based engine"** (checked)
-   
-   **Resources Tab:**
-   - **Memory**: Set to **8GB** or higher (if you have 16GB+ RAM)
-   - **CPUs**: Use all available cores (default)
-   
-   **Resources → File Sharing:**
-   - Add your project directory (e.g., `C:\Users\YourName\Desktop`)
+   - **General Tab**: Check **"Use the WSL 2 based engine"**
+   - **Resources Tab**: Set **Memory** to **8GB** or higher
+   - **Resources → File Sharing**: Add your project directory
    - Click **"Apply & Restart"**
 
 5. **Verify Docker Installation**
    ```powershell
-   # Check Docker version
    docker --version
-   # Expected: Docker version 24.x.x or higher
-   
-   # Verify Docker is running
    docker ps
-   # Should show empty list or running containers (no errors)
-   
-   # Test Docker with hello-world
    docker run hello-world
-   # Should download and run successfully
    ```
 
 ### Step 5: Install VS Code Extensions
 
 1. **Open VS Code**
-   - Launch VS Code
+   ```powershell
+   code
+   ```
 
 2. **Install Remote - Containers Extension**
    - Press `Ctrl+Shift+X` to open Extensions
    - Search for: `Remote - Containers`
    - Install: `ms-vscode-remote.remote-containers`
-   - Or install directly: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
-3. **Install Docker Extension** (Optional but recommended)
+3. **Install Docker Extension**
    - Search for: `Docker`
    - Install: `ms-azuretools.vscode-docker`
-   - Or install directly: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker)
 
 ### Step 6: Clone Repository
 
 ```powershell
-# Navigate to your desired directory
 cd C:\Users\YourName\Desktop
-
-# Clone repository
 git clone https://github.com/Srinivasa-Bhargava-deel/Personal.git
 cd Personal\vscode-dataflow-analyzer
-
-# Or if you have a different repository URL:
-# git clone <your-repository-url>
-# cd vscode-dataflow-analyzer
 ```
 
-### Step 7: Verify VS Code CLI is Available
-
-Before opening the project, verify the `code` command works:
+### Step 7: Verify VS Code CLI
 
 ```powershell
-# Check if code command is available
 code --version
-# Should show: 1.80.0 or higher
 ```
 
 **If `code` command is not found:**
-
 1. Open VS Code
-2. Press `Ctrl+Shift+P` to open Command Palette
+2. Press `Ctrl+Shift+P`
 3. Type: `Shell Command: Install 'code' command in PATH`
 4. Select it and restart PowerShell
-5. Verify again: `code --version`
+5. Verify: `code --version`
 
 ### Step 8: Open Project in VS Code Remote Container
 
 1. **Open Project in VS Code**
    ```powershell
-   # From the project directory
    code .
    ```
-   
-   **Alternative if `code` command doesn't work:**
-   - Open VS Code manually
-   - File → Open Folder
-   - Navigate to: `C:\Users\YourName\Desktop\Personal\vscode-dataflow-analyzer`
-   - Click "Select Folder"
 
 2. **Reopen in Container**
-   - Press `F1` (or `Ctrl+Shift+P`)
+   - Press `F1`
    - Type: `Remote-Containers: Reopen in Container`
    - Select it and wait for the container to build
 
 3. **Wait for Container Build**
    - **First build takes 10-15 minutes**
-   - Container automatically:
-     - Builds Docker image from Dockerfile
-     - Installs LLVM/Clang 17, CMake, Node.js, TypeScript
-     - Installs all npm dependencies
-     - Builds C++ cfg-exporter binary
-     - Compiles TypeScript extension
-     - Sets up development environment
+   - Container automatically builds Docker image, installs dependencies, and compiles
    - Check VS Code status bar for progress
    - Check Output panel → "Dev Containers" for build logs
 
 4. **Verify Container is Ready**
-   - VS Code status bar should show: **"Dev Container: C++ Dataflow Analyzer Development"**
-   - Terminal should be available (container terminal)
-   - Open terminal and verify:
+   - VS Code status bar shows: **"Dev Container: C++ Dataflow Analyzer Development"**
+   - Open terminal in VS Code (container terminal)
+   - Verify tools:
      ```bash
-     node --version    # Should show v20.x.x
-     npm --version     # Should show version
-     cfg-exporter --help  # Should show help text
+     node --version
+     npm --version
+     cfg-exporter --help
      ```
 
 ### Step 9: Run the Extension
 
 1. **Press F5** to launch Extension Development Host
-   - A new VS Code window will open (Extension Development Host)
-   - The extension is loaded and ready
+   - A new VS Code window opens (Extension Development Host)
+   - Extension is loaded and ready
 
 2. **Test the Extension**
-   - In the Extension Development Host window:
+   - In Extension Development Host window:
    - Open a C++ file (`.cpp` or `.hpp`)
-   - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
+   - Press `Ctrl+Shift+P`
    - Type: `Analyze Workspace`
    - Select: **"Dataflow Analyzer: Analyze Workspace"**
    - Wait for analysis to complete
-   - Press `Ctrl+Shift+P` again
+   - Press `Ctrl+Shift+P`
    - Type: `Show Control Flow Graph`
    - Select: **"Dataflow Analyzer: Show Control Flow Graph"**
-   - CFG visualization should appear
+   - CFG visualization appears
 
 ## 🔄 Clean Build Workflow (For Rebuilding)
 
@@ -258,7 +212,6 @@ When you need to rebuild from scratch:
 
 1. **Clean Previous Builds**
    ```powershell
-   # In VS Code terminal (or PowerShell)
    docker system prune -a -f
    ```
 
@@ -268,7 +221,7 @@ When you need to rebuild from scratch:
    - Select it and wait for rebuild
 
 3. **Verify Build**
-   - Check that container starts successfully
+   - Check container starts successfully
    - Verify tools are available:
      ```bash
      node --version
@@ -282,19 +235,17 @@ When you need to rebuild from scratch:
 
 **Solution:**
 ```powershell
-# Start Docker Desktop
-# Wait for whale icon in system tray to be steady
-
-# Verify Docker is running
 docker ps
 ```
+
+Start Docker Desktop and wait for whale icon in system tray to be steady.
 
 ### Issue: "Container won't build"
 
 **Solution:**
 1. Ensure Docker Desktop is running
-2. Check Docker Desktop → Settings → Resources → Memory: Set to 8GB+
-3. Rebuild container: `F1` → `Remote-Containers: Rebuild Container`
+2. Docker Desktop → Settings → Resources → Memory: Set to 8GB+
+3. Press `F1` → Type: `Remote-Containers: Rebuild Container`
 4. Check Output panel → "Dev Containers" for errors
 
 ### Issue: "Out of memory" during build
@@ -303,18 +254,18 @@ docker ps
 1. Docker Desktop → Settings → Resources → Memory
 2. Increase to **8GB** or higher
 3. Click **"Apply & Restart"**
-4. Rebuild container: `F1` → `Remote-Containers: Rebuild Container Without Cache`
+4. Press `F1` → Type: `Remote-Containers: Rebuild Container Without Cache`
 
 ### Issue: "WSL 2 installation is incomplete"
 
 **Solution:**
 ```powershell
-# Run PowerShell as Administrator
 wsl --update
 wsl --set-default-version 2
 wsl --shutdown
-# Wait 10 seconds, then start Docker Desktop
 ```
+
+Wait 10 seconds, then start Docker Desktop.
 
 ### Issue: "Volume mount permission denied"
 
@@ -330,7 +281,7 @@ wsl --shutdown
 1. Check container is ready (status bar shows "Dev Container")
 2. Wait for "postCreateCommand" to complete
 3. Check Output panel → "Dev Containers" for errors
-4. Rebuild container: `F1` → `Remote-Containers: Rebuild Container`
+4. Press `F1` → Type: `Remote-Containers: Rebuild Container`
 
 For more detailed troubleshooting, see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md)
 
@@ -339,24 +290,20 @@ For more detailed troubleshooting, see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBL
 After completing all steps, verify:
 
 ```powershell
-# 1. Docker is running
 docker ps
-# ✅ Should show containers or empty list (no errors)
-
-# 2. VS Code shows Dev Container status
-# ✅ Status bar should show: "Dev Container: C++ Dataflow Analyzer Development"
-
-# 3. Tools are available in container
-# ✅ Open terminal in VS Code (container terminal)
-node --version    # ✅ Should show v20.x.x
-npm --version    # ✅ Should show version
-cfg-exporter --help  # ✅ Should show help text
-
-# 4. Extension runs
-# ✅ Press F5 → Extension Development Host opens
-# ✅ Run "Analyze Workspace" command → Analysis completes
-# ✅ Run "Show Control Flow Graph" → Visualization appears
 ```
+
+In VS Code:
+- Status bar shows: "Dev Container: C++ Dataflow Analyzer Development"
+- Open terminal (container terminal):
+  ```bash
+  node --version
+  npm --version
+  cfg-exporter --help
+  ```
+- Press `F5` → Extension Development Host opens
+- Run `Ctrl+Shift+P` → `Dataflow Analyzer: Analyze Workspace`
+- Run `Ctrl+Shift+P` → `Dataflow Analyzer: Show Control Flow Graph`
 
 ## 📚 Quick Reference
 
@@ -368,58 +315,44 @@ cfg-exporter --help  # ✅ Should show help text
    ```
 
 2. **Reopen in container**: 
-   - Press `F1` (or `Ctrl+Shift+P`)
+   - Press `F1`
    - Type: `Remote-Containers: Reopen in Container`
-   - Select it
 
 3. **Run extension**: 
-   - Press `F5` (or `Ctrl+F5` to run without debugging)
+   - Press `F5`
 
 4. **Rebuild container**: 
-   - Press `F1` → Type: `Remote-Containers: Rebuild Container Without Cache`
+   - Press `F1`
+   - Type: `Remote-Containers: Rebuild Container Without Cache`
 
 5. **Check container status**: 
    - Look at VS Code status bar (bottom left)
-   - Should show: "Dev Container: C++ Dataflow Analyzer Development"
 
 6. **View container logs**: 
-   - View → Output → Select "Dev Containers" from dropdown
+   - View → Output → Select "Dev Containers"
 
 ### Container Terminal Commands
 
-After container is running, use these commands in the VS Code terminal (container terminal):
+After container is running, use these commands in VS Code terminal:
 
 ```bash
-# Compile TypeScript
 npm run compile
-
-# Watch mode (auto-compile on changes)
 npm run watch
-
-# Run tests
 npm test
-
-# Lint code
 npm run lint
-
-# Test cfg-exporter
 cfg-exporter --help
-
-# Check Node.js version
 node --version
-
-# Check npm version
 npm --version
 ```
 
 ### VS Code Command Palette Commands
 
-Once the extension is running (F5), use these commands in the Extension Development Host window:
+After pressing `F5`, use these commands in Extension Development Host:
 
-- **`Ctrl+Shift+P`** → `Dataflow Analyzer: Analyze Workspace`
-- **`Ctrl+Shift+P`** → `Dataflow Analyzer: Show Control Flow Graph`
-- **`Ctrl+Shift+P`** → `Dataflow Analyzer: Analyze Active File`
-- **`Ctrl+Shift+P`** → `Dataflow Analyzer: Re-Analyze`
+- `Ctrl+Shift+P` → `Dataflow Analyzer: Analyze Workspace`
+- `Ctrl+Shift+P` → `Dataflow Analyzer: Show Control Flow Graph`
+- `Ctrl+Shift+P` → `Dataflow Analyzer: Analyze Active File`
+- `Ctrl+Shift+P` → `Dataflow Analyzer: Re-Analyze`
 
 ## 🎯 Summary
 
@@ -428,8 +361,8 @@ Once the extension is running (F5), use these commands in the Extension Developm
 1. ✅ **Install Docker Desktop** on Windows AMD x64
 2. ✅ **Install Remote - Containers extension** in VS Code
 3. ✅ **Clone repository**
-4. ✅ **Open project** in VS Code
-5. ✅ **Reopen in Container** (`F1` → `Remote-Containers: Reopen in Container`)
+4. ✅ **Open project**: `code .`
+5. ✅ **Reopen in Container**: `F1` → `Remote-Containers: Reopen in Container`
 6. ✅ **Wait for container** to build (first time: ~10-15 minutes)
 7. ✅ **Press F5** to run extension
 8. ✅ **Develop and test** directly in container
