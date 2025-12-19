@@ -457,46 +457,68 @@ export class ClangASTParser {
       const fs = require('fs');
       const isWindows = process.platform === 'win32';
       
-      // Try Windows path first (Release subdirectory + .exe extension)
-      let exporterPath = path.join(__dirname, '..', '..', 'cpp-tools', 'cfg-exporter', 'build', 'Release', isWindows ? 'cfg-exporter.exe' : 'cfg-exporter');
+      // Build list of potential paths to check, ordered by priority
+      const binaryName = isWindows ? 'cfg-exporter.exe' : 'cfg-exporter';
+      const potentialPaths: string[] = [
+        // Windows Release build path (highest priority for Windows)
+        path.join(__dirname, '..', '..', 'cpp-tools', 'cfg-exporter', 'build', 'Release', binaryName),
+        // Direct build path (works for both Windows and Unix)
+        path.join(__dirname, '..', '..', 'cpp-tools', 'cfg-exporter', 'build', binaryName),
+        // Unix path without extension (for compatibility)
+        path.join(__dirname, '..', '..', 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter'),
+        // Docker container path (Linux)
+        path.join('/app', 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter'),
+        // Current working directory path
+        path.join(process.cwd(), 'cpp-tools', 'cfg-exporter', 'build', binaryName),
+        path.join(process.cwd(), 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter'),
+        // PATH-based lookup
+        isWindows ? 'cfg-exporter.exe' : 'cfg-exporter',
+        'cfg-exporter'
+      ];
       
-      // If Windows path doesn't exist, try Unix path (directly in build/)
-      if (!fs.existsSync(exporterPath)) {
-        exporterPath = path.join(__dirname, '..', '..', 'cpp-tools', 'cfg-exporter', 'build', isWindows ? 'cfg-exporter.exe' : 'cfg-exporter');
+      // On Windows, also check for .exe variants in alternative locations
+      if (isWindows) {
+        potentialPaths.push(
+          path.join(process.cwd(), 'cpp-tools', 'cfg-exporter', 'build', 'Release', 'cfg-exporter.exe'),
+          path.join('/app', 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter.exe')
+        );
       }
       
-      // If still not found, try without extension (for Unix compatibility)
-      if (!fs.existsSync(exporterPath)) {
-        exporterPath = path.join(__dirname, '..', '..', 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter');
+      let exporterPath: string | null = null;
+      const checkedPaths: string[] = [];
+      
+      // Try each path in order
+      for (const testPath of potentialPaths) {
+        checkedPaths.push(testPath);
+        if (fs.existsSync(testPath)) {
+          exporterPath = testPath;
+          console.log(`[ClangASTParser] Found cfg-exporter at: ${exporterPath}`);
+          break;
+        }
       }
       
       try {
         // Check if exporter exists
-        if (!fs.existsSync(exporterPath)) {
-          // Try additional paths for Docker/container environments
-          const alternativePaths = [
-            path.join('/app', 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter'), // Docker container path
-            path.join(process.cwd(), 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter'), // Current working directory
-            'cfg-exporter' // PATH-based lookup
-          ];
+        if (!exporterPath) {
+          // Log all checked paths for debugging
+          console.error(`[ClangASTParser] cfg-exporter not found. Checked paths:`);
+          checkedPaths.forEach((p, idx) => {
+            console.error(`  ${idx + 1}. ${p}`);
+          });
           
-          let foundPath: string | null = null;
-          for (const altPath of alternativePaths) {
-            if (fs.existsSync(altPath)) {
-              foundPath = altPath;
-              break;
-            }
-          }
-          
-          if (foundPath) {
-            exporterPath = foundPath;
-            console.log(`[ClangASTParser] Using alternative cfg-exporter path: ${exporterPath}`);
-          } else {
-            const buildInstructions = isWindows 
-              ? 'cd cpp-tools\\cfg-exporter\\build && cmake .. -G "Visual Studio 17 2022" -A x64 && cmake --build . --config Release'
-              : 'cd cpp-tools/cfg-exporter && mkdir -p build && cd build && cmake .. && cmake --build .';
-            reject(new Error(`cfg-exporter binary not found at ${exporterPath} or alternative paths. Please build it first: ${buildInstructions}`));
-            return;
+          const buildInstructions = isWindows 
+            ? 'cd cpp-tools\\cfg-exporter\\build && cmake .. -G "Visual Studio 17 2022" -A x64 && cmake --build . --config Release'
+            : 'cd cpp-tools/cfg-exporter && mkdir -p build && cd build && cmake .. && cmake --build .';
+          reject(new Error(`cfg-exporter binary not found. Checked ${checkedPaths.length} paths. Please build it first: ${buildInstructions}`));
+          return;
+        }
+        
+        // Ensure Windows paths have .exe extension
+        if (isWindows && !exporterPath.endsWith('.exe')) {
+          const exePath = exporterPath + '.exe';
+          if (fs.existsSync(exePath)) {
+            exporterPath = exePath;
+            console.log(`[ClangASTParser] Using .exe variant: ${exporterPath}`);
           }
         }
         
