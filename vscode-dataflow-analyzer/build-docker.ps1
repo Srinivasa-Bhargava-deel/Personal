@@ -224,7 +224,8 @@ function Invoke-LoggedCommand {
                             # Log status periodically
                             $timeSinceLastStatusLog = $currentTime - $lastStatusLogTime
                             if ($timeSinceLastStatusLog.TotalSeconds -ge $statusLogIntervalSeconds) {
-                                Write-Log "[DEBUG-L4] Status check #$iterationCount: Elapsed=$([math]::Floor($elapsed.TotalSeconds))s, State=$($job.State), OutputLines=$($outputLines.Count), LastOutput=$([math]::Floor($timeSinceLastOutput.TotalSeconds))s ago" -ForegroundColor Yellow
+                                $statusMsg = "[DEBUG-L4] Status check #${iterationCount}: Elapsed=$([math]::Floor($elapsed.TotalSeconds))s, State=$($job.State), OutputLines=$($outputLines.Count), LastOutput=$([math]::Floor($timeSinceLastOutput.TotalSeconds))s ago"
+                                Write-Log $statusMsg -ForegroundColor Yellow
                                 $lastStatusLogTime = $currentTime
                             }
                             
