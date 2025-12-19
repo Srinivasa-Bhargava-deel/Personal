@@ -1,122 +1,19 @@
 # Fully Dockerized Build and Run - Linux Docker VM on Windows AMD x64
 
-Complete guide for building and running the VS Code Dataflow Analyzer extension entirely in Docker, using Linux containers running on a Windows AMD x64 64-bit machine.
+Complete guide for building and running the VS Code Dataflow Analyzer extension using VS Code Remote Containers on Windows AMD x64.
 
 ## 🎯 Overview
 
-This guide covers:
-- ✅ Running Docker Desktop on Windows AMD x64
-- ✅ Building everything in Linux Docker containers
-- ✅ Running the extension in Docker
-- ✅ Complete end-to-end workflow
+This guide provides a single, streamlined workflow using **VS Code Remote Containers** to build and run the extension entirely in Docker, without installing any build tools locally.
 
 **Architecture:**
 ```
 Windows AMD x64 PC
   └── Docker Desktop (WSL2 backend)
       └── Linux Docker VM (Ubuntu-based containers)
-          └── VS Code Dataflow Analyzer Extension
+          └── VS Code Remote Containers
+              └── VS Code Dataflow Analyzer Extension
 ```
-
-## 🚀 Quick Start: VS Code Remote Containers (Recommended)
-
-The **easiest and fastest** way to develop this extension on Windows AMD x64 is using **VS Code Remote Containers**. This provides a fully configured development environment without installing any build tools locally.
-
-### Step 1: Install Required VS Code Extensions
-
-1. **Remote - Containers** (`ms-vscode-remote.remote-containers`)
-   - **Required**: Main extension for container development
-   - Install from VS Code: Press `Ctrl+Shift+X`
-   - Search for: `Remote - Containers`
-   - Click Install
-   - Or install directly: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-
-2. **Docker** (`ms-azuretools.vscode-docker`) (Optional but recommended)
-   - Provides Docker integration and management tools
-   - Install from VS Code: Search for `Docker`
-   - Or install directly: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker)
-
-### Step 2: Install Docker Desktop
-
-1. **Download Docker Desktop for Windows**
-   - Go to: https://www.docker.com/products/docker-desktop/
-   - Download: **"Docker Desktop Installer.exe"** (AMD64 version)
-
-2. **Install Docker Desktop**
-   - Run installer as Administrator
-   - ✅ Check **"Use WSL 2 instead of Hyper-V"** (recommended)
-   - Restart computer when prompted
-
-3. **Configure Docker Desktop**
-   - Open Docker Desktop
-   - Settings → Resources → Memory: Set to **8GB** or higher
-   - Settings → Resources → File Sharing: Add your project directory
-
-### Step 3: Open Project in Container
-
-1. **Clone the repository** (if not already done):
-   ```powershell
-   git clone <repository-url>
-   cd vscode-dataflow-analyzer
-   ```
-
-2. **Open in VS Code**:
-   ```powershell
-   code .
-   ```
-
-3. **Reopen in Container**:
-   - Press `F1` (or `Ctrl+Shift+P`)
-   - Type: `Remote-Containers: Reopen in Container`
-   - Select it and wait for the container to build
-
-4. **Wait for setup**:
-   - First build takes 10-15 minutes
-   - Container automatically:
-     - Builds Docker image
-     - Installs LLVM/Clang 17, CMake, Node.js, TypeScript
-     - Installs npm dependencies
-     - Compiles TypeScript
-     - Sets up development environment
-
-5. **Run the extension**:
-   - Press `F5` to launch Extension Development Host
-   - A new VS Code window will open with the extension loaded
-   - Open a C++ file and run "Analyze Workspace" from Command Palette
-
-### What's Included in the Container
-
-The development container automatically includes:
-- ✅ **LLVM/Clang 17** - Installed automatically
-- ✅ **CMake** - Installed automatically
-- ✅ **Node.js 20** - Included in base image
-- ✅ **TypeScript 5.0+** - Installed via npm
-- ✅ **Build Tools** (g++, make, etc.) - Installed automatically
-- ✅ **Pre-built cfg-exporter binary** - Built during container creation
-- ✅ **All npm dependencies** - Installed automatically
-- ✅ **VS Code extensions** - TypeScript, ESLint, C++ tools
-
-### Troubleshooting Remote Containers
-
-- **Container won't build**: Ensure Docker Desktop is running
-- **Out of memory**: Increase Docker Desktop memory (Settings → Resources → Memory: 8GB+)
-- **Rebuild container**: `F1` → `Remote-Containers: Rebuild Container`
-- **Rebuild without cache**: `F1` → `Remote-Containers: Rebuild Container Without Cache`
-- **WSL 2 issues**: See Step 1.3 below for WSL 2 installation
-
-### Benefits of Remote Containers
-
-- ✅ **No local installation needed** - Everything runs in Docker
-- ✅ **Consistent environment** - Same setup on all machines
-- ✅ **Easy to share** - Just clone and reopen in container
-- ✅ **Isolated** - Doesn't affect your Windows system
-- ✅ **Full VS Code integration** - Debugging, IntelliSense, etc. work perfectly
-
----
-
-## 📋 Manual Docker Setup (Alternative)
-
-If you prefer to use Docker manually instead of Remote Containers, follow the instructions below.
 
 ## 📋 Prerequisites
 
@@ -127,38 +24,31 @@ If you prefer to use Docker manually instead of Remote Containers, follow the in
 - **20GB free disk space**
 - **Virtualization enabled** (AMD-V/SVM in BIOS)
 
-### Required Software (ONLY These Need to be Installed on Windows)
+### Required Software
 
 1. **Docker Desktop for Windows** (AMD64 version)
    - Download: https://www.docker.com/products/docker-desktop/
    - Version: Latest stable
-   - Architecture: AMD64/x64 (auto-detected)
 
-2. **WSL 2** (Windows Subsystem for Linux)
-   - Automatically installed with Docker Desktop
-   - Or install manually: `wsl --install`
+2. **VS Code** (for development)
+   - Download: https://code.visualstudio.com/
+   - Version: 1.80.0 or higher
 
 3. **Git for Windows**
    - Download: https://git-scm.com/download/win
    - Choose: 64-bit version
 
-4. **VS Code** (for installing and using the extension)
-   - Download: https://code.visualstudio.com/
-   - Version: 1.80.0 or higher
-   - **Note**: VS Code Extension Development Host is included with VS Code
-
-### ✅ What Docker Handles Automatically (NO Installation Needed!)
+### ✅ What Docker Handles Automatically
 
 **The Docker container automatically installs and includes:**
-
-- ✅ **LLVM/Clang 17** - Installed automatically in Docker container
-- ✅ **CMake** - Installed automatically in Docker container
+- ✅ **LLVM/Clang 17** - Installed automatically
+- ✅ **CMake** - Installed automatically
 - ✅ **Build Tools** (build-essential, g++, make) - Installed automatically
-- ✅ **Node.js 20** - Included in Node.js base image
-- ✅ **TypeScript** - Installed via npm in Docker container
-- ✅ **npm dependencies** - Installed automatically during build
-- ✅ **VS Code Extension Manager (@vscode/vsce)** - Installed automatically when packaging (uses helper script)
-- ✅ **All development tools** - Everything needed for building
+- ✅ **Node.js 20** - Included in base image
+- ✅ **TypeScript 5.0+** - Installed via npm
+- ✅ **npm dependencies** - Installed automatically
+- ✅ **Pre-built cfg-exporter binary** - Built during container creation
+- ✅ **VS Code extensions** - TypeScript, ESLint, C++ tools
 
 **You do NOT need to install these on Windows:**
 - ❌ LLVM/Clang
@@ -167,17 +57,10 @@ If you prefer to use Docker manually instead of Remote Containers, follow the in
 - ❌ TypeScript
 - ❌ Visual Studio Build Tools
 - ❌ Any C++ compilers or build tools
-- ❌ npm or yarn (except what comes with Node.js if you install it separately)
 
-**What you DO need on Windows:**
-- ✅ Docker Desktop (handles everything else)
-- ✅ VS Code (to install and use the .vsix extension)
-- ✅ Git (to clone the repository)
-- ✅ **Remote - Containers extension** (if using Remote Containers - recommended)
+## 🚀 Step-by-Step Instructions
 
-## 🚀 Step 1: Install Docker Desktop on Windows AMD x64
-
-### 1.1 Verify System Architecture
+### Step 1: Verify System Architecture
 
 ```powershell
 # Open PowerShell and verify AMD x64 architecture
@@ -188,7 +71,7 @@ wmic cpu get name
 # Should show your AMD processor (e.g., AMD Ryzen 7 5800X)
 ```
 
-### 1.2 Enable Virtualization (If Not Enabled)
+### Step 2: Enable Virtualization (If Not Enabled)
 
 **For AMD Processors:**
 1. Restart computer → Enter BIOS/UEFI (F2, F10, or Del)
@@ -202,7 +85,7 @@ systeminfo | findstr /C:"Hyper-V"
 # Should show: "A hypervisor has been detected"
 ```
 
-### 1.3 Install WSL 2
+### Step 3: Install WSL 2
 
 ```powershell
 # Run PowerShell as Administrator
@@ -214,7 +97,7 @@ wsl --version
 # Should show: WSL version 2.x.x
 ```
 
-### 1.4 Install Docker Desktop
+### Step 4: Install Docker Desktop
 
 1. **Download Docker Desktop**
    - Go to: https://www.docker.com/products/docker-desktop/
@@ -231,58 +114,53 @@ wsl --version
    - Restart when prompted
    - Docker Desktop will start automatically after restart
 
-### 1.5 Configure Docker Desktop
-
-1. **Open Docker Desktop**
-   - Click Docker Desktop icon in system tray
-   - Or search "Docker Desktop" in Start Menu
-
-2. **Settings Configuration**
+4. **Configure Docker Desktop**
+   - Open Docker Desktop
    - Click **Settings** (gear icon)
    
    **General Tab:**
    - ✅ **"Use the WSL 2 based engine"** (checked)
-   - ✅ **"Start Docker Desktop when you log in"** (optional)
    
    **Resources Tab:**
    - **Memory**: Set to **8GB** or higher (if you have 16GB+ RAM)
    - **CPUs**: Use all available cores (default)
-   - **Disk image size**: 64GB (default)
    
-   **WSL Integration Tab:**
-   - ✅ Enable integration with your default WSL distro
-   - ✅ Enable integration with Ubuntu (if installed)
-
-3. **File Sharing**
-   - **Resources** → **File Sharing**
+   **Resources → File Sharing:**
    - Add your project directory (e.g., `C:\Users\YourName\Desktop`)
    - Click **"Apply & Restart"**
 
-### 1.6 Verify Docker Installation
+5. **Verify Docker Installation**
+   ```powershell
+   # Check Docker version
+   docker --version
+   # Expected: Docker version 24.x.x or higher
+   
+   # Verify Docker is running
+   docker ps
+   # Should show empty list or running containers (no errors)
+   
+   # Test Docker with hello-world
+   docker run hello-world
+   # Should download and run successfully
+   ```
 
-```powershell
-# Check Docker version
-docker --version
-# Expected: Docker version 24.x.x or higher
+### Step 5: Install VS Code Extensions
 
-# Check Docker Compose version
-docker-compose --version
-# Expected: Docker Compose version v2.x.x or higher
+1. **Open VS Code**
+   - Launch VS Code
 
-# Verify Docker is running
-docker ps
-# Should show empty list or running containers (no errors)
+2. **Install Remote - Containers Extension**
+   - Press `Ctrl+Shift+X` to open Extensions
+   - Search for: `Remote - Containers`
+   - Install: `ms-vscode-remote.remote-containers`
+   - Or install directly: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
-# Test Docker with hello-world
-docker run hello-world
-# Should download and run successfully
+3. **Install Docker Extension** (Optional but recommended)
+   - Search for: `Docker`
+   - Install: `ms-azuretools.vscode-docker`
+   - Or install directly: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker)
 
-# Check platform
-docker version
-# Should show: OS/Arch: linux/amd64 (when using Linux containers)
-```
-
-## 🏗️ Step 2: Clone Repository
+### Step 6: Clone Repository
 
 ```powershell
 # Navigate to your desired directory
@@ -297,288 +175,83 @@ cd Personal\vscode-dataflow-analyzer
 # cd vscode-dataflow-analyzer
 ```
 
-## 🔨 Step 3: Build Extension in Docker (Linux Container)
+### Step 7: Open Project in VS Code Remote Container
 
-**Important**: This step builds everything inside Docker. The Docker container automatically:
-- ✅ Installs LLVM/Clang 17
-- ✅ Installs CMake
-- ✅ Installs all build tools
-- ✅ Installs Node.js and TypeScript
-- ✅ Builds the C++ cfg-exporter binary
-- ✅ Compiles the TypeScript extension
-
-**You don't need to install ANY of these on Windows!**
-
-### 3.1 Build Using PowerShell Script (Recommended)
-
-```powershell
-# Navigate to project root
-cd C:\Users\YourName\Desktop\Personal\vscode-dataflow-analyzer
-
-# Build Docker image (Linux container)
-.\build-docker.ps1 build
-
-# This will automatically:
-# - Install LLVM/Clang 17 in Docker container
-# - Install CMake in Docker container
-# - Install Node.js 20 and TypeScript in Docker container
-# - Build C++ cfg-exporter binary in Linux container
-# - Compile TypeScript extension
-# - Create Docker image: vscode-dataflow-analyzer:latest
-```
-
-**Expected Output:**
-```
-Building Docker image for Linux AMD x64 platform...
-Using Dockerfile: Dockerfile
-Platform: linux/amd64 (compatible with AMD x64 and Intel x64)
-[+] Building ... 
-[+] Building ... done
-Build completed successfully!
-```
-
-### 3.2 Build Using Docker Directly
-
-```powershell
-# Build with explicit platform specification
-docker build --platform linux/amd64 -t vscode-dataflow-analyzer:latest .
-
-# Or use the default Dockerfile
-docker build -t vscode-dataflow-analyzer:latest .
-```
-
-### 3.3 Verify Build
-
-```powershell
-# List Docker images
-docker images | findstr vscode-dataflow-analyzer
-
-# Should show:
-# vscode-dataflow-analyzer   latest   <image-id>   <time>   <size>
-
-# Inspect image
-docker inspect vscode-dataflow-analyzer:latest | findstr /C:"Architecture"
-# Should show: "Architecture": "amd64"
-```
-
-## 📦 Step 4: Package Extension (.vsix) in Docker
-
-### 4.1 Package Using PowerShell Script
-
-```powershell
-# Package extension as .vsix file
-.\build-docker.ps1 package
-
-# This will:
-# - Build the extension
-# - Install @vscode/vsce (VS Code Extension Manager)
-# - Use helper script (docker-package.sh) that handles prepublish script
-# - Create .vsix package with --allow-missing-repository flag (safe for Docker)
-# - Output: dist/dataflow-analyzer.vsix
-```
-
-### 4.2 Package Using Docker Directly
-
-```powershell
-# Ensure dist directory exists
-if (-not (Test-Path "dist")) {
-    New-Item -ItemType Directory -Path "dist"
-}
-
-# Package extension (using helper script that handles prepublish)
-# Note: Script is mounted read-only, so we run it directly with bash
-# The helper script uses --allow-missing-repository flag (safe for Docker)
-docker run --rm `
-    --platform linux/amd64 `
-    -v "${PWD}/dist:/app/dist" `
-    -v "${PWD}/docker-package.sh:/tmp/docker-package.sh:ro" `
-    -w /app `
-    vscode-dataflow-analyzer:latest `
-    bash /tmp/docker-package.sh
-
-# Verify package created
-dir dist\dataflow-analyzer.vsix
-```
-
-**Note:** The `--allow-missing-repository` flag is used automatically by the helper script. This is safe and only skips README.md link validation - it does NOT affect extension functionality or security.
-```
-
-## 🚀 Step 5: Run Extension in Docker
-
-### 5.1 Development Container (Recommended)
-
-```powershell
-# Start development container
-.\build-docker.ps1 dev
-
-# Or using docker-compose:
-docker-compose up -d dev
-
-# This starts a container with:
-# - Source code mounted as volumes
-# - Hot-reload capability
-# - Persistent state
-```
-
-**Access Development Container:**
-```powershell
-# Execute commands in container
-docker-compose exec dev bash
-
-# Inside container, you can:
-npm run compile      # Compile TypeScript
-npm test            # Run tests
-npm run lint        # Lint code
-
-# Exit container
-exit
-```
-
-### 5.2 Run Interactive Container
-
-```powershell
-# Run container interactively
-.\build-docker.ps1 run
-
-# Or manually:
-docker run -it --rm `
-    --platform linux/amd64 `
-    -v "${PWD}/src:/app/src" `
-    -v "${PWD}/out:/app/out" `
-    -v "${PWD}/tests:/app/tests" `
-    -w /app `
-    vscode-dataflow-analyzer:latest `
-    bash
-```
-
-### 5.3 Run Production Container
-
-```powershell
-# Run production container
-docker-compose up production
-
-# Or manually:
-docker run --rm `
-    --platform linux/amd64 `
-    -v "${PWD}/dist:/app/dist" `
-    -v "${PWD}/workspace:/app/workspace:ro" `
-    vscode-dataflow-analyzer:latest `
-    node --version
-```
-
-## 🧪 Step 6: Test Extension in Docker
-
-### 6.1 Run Tests
-
-```powershell
-# Run tests in Docker container
-.\build-docker.ps1 test
-
-# Or manually:
-docker run --rm `
-    --platform linux/amd64 `
-    -v "${PWD}:/workspace" `
-    -w /workspace `
-    vscode-dataflow-analyzer:latest `
-    npm test
-```
-
-### 6.2 Test C++ Binary
-
-```powershell
-# Test cfg-exporter binary in container
-docker run --rm `
-    --platform linux/amd64 `
-    -v "${PWD}/tests:/app/tests:ro" `
-    vscode-dataflow-analyzer:latest `
-    sh -c "cpp-tools/cfg-exporter/build/cfg-exporter tests/test_cfg_basic.cpp -- -std=c++17"
-
-# Should output JSON CFG data
-```
-
-## 📥 Step 7: Install Extension in VS Code
-
-**Note**: VS Code must be installed on your Windows machine. The Docker container only builds the extension - it doesn't include VS Code itself.
-
-### 7.1 Install VS Code (If Not Already Installed)
-
-1. **Download VS Code**
-   - Go to: https://code.visualstudio.com/
-   - Download: **"Windows x64 User Installer"** (for AMD x64)
-   - Run installer and complete installation
-
-2. **Verify Installation**
+1. **Open Project in VS Code**
    ```powershell
-   code --version
-   # Should show: 1.80.0 or higher
+   code .
    ```
 
-### 7.2 Install Extension from .vsix File
+2. **Reopen in Container**
+   - Press `F1` (or `Ctrl+Shift+P`)
+   - Type: `Remote-Containers: Reopen in Container`
+   - Select it and wait for the container to build
 
-1. **Open VS Code** on Windows
-2. **Open Extensions** (Ctrl+Shift+X)
-3. Click **"..."** (three dots) → **"Install from VSIX..."**
-4. Navigate to: `C:\Users\YourName\Desktop\Personal\vscode-dataflow-analyzer\dist\dataflow-analyzer.vsix`
-5. Click **"Install"**
-6. **Reload VS Code** when prompted
+3. **Wait for Container Build**
+   - **First build takes 10-15 minutes**
+   - Container automatically:
+     - Builds Docker image from Dockerfile
+     - Installs LLVM/Clang 17, CMake, Node.js, TypeScript
+     - Installs all npm dependencies
+     - Builds C++ cfg-exporter binary
+     - Compiles TypeScript extension
+     - Sets up development environment
+   - Check VS Code status bar for progress
+   - Check Output panel → "Dev Containers" for build logs
 
-**Note**: VS Code Extension Development Host is included with VS Code - no separate installation needed.
+4. **Verify Container is Ready**
+   - VS Code status bar should show: **"Dev Container: C++ Dataflow Analyzer Development"**
+   - Terminal should be available (container terminal)
+   - Open terminal and verify:
+     ```bash
+     node --version    # Should show v20.x.x
+     npm --version     # Should show version
+     cfg-exporter --help  # Should show help text
+     ```
 
-### 7.2 Verify Installation
+### Step 8: Run the Extension
 
-1. **Open Command Palette** (Ctrl+Shift+P)
-2. Type: **"Show Control Flow Graph"**
-3. Should see: **"Dataflow Analyzer: Show Control Flow Graph"**
-4. Extension is installed and ready!
+1. **Press F5** to launch Extension Development Host
+   - A new VS Code window will open (Extension Development Host)
+   - The extension is loaded and ready
 
-## 🔄 Complete Workflow Example
+2. **Test the Extension**
+   - In the Extension Development Host window:
+   - Open a C++ file (`.cpp` or `.hpp`)
+   - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
+   - Type: `Analyze Workspace`
+   - Select: **"Dataflow Analyzer: Analyze Workspace"**
+   - Wait for analysis to complete
+   - Press `Ctrl+Shift+P` again
+   - Type: `Show Control Flow Graph`
+   - Select: **"Dataflow Analyzer: Show Control Flow Graph"**
+   - CFG visualization should appear
 
-### Daily Development Workflow
+## 🔄 Clean Build Workflow (For Rebuilding)
 
-```powershell
-# 1. Start development container
-.\build-docker.ps1 dev
+When you need to rebuild from scratch:
 
-# 2. Make code changes in VS Code (on Windows)
-# Files are automatically synced via volume mounts
+1. **Clean Previous Builds**
+   ```powershell
+   # In VS Code terminal (or PowerShell)
+   docker system prune -a -f
+   ```
 
-# 3. Compile in container
-docker-compose exec dev npm run compile
+2. **Rebuild Container**
+   - Press `F1`
+   - Type: `Remote-Containers: Rebuild Container Without Cache`
+   - Select it and wait for rebuild
 
-# 4. Test in container
-docker-compose exec dev npm test
-
-# 5. Package when ready
-.\build-docker.ps1 package
-
-# 6. Install updated .vsix in VS Code
-# Extensions → Install from VSIX → dist/dataflow-analyzer.vsix
-```
-
-### Clean Build Workflow
-
-```powershell
-# 1. Clean previous builds
-.\build-docker.ps1 clean
-
-# 2. Fresh build
-.\build-docker.ps1 build
-
-# 3. Package
-.\build-docker.ps1 package
-
-# 4. Install in VS Code
-```
+3. **Verify Build**
+   - Check that container starts successfully
+   - Verify tools are available:
+     ```bash
+     node --version
+     cfg-exporter --help
+     npm run compile
+     ```
 
 ## 🐛 Troubleshooting
-
-For detailed troubleshooting, see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) which covers:
-- Permission errors (chmod issues)
-- GPG key import errors
-- apt-get update failures
-- Network timeout issues
-- vsce repository detection errors
-- Docker build cache issues
 
 ### Issue: "Cannot connect to Docker daemon"
 
@@ -591,15 +264,31 @@ For detailed troubleshooting, see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOO
 docker ps
 ```
 
-### Issue: "Platform mismatch" errors
+### Issue: "Container won't build"
+
+**Solution:**
+1. Ensure Docker Desktop is running
+2. Check Docker Desktop → Settings → Resources → Memory: Set to 8GB+
+3. Rebuild container: `F1` → `Remote-Containers: Rebuild Container`
+4. Check Output panel → "Dev Containers" for errors
+
+### Issue: "Out of memory" during build
+
+**Solution:**
+1. Docker Desktop → Settings → Resources → Memory
+2. Increase to **8GB** or higher
+3. Click **"Apply & Restart"**
+4. Rebuild container: `F1` → `Remote-Containers: Rebuild Container Without Cache`
+
+### Issue: "WSL 2 installation is incomplete"
 
 **Solution:**
 ```powershell
-# Explicitly specify platform
-docker build --platform linux/amd64 -t vscode-dataflow-analyzer:latest .
-
-# Or use PowerShell script (handles platform automatically)
-.\build-docker.ps1 build
+# Run PowerShell as Administrator
+wsl --update
+wsl --set-default-version 2
+wsl --shutdown
+# Wait 10 seconds, then start Docker Desktop
 ```
 
 ### Issue: "Volume mount permission denied"
@@ -610,74 +299,15 @@ docker build --platform linux/amd64 -t vscode-dataflow-analyzer:latest .
 3. Click **"Apply & Restart"**
 4. Restart Docker Desktop
 
-### Issue: "WSL 2 installation is incomplete"
+### Issue: "Extension doesn't launch after reopening in container"
 
 **Solution:**
-```powershell
-# Run as Administrator
-wsl --update
-wsl --set-default-version 2
-wsl --shutdown
-# Wait 10 seconds, then start Docker Desktop
-```
+1. Check container is ready (status bar shows "Dev Container")
+2. Wait for "postCreateCommand" to complete
+3. Check Output panel → "Dev Containers" for errors
+4. Rebuild container: `F1` → `Remote-Containers: Rebuild Container`
 
-### Issue: "Out of memory" during build
-
-**Solution:**
-1. Docker Desktop → Settings → Resources → Memory
-2. Increase to **8GB** or higher
-3. Click **"Apply & Restart"**
-
-### Issue: "Slow build performance"
-
-**Solution:**
-1. Ensure **WSL 2 backend** is enabled
-2. Increase Docker memory allocation
-3. Close unnecessary applications
-4. Use `--no-cache` flag only when needed:
-   ```powershell
-   .\build-docker.ps1 build -NoCache
-   ```
-
-## 📊 Docker Container Management
-
-### View Running Containers
-
-```powershell
-# List running containers
-docker ps
-
-# List all containers (including stopped)
-docker ps -a
-
-# View container logs
-docker-compose logs dev
-```
-
-### Stop Containers
-
-```powershell
-# Stop development container
-docker-compose stop dev
-
-# Stop all containers
-docker-compose down
-
-# Stop specific container
-docker stop <container-id>
-```
-
-### Remove Containers and Images
-
-```powershell
-# Clean up everything
-.\build-docker.ps1 clean
-
-# Or manually:
-docker-compose down
-docker rmi vscode-dataflow-analyzer:latest
-docker system prune -f
-```
+For more detailed troubleshooting, see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md)
 
 ## 🔍 Verification Checklist
 
@@ -688,145 +318,81 @@ After completing all steps, verify:
 docker ps
 # ✅ Should show containers or empty list (no errors)
 
-# 2. Image exists
-docker images | findstr vscode-dataflow-analyzer
-# ✅ Should show image
+# 2. VS Code shows Dev Container status
+# ✅ Status bar should show: "Dev Container: C++ Dataflow Analyzer Development"
 
-# 3. Extension package exists
-dir dist\dataflow-analyzer.vsix
-# ✅ Should exist
+# 3. Tools are available in container
+# ✅ Open terminal in VS Code (container terminal)
+node --version    # ✅ Should show v20.x.x
+npm --version    # ✅ Should show version
+cfg-exporter --help  # ✅ Should show help text
 
-# 4. Container can run
-docker run --rm vscode-dataflow-analyzer:latest node --version
-# ✅ Should show Node.js version
-
-# 5. Extension installed in VS Code
-# ✅ Open VS Code → Extensions → Should see "C++ Dataflow Analyzer"
+# 4. Extension runs
+# ✅ Press F5 → Extension Development Host opens
+# ✅ Run "Analyze Workspace" command → Analysis completes
+# ✅ Run "Show Control Flow Graph" → Visualization appears
 ```
 
-## 📚 Quick Reference Commands
+## 📚 Quick Reference
 
-### Using Remote Containers (Recommended)
+### Essential Commands
 
 1. **Open project**: `code .`
 2. **Reopen in container**: `F1` → `Remote-Containers: Reopen in Container`
 3. **Run extension**: Press `F5`
-4. **Compile**: `npm run compile` (in container terminal)
-5. **Test**: `npm test` (in container terminal)
+4. **Rebuild container**: `F1` → `Remote-Containers: Rebuild Container Without Cache`
+5. **Compile TypeScript**: `npm run compile` (in container terminal)
+6. **Run tests**: `npm test` (in container terminal)
 
-### Using Manual Docker Commands
+### Container Terminal Commands
 
-```powershell
-# Build
-.\build-docker.ps1 build
-
-# Run development container
-.\build-docker.ps1 dev
-
-# Package extension
-.\build-docker.ps1 package
+```bash
+# Compile TypeScript
+npm run compile
 
 # Run tests
-.\build-docker.ps1 test
+npm test
 
-# Clean up
-.\build-docker.ps1 clean
+# Lint code
+npm run lint
 
-# View logs
-docker-compose logs -f dev
+# Test cfg-exporter
+cfg-exporter --help
 
-# Execute command in container
-docker-compose exec dev npm run compile
+# Check Node.js version
+node --version
+
+# Check npm version
+npm --version
 ```
 
 ## 🎯 Summary
 
-### Recommended Workflow (Remote Containers)
+**Complete Workflow:**
 
 1. ✅ **Install Docker Desktop** on Windows AMD x64
 2. ✅ **Install Remote - Containers extension** in VS Code
-3. ✅ **Open project** in VS Code
-4. ✅ **Reopen in Container** (`F1` → `Remote-Containers: Reopen in Container`)
-5. ✅ **Wait for container** to build (first time: ~10-15 minutes)
-6. ✅ **Press F5** to run extension
-7. ✅ **Develop and test** directly in container
-
-### Manual Docker Workflow (Alternative)
-
-1. ✅ **Install Docker Desktop** on Windows AMD x64
-2. ✅ **Configure WSL 2** backend
-3. ✅ **Build extension** in Linux Docker container
-4. ✅ **Package extension** as .vsix file
-5. ✅ **Run tests** in Docker container
-6. ✅ **Install .vsix** in VS Code on Windows
-7. ✅ **Use extension** in VS Code
+3. ✅ **Clone repository**
+4. ✅ **Open project** in VS Code
+5. ✅ **Reopen in Container** (`F1` → `Remote-Containers: Reopen in Container`)
+6. ✅ **Wait for container** to build (first time: ~10-15 minutes)
+7. ✅ **Press F5** to run extension
+8. ✅ **Develop and test** directly in container
 
 **Key Benefits:**
-- ✅ **No need to install ANY build tools on Windows** - Docker handles everything:
-  - ✅ LLVM/Clang (installed automatically in container)
-  - ✅ CMake (installed automatically in container)
-  - ✅ Node.js/TypeScript (included in container)
-  - ✅ All npm dependencies (installed automatically)
-  - ✅ Build tools (g++, make, etc. - installed automatically)
-- ✅ Consistent build environment across all machines
-- ✅ Easy to share and reproduce builds
-- ✅ Isolated development environment
-- ✅ **Only VS Code needs to be installed on Windows** (to use the extension)
+- ✅ **No need to install ANY build tools on Windows** - Docker handles everything
+- ✅ **Consistent environment** - Same setup on all machines
+- ✅ **Easy to share** - Just clone and reopen in container
+- ✅ **Isolated** - Doesn't affect your Windows system
+- ✅ **Full VS Code integration** - Debugging, IntelliSense, etc. work perfectly
 
 ## 📖 Related Documentation
 
-- **🚀 Recommended**: Use **VS Code Remote Containers** (see Quick Start section above) - easiest setup!
-- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide with Remote Containers instructions
-- [DOCKER_WHAT_IS_INCLUDED.md](DOCKER_WHAT_IS_INCLUDED.md) - **What's included in Docker vs what you need to install**
-- [DOCKER_WINDOWS_AMD64.md](DOCKER_WINDOWS_AMD64.md) - AMD x64 specific instructions
-- [DOCKER_WINDOWS_COMPATIBILITY.md](DOCKER_WINDOWS_COMPATIBILITY.md) - Windows compatibility details
-- [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) - **Comprehensive troubleshooting guide**
-- [DOCKER.md](DOCKER.md) - Complete Docker documentation with Remote Containers instructions
-
----
-
-## ❓ Frequently Asked Questions
-
-### Q: Do I need to install LLVM/Clang on Windows?
-**A: No!** Docker container automatically installs LLVM/Clang 17 during build.
-
-### Q: Do I need to install CMake on Windows?
-**A: No!** Docker container automatically installs CMake during build.
-
-### Q: Do I need to install Node.js/TypeScript on Windows?
-**A: No!** Docker container includes Node.js 20 and installs TypeScript automatically.
-
-### Q: Do I need Visual Studio Build Tools?
-**A: No!** Docker uses Linux build tools (gcc, g++, make) - no Windows build tools needed.
-
-### Q: What if I get a "repository detection" error during packaging?
-**A: This is normal in Docker!** The helper script uses `--allow-missing-repository` flag which is safe. It only skips README.md link validation and does NOT affect extension functionality or security.
-
-### Q: Do I need to install VS Code?
-**A: Yes!** VS Code must be installed on Windows to use the extension. Docker only builds it.
-
-### Q: What's the minimum I need on Windows?
-**A: Only 4 things:**
-1. Docker Desktop
-2. VS Code
-3. Git
-4. Remote - Containers extension (if using Remote Containers - recommended)
-
-Everything else is handled by Docker automatically!
-
-### Q: Should I use Remote Containers or manual Docker commands?
-**A: Remote Containers is recommended** because:
-- ✅ Easier setup (just reopen in container)
-- ✅ Better VS Code integration (debugging, IntelliSense work perfectly)
-- ✅ Automatic environment setup
-- ✅ No need to remember Docker commands
-
-Manual Docker commands are useful for:
-- CI/CD pipelines
-- Custom build scripts
-- Advanced Docker workflows
+- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
+- [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) - Comprehensive troubleshooting guide
+- [DOCKER.md](DOCKER.md) - Complete Docker documentation
+- [DOCKER_WHAT_IS_INCLUDED.md](DOCKER_WHAT_IS_INCLUDED.md) - What's included in Docker vs what you need to install
 
 ---
 
 **Happy Dockerizing! 🐳**
-
