@@ -80,9 +80,17 @@ services:
           echo "✗ ERROR: cmake not found in PATH"
         fi
         if command -v cfg-exporter >/dev/null 2>&1; then
-          echo "✓ cfg-exporter: $(cfg-exporter --version 2>&1 || echo 'available')"
+          echo "✓ cfg-exporter: available at $(which cfg-exporter)"
+          if [ -x "$(which cfg-exporter)" ]; then
+            echo "  Binary is executable"
+            file "$(which cfg-exporter)" || true
+          fi
         else
           echo "⚠ WARNING: cfg-exporter not found in PATH (may need full path)"
+          if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then
+            echo "  Found at /app/cpp-tools/cfg-exporter/build/cfg-exporter"
+            file /app/cpp-tools/cfg-exporter/build/cfg-exporter || true
+          fi
         fi
         echo ""
         echo "=== Verifying Node.js and npm setup ==="

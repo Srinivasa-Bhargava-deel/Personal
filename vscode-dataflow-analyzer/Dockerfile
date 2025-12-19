@@ -343,26 +343,46 @@ ENV NODE_ENV=development
 # Include node_modules/.bin in PATH so npm scripts can find tsc and other binaries
 ENV PATH=/app/node_modules/.bin:/app/cpp-tools/cfg-exporter/build:$PATH
 # Set LD_LIBRARY_PATH to include LLVM shared libraries for cfg-exporter
-ENV LD_LIBRARY_PATH=/usr/lib/llvm-17/lib${LD_LIBRARY_PATH:+:}${LD_LIBRARY_PATH}
+# Set directly to avoid undefined variable warnings from Docker linters
+ENV LD_LIBRARY_PATH=/usr/lib/llvm-17/lib
 
 # Verify tools are available and cfg-exporter binary architecture
 RUN echo "=== Verifying development tools ===" && \
+    echo "[DEBUG] Current working directory: $(pwd)" && \
+    echo "[DEBUG] PATH: $PATH" && \
+    echo "[DEBUG] LD_LIBRARY_PATH: $LD_LIBRARY_PATH" && \
     clang-17 --version && \
     gcc --version && \
     g++ --version && \
     python3 --version && \
     cmake --version && \
     echo "=== Verifying cfg-exporter binary ===" && \
+    echo "[DEBUG] Checking for cfg-exporter at /app/cpp-tools/cfg-exporter/build/cfg-exporter" && \
     if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
         echo "✓ cfg-exporter binary exists" && \
         ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
         file /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+        echo "[DEBUG] Checking if binary is executable" && \
+        [ -x "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ] && echo "✓ Binary is executable" || echo "⚠ WARNING: Binary is not executable" && \
         echo "=== Checking binary architecture compatibility ===" && \
         uname -m && \
-        ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "ldd check completed (may show errors for statically linked binaries)"; \
+        echo "[DEBUG] Checking library dependencies" && \
+        ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "ldd check completed (may show errors for statically linked binaries)" && \
+        echo "[DEBUG] Checking LLVM library availability" && \
+        find /usr/lib/llvm-17 -name "libLLVM*.so*" 2>/dev/null | head -5 || echo "⚠ WARNING: Could not find LLVM libraries"; \
     else \
-        echo "✗ ERROR: cfg-exporter binary not found!"; \
+        echo "✗ ERROR: cfg-exporter binary not found at /app/cpp-tools/cfg-exporter/build/cfg-exporter!" && \
+        echo "[DEBUG] Checking parent directory structure:" && \
+        ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1 || echo "[DEBUG] build directory does not exist" && \
+        ls -la /app/cpp-tools/cfg-exporter/ 2>&1 || echo "[DEBUG] cfg-exporter directory does not exist" && \
+        ls -la /app/cpp-tools/ 2>&1 || echo "[DEBUG] cpp-tools directory does not exist" && \
+        find /app -name "cfg-exporter" -type f 2>/dev/null | head -5 || echo "[DEBUG] No cfg-exporter found anywhere in /app"; \
     fi && \
+    echo "=== Verifying environment setup ===" && \
+    echo "[DEBUG] Node.js version: $(node --version 2>&1 || echo 'not found')" && \
+    echo "[DEBUG] npm version: $(npm --version 2>&1 || echo 'not found')" && \
+    echo "[DEBUG] Checking node_modules: $([ -d "/app/node_modules" ] && echo 'exists' || echo 'missing')" && \
+    echo "[DEBUG] Checking out directory: $([ -d "/app/out" ] && echo 'exists' || echo 'missing')" && \
     echo "=== All development tools verified ==="
 
 # Default command - keep container running
@@ -438,17 +458,34 @@ RUN mkdir -p /app/dist
 ENV NODE_ENV=production
 ENV PATH=/app/cpp-tools/cfg-exporter/build:$PATH
 # Set LD_LIBRARY_PATH to include LLVM shared libraries
-# Use ${LD_LIBRARY_PATH:-} to handle undefined variable case
-ENV LD_LIBRARY_PATH=/usr/lib/llvm-17/lib${LD_LIBRARY_PATH:+:}${LD_LIBRARY_PATH}
+# Set directly to avoid undefined variable warnings from Docker linters
+ENV LD_LIBRARY_PATH=/usr/lib/llvm-17/lib
 
 # Verify cfg-exporter binary and its dependencies
 RUN echo "=== Verifying cfg-exporter binary ===" && \
-    ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
-    file /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
-    echo "=== Checking LLVM library location ===" && \
-    find /usr/lib/llvm-17 -name "libLLVM-17.so*" 2>/dev/null | head -5 && \
-    echo "=== Testing cfg-exporter with ldd ===" && \
-    ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "ldd check completed" && \
+    echo "[DEBUG] Current working directory: $(pwd)" && \
+    echo "[DEBUG] PATH: $PATH" && \
+    echo "[DEBUG] LD_LIBRARY_PATH: $LD_LIBRARY_PATH" && \
+    echo "[DEBUG] Checking for cfg-exporter at /app/cpp-tools/cfg-exporter/build/cfg-exporter" && \
+    if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
+        echo "✓ cfg-exporter binary exists" && \
+        ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+        file /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+        echo "[DEBUG] Checking if binary is executable" && \
+        [ -x "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ] && echo "✓ Binary is executable" || echo "⚠ WARNING: Binary is not executable" && \
+        echo "=== Checking LLVM library location ===" && \
+        find /usr/lib/llvm-17 -name "libLLVM*.so*" 2>/dev/null | head -5 || echo "⚠ WARNING: Could not find LLVM libraries" && \
+        echo "=== Testing cfg-exporter with ldd ===" && \
+        ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "ldd check completed (may show errors for statically linked binaries)" && \
+        echo "[DEBUG] Verifying environment variables" && \
+        echo "  LLVM_DIR: ${LLVM_DIR:-not set}" && \
+        echo "  Clang_DIR: ${Clang_DIR:-not set}"; \
+    else \
+        echo "✗ ERROR: cfg-exporter binary not found!" && \
+        echo "[DEBUG] Checking directory structure:" && \
+        ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1 || echo "[DEBUG] build directory does not exist" && \
+        find /app -name "cfg-exporter" -type f 2>/dev/null | head -5 || echo "[DEBUG] No cfg-exporter found anywhere in /app"; \
+    fi && \
     echo "=== Verification complete ==="
 
 # Default command - can be overridden
