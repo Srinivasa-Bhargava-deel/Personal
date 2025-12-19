@@ -342,14 +342,27 @@ RUN mkdir -p /app/dist
 ENV NODE_ENV=development
 # Include node_modules/.bin in PATH so npm scripts can find tsc and other binaries
 ENV PATH=/app/node_modules/.bin:/app/cpp-tools/cfg-exporter/build:$PATH
+# Set LD_LIBRARY_PATH to include LLVM shared libraries for cfg-exporter
+ENV LD_LIBRARY_PATH=/usr/lib/llvm-17/lib${LD_LIBRARY_PATH:+:}${LD_LIBRARY_PATH}
 
-# Verify tools are available
+# Verify tools are available and cfg-exporter binary architecture
 RUN echo "=== Verifying development tools ===" && \
     clang-17 --version && \
     gcc --version && \
     g++ --version && \
     python3 --version && \
     cmake --version && \
+    echo "=== Verifying cfg-exporter binary ===" && \
+    if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
+        echo "✓ cfg-exporter binary exists" && \
+        ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+        file /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+        echo "=== Checking binary architecture compatibility ===" && \
+        uname -m && \
+        ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "ldd check completed (may show errors for statically linked binaries)"; \
+    else \
+        echo "✗ ERROR: cfg-exporter binary not found!"; \
+    fi && \
     echo "=== All development tools verified ==="
 
 # Default command - keep container running
@@ -425,7 +438,8 @@ RUN mkdir -p /app/dist
 ENV NODE_ENV=production
 ENV PATH=/app/cpp-tools/cfg-exporter/build:$PATH
 # Set LD_LIBRARY_PATH to include LLVM shared libraries
-ENV LD_LIBRARY_PATH=/usr/lib/llvm-17/lib:$LD_LIBRARY_PATH
+# Use ${LD_LIBRARY_PATH:-} to handle undefined variable case
+ENV LD_LIBRARY_PATH=/usr/lib/llvm-17/lib${LD_LIBRARY_PATH:+:}${LD_LIBRARY_PATH}
 
 # Verify cfg-exporter binary and its dependencies
 RUN echo "=== Verifying cfg-exporter binary ===" && \

@@ -473,12 +473,53 @@ export class ClangASTParser {
       try {
         // Check if exporter exists
         if (!fs.existsSync(exporterPath)) {
-          const buildInstructions = isWindows 
-            ? 'cd cpp-tools\\cfg-exporter\\build && cmake .. -G "Visual Studio 17 2022" -A x64 && cmake --build . --config Release'
-            : 'cd cpp-tools/cfg-exporter && mkdir -p build && cd build && cmake .. && cmake --build .';
-          reject(new Error(`cfg-exporter binary not found at ${exporterPath}. Please build it first: ${buildInstructions}`));
-          return;
+          // Try additional paths for Docker/container environments
+          const alternativePaths = [
+            path.join('/app', 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter'), // Docker container path
+            path.join(process.cwd(), 'cpp-tools', 'cfg-exporter', 'build', 'cfg-exporter'), // Current working directory
+            'cfg-exporter' // PATH-based lookup
+          ];
+          
+          let foundPath: string | null = null;
+          for (const altPath of alternativePaths) {
+            if (fs.existsSync(altPath)) {
+              foundPath = altPath;
+              break;
+            }
+          }
+          
+          if (foundPath) {
+            exporterPath = foundPath;
+            console.log(`[ClangASTParser] Using alternative cfg-exporter path: ${exporterPath}`);
+          } else {
+            const buildInstructions = isWindows 
+              ? 'cd cpp-tools\\cfg-exporter\\build && cmake .. -G "Visual Studio 17 2022" -A x64 && cmake --build . --config Release'
+              : 'cd cpp-tools/cfg-exporter && mkdir -p build && cd build && cmake .. && cmake --build .';
+            reject(new Error(`cfg-exporter binary not found at ${exporterPath} or alternative paths. Please build it first: ${buildInstructions}`));
+            return;
+          }
         }
+        
+        // Verify binary is executable (Unix/Linux)
+        if (!isWindows) {
+          try {
+            const stats = fs.statSync(exporterPath);
+            const isExecutable = (stats.mode & parseInt('111', 8)) !== 0;
+            if (!isExecutable) {
+              console.warn(`[ClangASTParser] Warning: cfg-exporter at ${exporterPath} may not be executable. Attempting to chmod +x...`);
+              try {
+                fs.chmodSync(exporterPath, '755');
+              } catch (chmodErr) {
+                console.warn(`[ClangASTParser] Could not make binary executable: ${chmodErr}`);
+              }
+            }
+          } catch (statErr) {
+            console.warn(`[ClangASTParser] Could not check binary permissions: ${statErr}`);
+          }
+        }
+        
+        // Log the path being used for debugging
+        console.log(`[ClangASTParser] Using cfg-exporter at: ${exporterPath}`);
       } catch (err) {
         reject(new Error(`Failed to check cfg-exporter path: ${err}`));
         return;
@@ -514,7 +555,30 @@ export class ClangASTParser {
         errorOutput += data.toString();
       });
 
+      child.on('error', (err: Error) => {
+        // Enhanced error reporting for debugging
+        const errorDetails = {
+          message: err.message,
+          exporterPath: exporterPath,
+          filePath: filePath,
+          platform: process.platform,
+          arch: process.arch,
+          envPath: process.env.PATH,
+          cwd: process.cwd()
+        };
+        console.error(`[ClangASTParser] Failed to spawn cfg-exporter:`, errorDetails);
+        reject(new Error(`Failed to spawn cfg-exporter: ${err.message}. Path: ${exporterPath}. Details: ${JSON.stringify(errorDetails, null, 2)}`));
+      });
+
       child.on('close', (code) => {
+        // Log execution details for debugging
+        if (code !== 0 || errorOutput) {
+          console.warn(`[ClangASTParser] cfg-exporter exited with code ${code}`);
+          if (errorOutput) {
+            console.warn(`[ClangASTParser] cfg-exporter stderr: ${errorOutput.substring(0, 500)}`);
+          }
+        }
+        
         if (code !== 0) {
           reject(new Error(`cfg-exporter exited with code ${code}: ${errorOutput}`));
           return;

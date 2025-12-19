@@ -19,7 +19,10 @@ services:
     volumes:
       # Mount source code for development
       - ./src:/app/src:ro
-      - ./cpp-tools:/app/cpp-tools:ro
+      # DO NOT mount cpp-tools - use the built binary from Docker image to avoid architecture mismatch
+      # The built cfg-exporter binary in the image is compiled for linux/amd64 and matches the container
+      # Mounting local cpp-tools would override it with potentially wrong architecture binary
+      # - ./cpp-tools:/app/cpp-tools:ro  # COMMENTED OUT to use built binary from image
       - ./out:/app/out
       - ./dist:/app/dist
       # Mount workspace for analysis
@@ -34,6 +37,8 @@ services:
       - NODE_ENV=development
       # Ensure PATH includes LLVM, build tools, and node_modules/.bin for npm scripts
       - PATH=/app/node_modules/.bin:/usr/lib/llvm-17/bin:/usr/bin:/usr/local/bin:/app/cpp-tools/cfg-exporter/build:$PATH
+      # Set LD_LIBRARY_PATH for cfg-exporter to find LLVM shared libraries
+      - LD_LIBRARY_PATH=/usr/lib/llvm-17/lib
       - LLVM_DIR=/usr/lib/llvm-17/lib/cmake/llvm
       - Clang_DIR=/usr/lib/llvm-17/lib/cmake/clang
     working_dir: /app
