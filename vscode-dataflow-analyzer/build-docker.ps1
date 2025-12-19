@@ -140,62 +140,184 @@ function Invoke-LoggedCommand {
                 $isLongRunningCommand = ($Command -eq "docker" -and $Arguments.Count -gt 0 -and $Arguments[0] -eq "build")
                 
                 if ($isLongRunningCommand) {
-                    Write-Log "[DEBUG] Detected long-running docker build command, using direct PowerShell invocation" -ForegroundColor DarkGray
-                    Write-Log "[DEBUG] Using native PowerShell call operator for reliable argument handling..." -ForegroundColor DarkGray
+                    Write-Log "[DEBUG-L1] === ENTERING LONG-RUNNING COMMAND HANDLER ===" -ForegroundColor Cyan
+                    Write-Log "[DEBUG-L1] Detected long-running docker build command" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG-L1] Command: $Command" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG-L1] Arguments count: $($Arguments.Count)" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG-L1] Arguments: $($Arguments -join ' | ')" -ForegroundColor DarkGray
                     
-                    # For docker build, use direct PowerShell invocation with proper output streaming
-                    # This is the most reliable method that handles arguments correctly
-                    # Note: For PowerShell splatting, we use the original $Arguments array, not $quotedArguments
-                    # PowerShell's splatting automatically handles quoting, so we don't need manual quotes
+                    # Initialize output variables
                     $output = @()
                     $errorOutputArray = @()
                     $exitCode = 0
                     
                     try {
-                        Write-Log "[DEBUG] Executing docker build with real-time output streaming..." -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L2] === STARTING DOCKER BUILD EXECUTION ===" -ForegroundColor Cyan
+                        Write-Log "[DEBUG-L2] Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff')" -ForegroundColor DarkGray
                         
-                        # Use PowerShell's native call operator with splatting
-                        # Use the original $Arguments array (not $quotedArguments) because PowerShell
-                        # handles quoting automatically when splatting
-                        $outputLines = @()
-                        $errorLines = @()
-                        
-                        Write-Log "[DEBUG] Starting docker build process..." -ForegroundColor DarkGray
-                        Write-Log "[DEBUG] Command: $Command" -ForegroundColor DarkGray
-                        Write-Log "[DEBUG] Arguments count: $($Arguments.Count)" -ForegroundColor DarkGray
-                        
-                        # Execute using native PowerShell invocation with proper splatting
-                        # Use splatting (@Arguments) to pass array elements as separate arguments
-                        # PowerShell automatically handles quoting for arguments with spaces
-                        # Use 2>&1 to capture both stdout and stderr, then separate them
-                        $allOutput = & $Command @Arguments 2>&1
-                        
-                        # Separate stdout and stderr, and stream output in real-time
-                        foreach ($line in $allOutput) {
-                            if ($line -is [System.Management.Automation.ErrorRecord]) {
-                                $lineStr = $line.ToString()
-                                $errorLines += $lineStr
-                                Write-Host $lineStr -ForegroundColor Yellow
-                                Add-Content -Path $LogFile -Value "STDERR: $lineStr" -ErrorAction SilentlyContinue
-                            } else {
-                                $lineStr = $line.ToString()
-                                $outputLines += $lineStr
-                                Write-Host $lineStr
-                                Add-Content -Path $LogFile -Value $lineStr -ErrorAction SilentlyContinue
+                        # Use Start-Job for true async execution that we can monitor
+                        Write-Log "[DEBUG-L3] Creating background job for docker build..." -ForegroundColor DarkGray
+                        $jobScript = {
+                            param($Cmd, $Args)
+                            Write-Output "[JOB-START] Job started at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff')"
+                            Write-Output "[JOB-INFO] Command: $Cmd"
+                            Write-Output "[JOB-INFO] Arguments: $($Args -join ' ')"
+                            try {
+                                & $Cmd @Args 2>&1 | ForEach-Object {
+                                    Write-Output $_
+                                }
+                                $exitCode = $LASTEXITCODE
+                                Write-Output "[JOB-END] Job completed with exit code: $exitCode at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff')"
+                                return $exitCode
+                            } catch {
+                                Write-Output "[JOB-ERROR] Exception: $($_.Exception.Message)"
+                                return 1
                             }
                         }
                         
-                        $exitCode = $LASTEXITCODE
-                        Write-Log "[DEBUG] Process completed with exit code: $exitCode" -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L3] Job script created, starting job..." -ForegroundColor DarkGray
+                        $jobStartTime = Get-Date
+                        $job = Start-Job -ScriptBlock $jobScript -ArgumentList $Command, $Arguments
+                        Write-Log "[DEBUG-L3] Job started successfully, Job ID: $($job.Id)" -ForegroundColor Green
+                        Write-Log "[DEBUG-L3] Job state: $($job.State)" -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L3] Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff')" -ForegroundColor DarkGray
+                        
+                        # Monitor job and stream output in real-time
+                        Write-Log "[DEBUG-L4] === ENTERING JOB MONITORING LOOP ===" -ForegroundColor Cyan
+                        $outputLines = @()
+                        $errorLines = @()
+                        $lastOutputTime = Get-Date
+                        $lastStatusLogTime = Get-Date
+                        $statusLogIntervalSeconds = 5  # Log status every 5 seconds
+                        $noOutputTimeoutSeconds = 60  # 1 minute without output = potential issue
+                        $overallTimeoutSeconds = 3600  # 1 hour total timeout
+                        $iterationCount = 0
+                        
+                        while ($job.State -eq 'Running') {
+                            $iterationCount++
+                            $currentTime = Get-Date
+                            $elapsed = $currentTime - $jobStartTime
+                            $timeSinceLastOutput = $currentTime - $lastOutputTime
+                            
+                            # Receive any available output from the job
+                            $jobOutput = Receive-Job -Job $job
+                            if ($jobOutput) {
+                                $lastOutputTime = $currentTime
+                                foreach ($line in $jobOutput) {
+                                    $lineStr = $line.ToString()
+                                    
+                                    # Check for job control messages
+                                    if ($lineStr -match '\[JOB-') {
+                                        Write-Log "[DEBUG-L5] $lineStr" -ForegroundColor Magenta
+                                        if ($lineStr -match '\[JOB-ERROR\]') {
+                                            $errorLines += $lineStr
+                                        }
+                                    } else {
+                                        # Regular output
+                                        $outputLines += $lineStr
+                                        Write-Host $lineStr
+                                        Add-Content -Path $LogFile -Value $lineStr -ErrorAction SilentlyContinue
+                                    }
+                                }
+                            }
+                            
+                            # Log status periodically
+                            $timeSinceLastStatusLog = $currentTime - $lastStatusLogTime
+                            if ($timeSinceLastStatusLog.TotalSeconds -ge $statusLogIntervalSeconds) {
+                                Write-Log "[DEBUG-L4] Status check #$iterationCount: Elapsed=$([math]::Floor($elapsed.TotalSeconds))s, State=$($job.State), OutputLines=$($outputLines.Count), LastOutput=$([math]::Floor($timeSinceLastOutput.TotalSeconds))s ago" -ForegroundColor Yellow
+                                $lastStatusLogTime = $currentTime
+                            }
+                            
+                            # Check for no output timeout
+                            if ($timeSinceLastOutput.TotalSeconds -gt $noOutputTimeoutSeconds -and $outputLines.Count -eq 0) {
+                                Write-Log "[DEBUG-L4] WARNING: No output received for $([math]::Floor($timeSinceLastOutput.TotalSeconds)) seconds!" -ForegroundColor Red
+                                Write-Log "[DEBUG-L4] Job state: $($job.State)" -ForegroundColor Red
+                                Write-Log "[DEBUG-L4] This may indicate the process is hung" -ForegroundColor Red
+                            }
+                            
+                            # Check for overall timeout
+                            if ($elapsed.TotalSeconds -gt $overallTimeoutSeconds) {
+                                Write-Log "[DEBUG-L4] ERROR: Overall timeout of $overallTimeoutSeconds seconds exceeded!" -ForegroundColor Red
+                                Write-Log "[DEBUG-L4] Stopping job..." -ForegroundColor Red
+                                Stop-Job -Job $job
+                                Remove-Job -Job $job -Force
+                                throw "Docker build exceeded timeout of $overallTimeoutSeconds seconds"
+                            }
+                            
+                            # Small sleep to prevent CPU spinning
+                            Start-Sleep -Milliseconds 500
+                        }
+                        
+                        Write-Log "[DEBUG-L4] === EXITING JOB MONITORING LOOP ===" -ForegroundColor Cyan
+                        Write-Log "[DEBUG-L4] Final job state: $($job.State)" -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L4] Total iterations: $iterationCount" -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L4] Total elapsed time: $([math]::Floor($elapsed.TotalSeconds)) seconds" -ForegroundColor DarkGray
+                        
+                        # Get any remaining output
+                        Write-Log "[DEBUG-L5] Receiving final job output..." -ForegroundColor DarkGray
+                        $finalOutput = Receive-Job -Job $job
+                        if ($finalOutput) {
+                            foreach ($line in $finalOutput) {
+                                $lineStr = $line.ToString()
+                                if ($lineStr -match '\[JOB-') {
+                                    Write-Log "[DEBUG-L5] $lineStr" -ForegroundColor Magenta
+                                    if ($lineStr -match '\[JOB-END\]') {
+                                        if ($lineStr -match 'exit code: (\d+)') {
+                                            $exitCode = [int]$matches[1]
+                                        }
+                                    } elseif ($lineStr -match '\[JOB-ERROR\]') {
+                                        $errorLines += $lineStr
+                                    }
+                                } else {
+                                    $outputLines += $lineStr
+                                    Write-Host $lineStr
+                                    Add-Content -Path $LogFile -Value $lineStr -ErrorAction SilentlyContinue
+                                }
+                            }
+                        }
+                        
+                        # Clean up job
+                        Write-Log "[DEBUG-L5] Cleaning up job..." -ForegroundColor DarkGray
+                        Remove-Job -Job $job -Force
+                        Write-Log "[DEBUG-L5] Job removed" -ForegroundColor DarkGray
+                        
+                        # Process output
+                        Write-Log "[DEBUG-L6] Processing output lines..." -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L6] Total output lines: $($outputLines.Count)" -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L6] Total error lines: $($errorLines.Count)" -ForegroundColor DarkGray
                         
                         $output = $outputLines | Where-Object { $_.Trim().Length -gt 0 }
                         $errorOutputArray = $errorLines | Where-Object { $_.Trim().Length -gt 0 }
+                        
+                        Write-Log "[DEBUG-L6] Processed output count: $($output.Count)" -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L6] Processed error count: $($errorOutputArray.Count)" -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L6] Final exit code: $exitCode" -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L2] === DOCKER BUILD EXECUTION COMPLETED ===" -ForegroundColor Cyan
+                        
                     } catch {
+                        Write-Log "[DEBUG-ERROR] === EXCEPTION IN DOCKER BUILD HANDLER ===" -ForegroundColor Red
                         $errorMsg = $_.Exception.Message
-                        Write-Log "[DEBUG] Error during docker build execution: $errorMsg" -ForegroundColor Red
+                        $errorStackTrace = $_.ScriptStackTrace
+                        Write-Log "[DEBUG-ERROR] Exception message: $errorMsg" -ForegroundColor Red
+                        Write-Log "[DEBUG-ERROR] Stack trace: $errorStackTrace" -ForegroundColor Red
+                        
+                        # Try to clean up job if it exists
+                        if ($job) {
+                            Write-Log "[DEBUG-ERROR] Attempting to clean up job..." -ForegroundColor Yellow
+                            try {
+                                Stop-Job -Job $job -ErrorAction SilentlyContinue
+                                Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+                            } catch {
+                                Write-Log "[DEBUG-ERROR] Failed to clean up job: $($_.Exception.Message)" -ForegroundColor Red
+                            }
+                        }
+                        
                         $exitCode = 1
                         $errorOutputArray = @($errorMsg)
                     }
+                    
+                    Write-Log "[DEBUG-L1] === EXITING LONG-RUNNING COMMAND HANDLER ===" -ForegroundColor Cyan
+                    Write-Log "[DEBUG-L1] Final exit code: $exitCode" -ForegroundColor DarkGray
                 } else {
                     # For shorter commands, use the original method
                     Write-Log "[DEBUG] Using standard Start-Process with file redirection" -ForegroundColor DarkGray
