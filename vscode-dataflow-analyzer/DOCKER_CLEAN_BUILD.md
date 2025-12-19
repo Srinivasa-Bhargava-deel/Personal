@@ -262,7 +262,7 @@ docker system prune -a -f
 
 ## Related Documentation
 
-- [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) - Comprehensive troubleshooting guide
-- [DOCKER.md](DOCKER.md) - Complete Docker documentation
-- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
+- **🚀 Recommended**: [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide with Remote Containers
+- [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) - Comprehensive troubleshooting guide (includes Remote Containers)
+- [DOCKER.md](DOCKER.md) - Complete Docker documentation with Remote Containers instructions
 

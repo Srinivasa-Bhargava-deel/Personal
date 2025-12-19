@@ -2,6 +2,8 @@
 
 This guide addresses common issues encountered when building and packaging the extension with Docker.
 
+> **🚀 Using Remote Containers?** If you're using VS Code Remote Containers and encounter issues, see the "Remote Containers Issues" section below.
+
 ## Issue 1: Permission Error - "chmod: changing permissions of '/tmp/docker-package.sh': Read-only file system"
 
 ### Symptoms
@@ -709,6 +711,179 @@ docker version
 systeminfo | findstr /C:"Hyper-V"
 ```
 
+## Remote Containers Issues
+
+### Issue: "Command 'Remote-Containers: Reopen in Container' not found"
+
+**Symptoms:**
+- Can't find "Reopen in Container" command in Command Palette
+- Extension not installed
+
+**Solution:**
+1. Open VS Code Extensions (`Ctrl+Shift+X`)
+2. Search for: `Remote - Containers`
+3. Install: `ms-vscode-remote.remote-containers`
+4. Reload VS Code
+5. Try again: `F1` → `Remote-Containers: Reopen in Container`
+
+### Issue: "Docker daemon is not running"
+
+**Symptoms:**
+- Error: "Cannot connect to Docker daemon"
+- Container won't start
+
+**Solution:**
+1. Start Docker Desktop
+2. Wait for Docker to fully start (whale icon in system tray should be steady)
+3. Verify: `docker ps` should work in terminal
+4. Try reopening container again
+
+### Issue: "Container build fails" or "Build timeout"
+
+**Symptoms:**
+- Container build takes too long or fails
+- First build fails
+
+**Solution:**
+1. **Increase Docker memory**:
+   - Docker Desktop → Settings → Resources → Memory
+   - Set to 8GB or higher
+   - Click "Apply & Restart"
+
+2. **Rebuild without cache**:
+   - `F1` → `Remote-Containers: Rebuild Container Without Cache`
+
+3. **Check Docker Desktop logs**:
+   - Docker Desktop → Troubleshoot → View logs
+
+4. **Verify Docker is running**:
+   ```powershell
+   docker ps
+   docker version
+   ```
+
+### Issue: "Extension doesn't launch after reopening in container"
+
+**Symptoms:**
+- Container opens but extension won't run
+- Press F5 but nothing happens
+
+**Solution:**
+1. **Check container is ready**:
+   - Look at VS Code status bar (should show "Dev Container")
+   - Wait for "postCreateCommand" to complete
+
+2. **Check output**:
+   - View → Output → Select "Dev Containers"
+   - Look for errors
+
+3. **Rebuild container**:
+   - `F1` → `Remote-Containers: Rebuild Container`
+
+4. **Verify npm install completed**:
+   - Open terminal in container
+   - Run: `npm list` (should show packages)
+
+### Issue: "Permission denied" in container
+
+**Symptoms:**
+- Can't write files in container
+- Permission errors when compiling
+
+**Solution:**
+1. **Check file permissions**:
+   ```bash
+   # In container terminal
+   ls -la /app
+   ```
+
+2. **Fix permissions** (if needed):
+   ```bash
+   # In container terminal
+   chmod -R 777 /app/out
+   ```
+
+3. **Rebuild container**:
+   - `F1` → `Remote-Containers: Rebuild Container`
+
+### Issue: "cfg-exporter not found" in container
+
+**Symptoms:**
+- Extension can't find cfg-exporter binary
+- Analysis fails
+
+**Solution:**
+1. **Verify binary exists**:
+   ```bash
+   # In container terminal
+   ls -la /app/cpp-tools/cfg-exporter/build/cfg-exporter
+   ```
+
+2. **Check PATH**:
+   ```bash
+   # In container terminal
+   echo $PATH
+   # Should include: /app/cpp-tools/cfg-exporter/build
+   ```
+
+3. **Rebuild container** (binary should be built during container creation):
+   - `F1` → `Remote-Containers: Rebuild Container Without Cache`
+
+### Issue: "Out of memory" during container build
+
+**Symptoms:**
+- Container build fails with memory errors
+- Docker Desktop crashes
+
+**Solution:**
+1. **Increase Docker Desktop memory**:
+   - Docker Desktop → Settings → Resources → Memory
+   - Set to 8GB+ (if you have 16GB+ RAM)
+   - Click "Apply & Restart"
+
+2. **Close other applications**:
+   - Free up system memory
+   - Close browser tabs, other Docker containers
+
+3. **Rebuild**:
+   - `F1` → `Remote-Containers: Rebuild Container`
+
+### Issue: "WSL 2 installation is incomplete" (Windows)
+
+**Symptoms:**
+- Error about WSL 2 when opening container
+- Docker Desktop won't start
+
+**Solution:**
+```powershell
+# Run PowerShell as Administrator
+wsl --update
+wsl --set-default-version 2
+wsl --shutdown
+# Wait 10 seconds, then start Docker Desktop
+```
+
+### Issue: "Container keeps rebuilding"
+
+**Symptoms:**
+- Container rebuilds every time you open VS Code
+- Takes a long time each time
+
+**Solution:**
+1. **Check devcontainer.json**:
+   - Ensure `postCreateCommand` completes successfully
+   - Check for errors in Output panel
+
+2. **Clear VS Code cache**:
+   - Close VS Code
+   - Delete `.devcontainer/.devcontainer-state` (if exists)
+   - Reopen VS Code
+
+3. **Rebuild once**:
+   - `F1` → `Remote-Containers: Rebuild Container Without Cache`
+   - Wait for it to complete
+   - Should persist after that
+
 ## Getting Help
 
 If you continue to experience issues:
@@ -718,11 +893,12 @@ If you continue to experience issues:
 3. **Check Docker Desktop logs** - Settings → Troubleshoot → View logs
 4. **Try a fresh build** - Use `cleanall` then rebuild
 5. **Check network connectivity** - Ensure you can reach apt.llvm.org
+6. **For Remote Containers**: Check Output → Dev Containers for detailed logs
 
 ## Related Documentation
 
-- [DOCKER.md](DOCKER.md) - Complete Docker documentation
-- [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) - Windows-specific guide
-- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
+- **🚀 Recommended**: [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide with Remote Containers
+- [DOCKER.md](DOCKER.md) - Complete Docker documentation with Remote Containers instructions
+- [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) - Windows-specific guide with Remote Containers
 - [CHECK_VIRTUALIZATION_WINDOWS.md](CHECK_VIRTUALIZATION_WINDOWS.md) - Check virtualization on Windows
 

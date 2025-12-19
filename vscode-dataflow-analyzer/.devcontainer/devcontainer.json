@@ -1,0 +1,40 @@
+{
+	"name": "C++ Dataflow Analyzer Development",
+	"build": {
+		"dockerfile": "../Dockerfile",
+		"context": "..",
+		"target": "dev"
+	},
+	"runArgs": [
+		"--privileged"
+	],
+	"workspaceFolder": "/app",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/app,type=bind",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode.vscode-typescript-next",
+				"dbaeumer.vscode-eslint",
+				"ms-vscode.cpptools",
+				"ms-vscode.cpptools-extension-pack"
+			],
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "bash",
+				"typescript.tsdk": "/app/node_modules/typescript/lib",
+				"typescript.enablePromptUseWorkspaceTsdk": true
+			}
+		}
+	},
+	"features": {},
+	"postCreateCommand": "npm install && npm run compile",
+	"postStartCommand": "echo 'Development container ready! Run: npm run compile'",
+	"remoteUser": "root",
+	"remoteEnv": {
+		"PATH": "/app/node_modules/.bin:/usr/lib/llvm-17/bin:/usr/bin:/usr/local/bin:/app/cpp-tools/cfg-exporter/build:${containerEnv:PATH}",
+		"LD_LIBRARY_PATH": "/usr/lib/llvm-17/lib",
+		"LLVM_DIR": "/usr/lib/llvm-17/lib/cmake/llvm",
+		"Clang_DIR": "/usr/lib/llvm-17/lib/cmake/clang",
+		"NODE_ENV": "development"
+	}
+}
+

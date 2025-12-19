@@ -1,10 +1,68 @@
 # Docker Setup for VS Code Dataflow Analyzer
 
-This guide explains how to build and run the VS Code Dataflow Analyzer extension using Docker on Windows.
+This guide explains how to build and run the VS Code Dataflow Analyzer extension using Docker on Windows, Linux, and macOS.
 
 > **⚠️ Windows Users**: Docker builds Linux binaries. The extension package (.vsix) works on Windows, but you'll need to build the Windows C++ binary (`cfg-exporter.exe`) separately. See [DOCKER_WINDOWS_COMPATIBILITY.md](DOCKER_WINDOWS_COMPATIBILITY.md) for complete details.
 
 > **✅ AMD x64 Users**: Docker works perfectly on AMD x64 (64-bit) Windows PCs! See [DOCKER_WINDOWS_AMD64.md](DOCKER_WINDOWS_AMD64.md) for complete AMD x64 64-bit instructions.
+
+## Quick Start: VS Code Remote Containers (Recommended)
+
+The **easiest way** to develop this extension is using **VS Code Remote Containers**. This provides a fully configured development environment without installing dependencies locally.
+
+### Step 1: Install Required VS Code Extensions
+
+1. **Remote - Containers** (`ms-vscode-remote.remote-containers`)
+   - **Required**: Main extension for container development
+   - Install from VS Code: Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on macOS)
+   - Search for: `Remote - Containers`
+   - Click Install
+   - Or install directly: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+
+2. **Docker** (`ms-azuretools.vscode-docker`) (Optional but recommended)
+   - Provides Docker integration and management tools
+   - Install from VS Code: Search for `Docker`
+   - Or install directly: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker)
+
+### Step 2: Install Docker Desktop
+
+- **Windows**: [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
+- **macOS**: [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
+- **Linux**: [Docker Engine Installation Guide](https://docs.docker.com/engine/install/)
+
+### Step 3: Open Project in Container
+
+1. Open the project folder in VS Code:
+   ```bash
+   code /path/to/vscode-dataflow-analyzer
+   ```
+
+2. Reopen in Container:
+   - Press `F1` (or `Cmd+Shift+P` / `Ctrl+Shift+P`)
+   - Type: `Remote-Containers: Reopen in Container`
+   - Select it and wait for the container to build
+
+3. Wait for setup:
+   - First build takes 10-15 minutes
+   - Container automatically installs dependencies and compiles TypeScript
+   - Check VS Code status bar for progress
+
+4. Run the extension:
+   - Press `F5` to launch Extension Development Host
+   - Open a C++ file and run "Analyze Workspace" command
+
+### Troubleshooting Remote Containers
+
+- **Container won't build**: Ensure Docker Desktop is running
+- **Out of memory**: Increase Docker Desktop memory (Settings → Resources → Memory: 4GB+)
+- **Rebuild container**: `F1` → `Remote-Containers: Rebuild Container`
+- **Rebuild without cache**: `F1` → `Remote-Containers: Rebuild Container Without Cache`
+
+---
+
+## Manual Docker Setup (Alternative)
+
+If you prefer to use Docker manually instead of Remote Containers, follow the instructions below.
 
 ## Prerequisites
 

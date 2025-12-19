@@ -1437,6 +1437,120 @@ For detailed Docker documentation, see:
 - [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
 - [DOCKER.md](DOCKER.md) - Complete Docker documentation
 
+### VS Code Remote Containers (Recommended)
+
+The easiest way to develop and run this extension is using **VS Code Remote Containers**. This allows you to work in a fully configured development environment without installing dependencies locally.
+
+#### Prerequisites
+
+1. **Install Docker Desktop**
+   - **Windows**: Download from [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
+   - **macOS**: Download from [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
+   - **Linux**: Install Docker Engine - see [Docker Installation Guide](https://docs.docker.com/engine/install/)
+
+2. **Install VS Code Extensions**
+   
+   Open VS Code and install the following extensions:
+   
+   - **Remote - Containers** (`ms-vscode-remote.remote-containers`)
+     - This is the main extension for working with containers
+     - Install from: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+   
+   - **Docker** (`ms-azuretools.vscode-docker`) (Optional but recommended)
+     - Provides Docker integration and management tools
+     - Install from: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker)
+
+#### Quick Start with Remote Containers
+
+1. **Open the project in VS Code**
+   ```bash
+   code /path/to/vscode-dataflow-analyzer
+   ```
+
+2. **Reopen in Container**
+   - Press `F1` (or `Cmd+Shift+P` on macOS / `Ctrl+Shift+P` on Windows/Linux)
+   - Type: `Remote-Containers: Reopen in Container`
+   - Select it and wait for the container to build (first time may take 10-15 minutes)
+
+3. **Wait for setup to complete**
+   - The container will automatically:
+     - Build the Docker image (if not already built)
+     - Install npm dependencies
+     - Compile TypeScript
+     - Set up the development environment
+
+4. **Run the extension**
+   - Press `F5` to launch Extension Development Host
+   - A new VS Code window will open with the extension loaded
+   - Open a C++ file and run "Analyze Workspace" from Command Palette
+
+#### What's Included in the Container
+
+The development container includes:
+- ✅ Node.js 20+ and npm
+- ✅ TypeScript 5.0+
+- ✅ LLVM/Clang 17 (for CFG generation)
+- ✅ CMake and build tools
+- ✅ Pre-built `cfg-exporter` binary
+- ✅ All npm dependencies installed
+- ✅ VS Code extensions (TypeScript, ESLint, C++ tools)
+
+#### Running Commands in the Container
+
+Once inside the container, you can run:
+
+```bash
+# Compile TypeScript
+npm run compile
+
+# Watch mode (auto-compile on changes)
+npm run watch
+
+# Run tests
+npm test
+
+# Lint code
+npm run lint
+
+# Test cfg-exporter
+cfg-exporter --help
+```
+
+#### Troubleshooting Remote Containers
+
+**Container fails to build:**
+- Ensure Docker Desktop is running
+- Check Docker has enough resources (Settings → Resources → Memory: at least 4GB)
+- Try rebuilding: `F1` → `Remote-Containers: Rebuild Container`
+
+**Extension doesn't launch:**
+- Ensure the container finished building (check VS Code status bar)
+- Check the Output panel for errors
+- Try: `F1` → `Remote-Containers: Rebuild Container Without Cache`
+
+**Port conflicts:**
+- The container doesn't expose ports by default
+- If needed, edit `.devcontainer/devcontainer.json` to add port forwarding
+
+**Performance issues:**
+- Increase Docker Desktop memory allocation
+- Use volume mounts (already configured in devcontainer.json)
+- Consider using WSL 2 backend on Windows
+
+#### Alternative: Manual Docker Commands
+
+If you prefer not to use Remote Containers, you can still use Docker manually:
+
+```bash
+# Build the image
+docker build -t vscode-dataflow-analyzer .
+
+# Run interactively
+docker run -it --rm -v ${PWD}:/app vscode-dataflow-analyzer bash
+```
+
+See [DOCKER.md](DOCKER.md) for detailed Docker instructions.
+
 ### Build Scripts Reference
 
 - `npm run compile` - Compile TypeScript once

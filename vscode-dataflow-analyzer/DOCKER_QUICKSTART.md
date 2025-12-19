@@ -1,5 +1,36 @@
 # Docker Quick Start Guide
 
+## 🚀 Recommended: VS Code Remote Containers
+
+The **fastest and easiest** way to get started is using **VS Code Remote Containers**. This provides a fully configured development environment.
+
+### Quick Setup (3 Steps)
+
+1. **Install VS Code Extensions**
+   - Open VS Code
+   - Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on macOS)
+   - Install: **Remote - Containers** (`ms-vscode-remote.remote-containers`)
+   - Optional: Install **Docker** (`ms-azuretools.vscode-docker`)
+
+2. **Install Docker Desktop**
+   - **Windows**: [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
+   - **macOS**: [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
+   - **Linux**: [Docker Engine](https://docs.docker.com/engine/install/)
+
+3. **Open in Container**
+   - Open project: `code /path/to/vscode-dataflow-analyzer`
+   - Press `F1` → Type: `Remote-Containers: Reopen in Container`
+   - Wait for container to build (first time: ~10-15 minutes)
+   - Press `F5` to run extension!
+
+**That's it!** The container includes everything: Node.js, TypeScript, LLVM/Clang, CMake, and all dependencies.
+
+---
+
+## Manual Docker Setup (Alternative)
+
+If you prefer manual Docker commands instead of Remote Containers, follow the instructions below.
+
 ## For Windows Users
 
 > **⚠️ Important**: Docker builds Linux binaries. For the extension to work on Windows, you'll also need to build the Windows C++ binary separately. See [DOCKER_WINDOWS_COMPATIBILITY.md](DOCKER_WINDOWS_COMPATIBILITY.md) for details.
@@ -92,6 +123,7 @@ For detailed troubleshooting, see [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOO
 
 ## Next Steps
 
+- **🚀 Recommended**: Use **VS Code Remote Containers** (see top of this file) - easiest setup!
 - **Fully Dockerized Setup**: See [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) for complete Linux Docker VM on Windows AMD x64 instructions
 - See [DOCKER.md](DOCKER.md) for detailed documentation
 - **Troubleshooting**: See [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) for comprehensive troubleshooting guide

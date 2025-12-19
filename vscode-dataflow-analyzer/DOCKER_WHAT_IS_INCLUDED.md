@@ -69,6 +69,11 @@ When you build the Docker image, it **automatically installs** everything needed
    - Needed to clone the repository
    - Download: https://git-scm.com/download/win
 
+4. **Remote - Containers Extension** (Recommended if using Remote Containers)
+   - VS Code extension: `ms-vscode-remote.remote-containers`
+   - Makes development easier - just reopen in container
+   - Install from: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+
 ### Optional on Windows Host
 
 - **PowerShell** (comes with Windows)
@@ -149,6 +154,7 @@ COPY --from=cpp-builder /build/cfg-exporter ./cpp-tools/cfg-exporter/build/
 1. ✅ **Docker Desktop** (handles everything else)
 2. ✅ **VS Code** (to use the extension)
 3. ✅ **Git** (to clone repository)
+4. ✅ **Remote - Containers Extension** (recommended for easiest setup)
 
 ### In Docker Container - Automatically Includes:
 
@@ -162,12 +168,15 @@ COPY --from=cpp-builder /build/cfg-exporter ./cpp-tools/cfg-exporter/build/
 
 ## 💡 Key Takeaway
 
-**You only need 3 things on Windows:**
+**You only need 3-4 things on Windows:**
 - Docker Desktop
 - VS Code
 - Git
+- Remote - Containers Extension (recommended)
 
 **Everything else is handled automatically by Docker!**
+
+**🚀 Recommended**: Use VS Code Remote Containers for the easiest setup - just reopen in container and everything is ready!
 
 No need to:
 - Install LLVM/Clang

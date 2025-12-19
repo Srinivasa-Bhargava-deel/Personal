@@ -2,6 +2,20 @@
 
 Complete guide for running Docker on **AMD x64 (64-bit)** and **Intel x64 (64-bit)** Windows systems.
 
+## 🚀 Quick Start: VS Code Remote Containers (Recommended)
+
+The **easiest way** to develop on AMD x64 Windows is using **VS Code Remote Containers**:
+
+1. **Install Docker Desktop** (see Step 4 below)
+2. **Install Remote - Containers extension** in VS Code (`ms-vscode-remote.remote-containers`)
+3. **Open project**: `code .`
+4. **Reopen in Container**: `F1` → `Remote-Containers: Reopen in Container`
+5. **Press F5** to run extension!
+
+See [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) for detailed Remote Containers instructions.
+
+---
+
 ## ✅ Compatibility Confirmation
 
 **YES, Docker works perfectly on AMD x64 64-bit Windows PCs!**
@@ -374,7 +388,8 @@ wmic cpu get name
 
 ## Related Documentation
 
-- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
+- **🚀 Recommended**: [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide with Remote Containers
+- [DOCKER_FULL_LINUX_VM_WINDOWS.md](DOCKER_FULL_LINUX_VM_WINDOWS.md) - Complete Docker guide with Remote Containers
 - [DOCKER_WINDOWS_COMPATIBILITY.md](DOCKER_WINDOWS_COMPATIBILITY.md) - Windows compatibility details
 - [WINDOWS_BUILD_INSTRUCTIONS.md](WINDOWS_BUILD_INSTRUCTIONS.md) - Windows binary build instructions
 

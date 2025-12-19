@@ -37,7 +37,25 @@
 
 ## 🎯 **Recommended Approach for Windows Users**
 
-### Option 1: Use Docker for Extension Development (Recommended)
+### Option 0: Use VS Code Remote Containers (Easiest - Recommended)
+
+**The easiest way to develop on Windows:**
+
+1. Install Docker Desktop
+2. Install **Remote - Containers** extension in VS Code (`ms-vscode-remote.remote-containers`)
+3. Open project: `code .`
+4. Reopen in Container: `F1` → `Remote-Containers: Reopen in Container`
+5. Press `F5` to run extension!
+
+**Benefits:**
+- ✅ No manual Docker commands needed
+- ✅ Automatic environment setup
+- ✅ Full VS Code integration (debugging, IntelliSense)
+- ✅ Consistent across all machines
+
+See [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) for detailed instructions.
+
+### Option 1: Use Docker for Extension Development (Manual)
 
 ```powershell
 # 1. Build extension package (.vsix) using Docker

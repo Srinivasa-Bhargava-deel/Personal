@@ -18,6 +18,106 @@ Windows AMD x64 PC
           └── VS Code Dataflow Analyzer Extension
 ```
 
+## 🚀 Quick Start: VS Code Remote Containers (Recommended)
+
+The **easiest and fastest** way to develop this extension on Windows AMD x64 is using **VS Code Remote Containers**. This provides a fully configured development environment without installing any build tools locally.
+
+### Step 1: Install Required VS Code Extensions
+
+1. **Remote - Containers** (`ms-vscode-remote.remote-containers`)
+   - **Required**: Main extension for container development
+   - Install from VS Code: Press `Ctrl+Shift+X`
+   - Search for: `Remote - Containers`
+   - Click Install
+   - Or install directly: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+
+2. **Docker** (`ms-azuretools.vscode-docker`) (Optional but recommended)
+   - Provides Docker integration and management tools
+   - Install from VS Code: Search for `Docker`
+   - Or install directly: [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ms-azuretools.vscode-docker)
+
+### Step 2: Install Docker Desktop
+
+1. **Download Docker Desktop for Windows**
+   - Go to: https://www.docker.com/products/docker-desktop/
+   - Download: **"Docker Desktop Installer.exe"** (AMD64 version)
+
+2. **Install Docker Desktop**
+   - Run installer as Administrator
+   - ✅ Check **"Use WSL 2 instead of Hyper-V"** (recommended)
+   - Restart computer when prompted
+
+3. **Configure Docker Desktop**
+   - Open Docker Desktop
+   - Settings → Resources → Memory: Set to **8GB** or higher
+   - Settings → Resources → File Sharing: Add your project directory
+
+### Step 3: Open Project in Container
+
+1. **Clone the repository** (if not already done):
+   ```powershell
+   git clone <repository-url>
+   cd vscode-dataflow-analyzer
+   ```
+
+2. **Open in VS Code**:
+   ```powershell
+   code .
+   ```
+
+3. **Reopen in Container**:
+   - Press `F1` (or `Ctrl+Shift+P`)
+   - Type: `Remote-Containers: Reopen in Container`
+   - Select it and wait for the container to build
+
+4. **Wait for setup**:
+   - First build takes 10-15 minutes
+   - Container automatically:
+     - Builds Docker image
+     - Installs LLVM/Clang 17, CMake, Node.js, TypeScript
+     - Installs npm dependencies
+     - Compiles TypeScript
+     - Sets up development environment
+
+5. **Run the extension**:
+   - Press `F5` to launch Extension Development Host
+   - A new VS Code window will open with the extension loaded
+   - Open a C++ file and run "Analyze Workspace" from Command Palette
+
+### What's Included in the Container
+
+The development container automatically includes:
+- ✅ **LLVM/Clang 17** - Installed automatically
+- ✅ **CMake** - Installed automatically
+- ✅ **Node.js 20** - Included in base image
+- ✅ **TypeScript 5.0+** - Installed via npm
+- ✅ **Build Tools** (g++, make, etc.) - Installed automatically
+- ✅ **Pre-built cfg-exporter binary** - Built during container creation
+- ✅ **All npm dependencies** - Installed automatically
+- ✅ **VS Code extensions** - TypeScript, ESLint, C++ tools
+
+### Troubleshooting Remote Containers
+
+- **Container won't build**: Ensure Docker Desktop is running
+- **Out of memory**: Increase Docker Desktop memory (Settings → Resources → Memory: 8GB+)
+- **Rebuild container**: `F1` → `Remote-Containers: Rebuild Container`
+- **Rebuild without cache**: `F1` → `Remote-Containers: Rebuild Container Without Cache`
+- **WSL 2 issues**: See Step 1.3 below for WSL 2 installation
+
+### Benefits of Remote Containers
+
+- ✅ **No local installation needed** - Everything runs in Docker
+- ✅ **Consistent environment** - Same setup on all machines
+- ✅ **Easy to share** - Just clone and reopen in container
+- ✅ **Isolated** - Doesn't affect your Windows system
+- ✅ **Full VS Code integration** - Debugging, IntelliSense, etc. work perfectly
+
+---
+
+## 📋 Manual Docker Setup (Alternative)
+
+If you prefer to use Docker manually instead of Remote Containers, follow the instructions below.
+
 ## 📋 Prerequisites
 
 ### System Requirements
@@ -73,6 +173,7 @@ Windows AMD x64 PC
 - ✅ Docker Desktop (handles everything else)
 - ✅ VS Code (to install and use the .vsix extension)
 - ✅ Git (to clone the repository)
+- ✅ **Remote - Containers extension** (if using Remote Containers - recommended)
 
 ## 🚀 Step 1: Install Docker Desktop on Windows AMD x64
 
@@ -605,6 +706,16 @@ docker run --rm vscode-dataflow-analyzer:latest node --version
 
 ## 📚 Quick Reference Commands
 
+### Using Remote Containers (Recommended)
+
+1. **Open project**: `code .`
+2. **Reopen in container**: `F1` → `Remote-Containers: Reopen in Container`
+3. **Run extension**: Press `F5`
+4. **Compile**: `npm run compile` (in container terminal)
+5. **Test**: `npm test` (in container terminal)
+
+### Using Manual Docker Commands
+
 ```powershell
 # Build
 .\build-docker.ps1 build
@@ -630,7 +741,17 @@ docker-compose exec dev npm run compile
 
 ## 🎯 Summary
 
-**Complete Dockerized Workflow:**
+### Recommended Workflow (Remote Containers)
+
+1. ✅ **Install Docker Desktop** on Windows AMD x64
+2. ✅ **Install Remote - Containers extension** in VS Code
+3. ✅ **Open project** in VS Code
+4. ✅ **Reopen in Container** (`F1` → `Remote-Containers: Reopen in Container`)
+5. ✅ **Wait for container** to build (first time: ~10-15 minutes)
+6. ✅ **Press F5** to run extension
+7. ✅ **Develop and test** directly in container
+
+### Manual Docker Workflow (Alternative)
 
 1. ✅ **Install Docker Desktop** on Windows AMD x64
 2. ✅ **Configure WSL 2** backend
@@ -654,12 +775,13 @@ docker-compose exec dev npm run compile
 
 ## 📖 Related Documentation
 
-- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide
+- **🚀 Recommended**: Use **VS Code Remote Containers** (see Quick Start section above) - easiest setup!
+- [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md) - Quick start guide with Remote Containers instructions
 - [DOCKER_WHAT_IS_INCLUDED.md](DOCKER_WHAT_IS_INCLUDED.md) - **What's included in Docker vs what you need to install**
 - [DOCKER_WINDOWS_AMD64.md](DOCKER_WINDOWS_AMD64.md) - AMD x64 specific instructions
 - [DOCKER_WINDOWS_COMPATIBILITY.md](DOCKER_WINDOWS_COMPATIBILITY.md) - Windows compatibility details
 - [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) - **Comprehensive troubleshooting guide**
-- [DOCKER.md](DOCKER.md) - Complete Docker documentation
+- [DOCKER.md](DOCKER.md) - Complete Docker documentation with Remote Containers instructions
 
 ---
 
@@ -684,12 +806,25 @@ docker-compose exec dev npm run compile
 **A: Yes!** VS Code must be installed on Windows to use the extension. Docker only builds it.
 
 ### Q: What's the minimum I need on Windows?
-**A: Only 3 things:**
+**A: Only 4 things:**
 1. Docker Desktop
 2. VS Code
 3. Git
+4. Remote - Containers extension (if using Remote Containers - recommended)
 
 Everything else is handled by Docker automatically!
+
+### Q: Should I use Remote Containers or manual Docker commands?
+**A: Remote Containers is recommended** because:
+- ✅ Easier setup (just reopen in container)
+- ✅ Better VS Code integration (debugging, IntelliSense work perfectly)
+- ✅ Automatic environment setup
+- ✅ No need to remember Docker commands
+
+Manual Docker commands are useful for:
+- CI/CD pipelines
+- Custom build scripts
+- Advanced Docker workflows
 
 ---
 
