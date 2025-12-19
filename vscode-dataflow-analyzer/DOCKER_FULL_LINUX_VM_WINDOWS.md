@@ -175,12 +175,37 @@ cd Personal\vscode-dataflow-analyzer
 # cd vscode-dataflow-analyzer
 ```
 
-### Step 7: Open Project in VS Code Remote Container
+### Step 7: Verify VS Code CLI is Available
+
+Before opening the project, verify the `code` command works:
+
+```powershell
+# Check if code command is available
+code --version
+# Should show: 1.80.0 or higher
+```
+
+**If `code` command is not found:**
+
+1. Open VS Code
+2. Press `Ctrl+Shift+P` to open Command Palette
+3. Type: `Shell Command: Install 'code' command in PATH`
+4. Select it and restart PowerShell
+5. Verify again: `code --version`
+
+### Step 8: Open Project in VS Code Remote Container
 
 1. **Open Project in VS Code**
    ```powershell
+   # From the project directory
    code .
    ```
+   
+   **Alternative if `code` command doesn't work:**
+   - Open VS Code manually
+   - File → Open Folder
+   - Navigate to: `C:\Users\YourName\Desktop\Personal\vscode-dataflow-analyzer`
+   - Click "Select Folder"
 
 2. **Reopen in Container**
    - Press `F1` (or `Ctrl+Shift+P`)
@@ -209,7 +234,7 @@ cd Personal\vscode-dataflow-analyzer
      cfg-exporter --help  # Should show help text
      ```
 
-### Step 8: Run the Extension
+### Step 9: Run the Extension
 
 1. **Press F5** to launch Extension Development Host
    - A new VS Code window will open (Extension Development Host)
@@ -335,20 +360,41 @@ cfg-exporter --help  # ✅ Should show help text
 
 ## 📚 Quick Reference
 
-### Essential Commands
+### Essential VS Code Commands
 
-1. **Open project**: `code .`
-2. **Reopen in container**: `F1` → `Remote-Containers: Reopen in Container`
-3. **Run extension**: Press `F5`
-4. **Rebuild container**: `F1` → `Remote-Containers: Rebuild Container Without Cache`
-5. **Compile TypeScript**: `npm run compile` (in container terminal)
-6. **Run tests**: `npm test` (in container terminal)
+1. **Open project**: 
+   ```powershell
+   code .
+   ```
+
+2. **Reopen in container**: 
+   - Press `F1` (or `Ctrl+Shift+P`)
+   - Type: `Remote-Containers: Reopen in Container`
+   - Select it
+
+3. **Run extension**: 
+   - Press `F5` (or `Ctrl+F5` to run without debugging)
+
+4. **Rebuild container**: 
+   - Press `F1` → Type: `Remote-Containers: Rebuild Container Without Cache`
+
+5. **Check container status**: 
+   - Look at VS Code status bar (bottom left)
+   - Should show: "Dev Container: C++ Dataflow Analyzer Development"
+
+6. **View container logs**: 
+   - View → Output → Select "Dev Containers" from dropdown
 
 ### Container Terminal Commands
+
+After container is running, use these commands in the VS Code terminal (container terminal):
 
 ```bash
 # Compile TypeScript
 npm run compile
+
+# Watch mode (auto-compile on changes)
+npm run watch
 
 # Run tests
 npm test
@@ -365,6 +411,15 @@ node --version
 # Check npm version
 npm --version
 ```
+
+### VS Code Command Palette Commands
+
+Once the extension is running (F5), use these commands in the Extension Development Host window:
+
+- **`Ctrl+Shift+P`** → `Dataflow Analyzer: Analyze Workspace`
+- **`Ctrl+Shift+P`** → `Dataflow Analyzer: Show Control Flow Graph`
+- **`Ctrl+Shift+P`** → `Dataflow Analyzer: Analyze Active File`
+- **`Ctrl+Shift+P`** → `Dataflow Analyzer: Re-Analyze`
 
 ## 🎯 Summary
 
