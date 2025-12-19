@@ -373,6 +373,11 @@ function Invoke-LoggedCommand {
                 } else {
                     # For shorter commands, use the original method
                     Write-Log "[DEBUG] Using standard Start-Process with file redirection" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG] Command: $Command" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG] Arguments: $($quotedArguments -join ' ')" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG] Stdout file: $stdoutFile" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG] Stderr file: $stderrFile" -ForegroundColor DarkGray
+                    
                     $processParams = @{
                         FilePath = $Command
                         ArgumentList = $quotedArguments
@@ -387,58 +392,78 @@ function Invoke-LoggedCommand {
                         $processParams['WorkingDirectory'] = $WorkingDirectory
                         Write-Log "[DEBUG] Setting working directory: $WorkingDirectory" -ForegroundColor DarkGray
                     }
+                    
+                    Write-Log "[DEBUG] Starting process..." -ForegroundColor DarkGray
+                    $processStartTime = Get-Date
                     $process = Start-Process @processParams
+                    $processEndTime = Get-Date
+                    $processDuration = ($processEndTime - $processStartTime).TotalSeconds
                     $exitCode = $process.ExitCode
                     
+                    Write-Log "[DEBUG] Process completed in $([math]::Round($processDuration, 2)) seconds" -ForegroundColor DarkGray
                     Write-Log "[DEBUG] Process exit code: $exitCode" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG] Process ID: $($process.Id)" -ForegroundColor DarkGray
                     
                     # Read captured output from files (only for non-long-running commands)
+                    Write-Log "[DEBUG] Reading stdout file..." -ForegroundColor DarkGray
                     if (Test-Path $stdoutFile) {
+                        $stdoutFileSize = (Get-Item $stdoutFile).Length
+                        Write-Log "[DEBUG] Stdout file exists, size: $stdoutFileSize bytes" -ForegroundColor DarkGray
                         $outputRaw = Get-Content $stdoutFile -ErrorAction SilentlyContinue -Raw
                         if ($outputRaw -and $outputRaw.Trim().Length -gt 0) {
-                            $outputRaw -split [Environment]::NewLine | ForEach-Object { 
-                                if ($_.Trim().Length -gt 0) {
-                                    Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
-                                    Write-Host $_
-                                }
+                            $outputLines = $outputRaw -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 }
+                            Write-Log "[DEBUG] Stdout contains $($outputLines.Count) lines" -ForegroundColor DarkGray
+                            $outputLines | ForEach-Object { 
+                                Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
+                                Write-Host $_
                             }
-                            $output = $outputRaw -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 }
+                            $output = $outputLines
                         } else {
+                            Write-Log "[DEBUG] Stdout file is empty" -ForegroundColor DarkGray
                             $output = @()
                         }
                     } else {
+                        Write-Log "[DEBUG] Stdout file does not exist" -ForegroundColor DarkGray
                         $output = @()
                     }
                     
+                    Write-Log "[DEBUG] Reading stderr file..." -ForegroundColor DarkGray
                     if (Test-Path $stderrFile) {
+                        $stderrFileSize = (Get-Item $stderrFile).Length
+                        Write-Log "[DEBUG] Stderr file exists, size: $stderrFileSize bytes" -ForegroundColor DarkGray
                         $errorOutput = Get-Content $stderrFile -ErrorAction SilentlyContinue -Raw
                         # Check if stderr contains actual errors or just informational output
                         # docker-compose writes normal output to stderr, so we need to distinguish
                         if ($errorOutput -and $errorOutput.Trim().Length -gt 0) {
+                            $errorLines = $errorOutput -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 }
+                            Write-Log "[DEBUG] Stderr contains $($errorLines.Count) lines" -ForegroundColor DarkGray
                             # For docker-compose, normal operations write to stderr but aren't errors
                             # Only log as error if exit code is non-zero
                             if ($exitCode -ne 0) {
-                                $errorOutput -split [Environment]::NewLine | ForEach-Object { 
-                                    if ($_.Trim().Length -gt 0) {
-                                        Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
-                                        Write-Host $_ -ForegroundColor Yellow
-                                    }
+                                Write-Log "[DEBUG] Exit code is non-zero, treating stderr as errors" -ForegroundColor Yellow
+                                $errorLines | ForEach-Object { 
+                                    Add-Content -Path $LogFile -Value "STDERR: $_" -ErrorAction SilentlyContinue
+                                    Write-Host $_ -ForegroundColor Yellow
                                 }
                             } else {
                                 # For successful docker-compose commands, stderr is just informational
-                                $errorOutput -split [Environment]::NewLine | ForEach-Object { 
-                                    if ($_.Trim().Length -gt 0) {
-                                        Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
-                                        Write-Host $_ -ForegroundColor Gray
-                                    }
+                                Write-Log "[DEBUG] Exit code is zero, treating stderr as informational output" -ForegroundColor DarkGray
+                                $errorLines | ForEach-Object { 
+                                    Add-Content -Path $LogFile -Value $_ -ErrorAction SilentlyContinue
+                                    Write-Host $_ -ForegroundColor Gray
                                 }
                             }
+                            $errorOutputArray = $errorLines
+                        } else {
+                            Write-Log "[DEBUG] Stderr file is empty" -ForegroundColor DarkGray
+                            $errorOutputArray = @()
                         }
-                        # Convert to array for return value
-                        $errorOutputArray = if ($errorOutput) { $errorOutput -split [Environment]::NewLine | Where-Object { $_.Trim().Length -gt 0 } } else { @() }
                     } else {
+                        Write-Log "[DEBUG] Stderr file does not exist" -ForegroundColor DarkGray
                         $errorOutputArray = @()
                     }
+                    
+                    Write-Log "[DEBUG] Output processing complete. Output lines: $($output.Count), Error lines: $($errorOutputArray.Count)" -ForegroundColor DarkGray
                 }
                 
                 return @{ ExitCode = $exitCode; Output = $output; ErrorOutput = $errorOutputArray }
@@ -836,11 +861,33 @@ function Build-Image {
 function Run-Container {
     Write-Log "Running container interactively..." -ForegroundColor Cyan
     
-    # Convert Windows paths to forward slashes for Docker
-    $srcPath = (Resolve-Path "src").Path -replace '\\', '/'
-    $outPath = (Resolve-Path "out").Path -replace '\\', '/'
-    $testsPath = (Resolve-Path "tests").Path -replace '\\', '/'
+    # Get current directory to ensure paths are resolved correctly
+    $currentDir = Get-Location
     
+    # Convert Windows paths to forward slashes for Docker
+    # Handle paths with spaces by using Resolve-Path with error handling
+    try {
+        $srcPath = (Resolve-Path "src" -ErrorAction Stop).Path -replace '\\', '/'
+    } catch {
+        Write-Log "ERROR: Failed to resolve src path: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+    
+    try {
+        $outPath = (Resolve-Path "out" -ErrorAction Stop).Path -replace '\\', '/'
+    } catch {
+        Write-Log "ERROR: Failed to resolve out path: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+    
+    try {
+        $testsPath = (Resolve-Path "tests" -ErrorAction Stop).Path -replace '\\', '/'
+    } catch {
+        Write-Log "ERROR: Failed to resolve tests path: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Log "[DEBUG] Current directory: $currentDir" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Source path: $srcPath" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Output path: $outPath" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Tests path: $testsPath" -ForegroundColor DarkGray
@@ -977,24 +1024,26 @@ function Start-DevContainer {
             $errorOutputCount = if ($result.ErrorOutput) { $result.ErrorOutput.Count } else { 0 }
             Write-Log "[DEBUG] Output lines: $outputCount, ErrorOutput lines: $errorOutputCount" -ForegroundColor DarkGray
             
-            # Show first few lines of ErrorOutput if present (docker-compose writes to stderr)
+            # Show ALL ErrorOutput lines (docker-compose writes to stderr)
             if ($errorOutputCount -gt 0 -and $result.ErrorOutput) {
-                $previewLines = [Math]::Min(3, $errorOutputCount)
-                Write-Log "[DEBUG] ErrorOutput preview (first $previewLines lines):" -ForegroundColor DarkGray
-                for ($i = 0; $i -lt $previewLines; $i++) {
-                    $errorLine = $result.ErrorOutput[$i]
-                    Write-Log "[DEBUG]   [$i]: $errorLine" -ForegroundColor DarkGray
+                Write-Log "[DEBUG] === FULL ErrorOutput (stderr) ===" -ForegroundColor Cyan
+                $result.ErrorOutput | ForEach-Object {
+                    Write-Log "[STDERR] $_" -ForegroundColor Gray
                 }
+                Write-Log "[DEBUG] === END ErrorOutput ===" -ForegroundColor Cyan
+            } else {
+                Write-Log "[DEBUG] No ErrorOutput (stderr) captured" -ForegroundColor DarkGray
             }
             
-            # Show first few lines of Output if present
+            # Show ALL Output lines (stdout)
             if ($outputCount -gt 0 -and $result.Output) {
-                $previewLines = [Math]::Min(3, $outputCount)
-                Write-Log "[DEBUG] Output preview (first $previewLines lines):" -ForegroundColor DarkGray
-                for ($i = 0; $i -lt $previewLines; $i++) {
-                    $outputLine = $result.Output[$i]
-                    Write-Log "[DEBUG]   [$i]: $outputLine" -ForegroundColor DarkGray
+                Write-Log "[DEBUG] === FULL Output (stdout) ===" -ForegroundColor Cyan
+                $result.Output | ForEach-Object {
+                    Write-Log "[STDOUT] $_" -ForegroundColor Gray
                 }
+                Write-Log "[DEBUG] === END Output ===" -ForegroundColor Cyan
+            } else {
+                Write-Log "[DEBUG] No Output (stdout) captured" -ForegroundColor DarkGray
             }
         } else {
             $resultProps = $result.PSObject.Properties.Name -join ', '
@@ -1003,6 +1052,21 @@ function Start-DevContainer {
         
         if ($exitCode -eq 0) {
             Write-Log "Development container started!" -ForegroundColor Green
+            Write-Log ""
+            
+            # Check container status
+            Write-Log "[DEBUG] Checking container status..." -ForegroundColor DarkGray
+            $statusResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("ps", "dev") -CaptureOutput -WorkingDirectory $currentDir.Path
+            if ($statusResult.ExitCode -eq 0) {
+                Write-Log "[DEBUG] Container status:" -ForegroundColor DarkGray
+                if ($statusResult.Output) {
+                    $statusResult.Output | ForEach-Object { Write-Log "  $_" -ForegroundColor Gray }
+                }
+                if ($statusResult.ErrorOutput) {
+                    $statusResult.ErrorOutput | ForEach-Object { Write-Log "  $_" -ForegroundColor Gray }
+                }
+            }
+            
             Write-Log ""
             Write-Log "To execute commands:" -ForegroundColor Yellow
             Write-Log "  docker-compose exec dev npm run compile" -ForegroundColor Gray
@@ -1015,16 +1079,31 @@ function Start-DevContainer {
             Write-Log $testCompileMsg -ForegroundColor Gray
             Write-Log ""
             Write-Log "[DEBUG] Checking container logs for any startup errors..." -ForegroundColor DarkGray
-            $logsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("logs", "--tail=20", "dev") -CaptureOutput -WorkingDirectory $currentDir.Path
-            if ($logsResult.ExitCode -eq 0 -and $logsResult.Output) {
-                $errorPattern = "ERROR|error|WARNING|warning"
-                $errorLines = $logsResult.Output | Where-Object { $_ -match $errorPattern }
+            $logsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("logs", "--tail=50", "dev") -CaptureOutput -WorkingDirectory $currentDir.Path
+            if ($logsResult.ExitCode -eq 0) {
+                Write-Log "[DEBUG] Container logs (last 50 lines):" -ForegroundColor DarkGray
+                if ($logsResult.Output) {
+                    $logsResult.Output | ForEach-Object { Write-Log "  $_" -ForegroundColor Gray }
+                }
+                if ($logsResult.ErrorOutput) {
+                    $logsResult.ErrorOutput | ForEach-Object { Write-Log "  $_" -ForegroundColor Gray }
+                }
+                
+                # Check for errors/warnings
+                $allLogLines = @()
+                if ($logsResult.Output) { $allLogLines += $logsResult.Output }
+                if ($logsResult.ErrorOutput) { $allLogLines += $logsResult.ErrorOutput }
+                $errorPattern = "ERROR|error|WARNING|warning|Failed|failed"
+                $errorLines = $allLogLines | Where-Object { $_ -match $errorPattern }
                 if ($errorLines) {
+                    Write-Log ""
                     Write-Log "Found potential issues in container logs:" -ForegroundColor Yellow
                     $errorLines | ForEach-Object { Write-Log "  $_" -ForegroundColor Yellow }
                 } else {
-                    Write-Log "[DEBUG] No errors found in container startup logs" -ForegroundColor DarkGray
+                    Write-Log "[DEBUG] No errors or warnings found in container startup logs" -ForegroundColor DarkGray
                 }
+            } else {
+                Write-Log "[DEBUG] Failed to retrieve container logs, exit code: $($logsResult.ExitCode)" -ForegroundColor Yellow
             }
         } else {
             Write-Log "Failed to start development container! Exit code: $exitCode" -ForegroundColor Red
@@ -1052,9 +1131,13 @@ function Start-DevContainer {
 function Package-Extension {
     Write-Log "Packaging extension as .vsix..." -ForegroundColor Cyan
     
+    # Get current directory to ensure paths are resolved correctly
+    $currentDir = Get-Location
+    
     # Ensure dist directory exists
-    if (-not (Test-Path "dist")) {
-        New-Item -ItemType Directory -Path "dist" | Out-Null
+    $distPath = Join-Path $currentDir.Path "dist"
+    if (-not (Test-Path $distPath)) {
+        New-Item -ItemType Directory -Path $distPath | Out-Null
         Write-Log "Created dist directory" -ForegroundColor Gray
     }
     
@@ -1065,14 +1148,24 @@ function Package-Extension {
     
     # Get absolute paths and convert Windows backslashes to forward slashes
     # Docker Desktop on Windows requires forward slashes in volume mount paths
-    $distPathRaw = (Resolve-Path "dist").Path -replace '\\', '/'
-    $scriptPathRaw = (Resolve-Path "docker-package.sh").Path -replace '\\', '/'
+    # Handle paths with spaces by using Resolve-Path with error handling
+    try {
+        $distPathRaw = (Resolve-Path "dist" -ErrorAction Stop).Path -replace '\\', '/'
+    } catch {
+        Write-Log "ERROR: Failed to resolve dist path: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
     
-    $distPathOriginal = (Resolve-Path 'dist').Path
-    $scriptPathOriginal = (Resolve-Path 'docker-package.sh').Path
-    Write-Log "[DEBUG] Dist path (original): $distPathOriginal" -ForegroundColor DarkGray
+    try {
+        $scriptPathRaw = (Resolve-Path "docker-package.sh" -ErrorAction Stop).Path -replace '\\', '/'
+    } catch {
+        Write-Log "ERROR: Failed to resolve docker-package.sh path: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log "Current directory: $currentDir" -ForegroundColor Yellow
+        exit 1
+    }
+    
+    Write-Log "[DEBUG] Current directory: $currentDir" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Dist path (converted): $distPathRaw" -ForegroundColor DarkGray
-    Write-Log "[DEBUG] Script path (original): $scriptPathOriginal" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Script path (converted): $scriptPathRaw" -ForegroundColor DarkGray
     
     # Build volume mount arguments - the entire "host_path:container_path" must be a single argument
@@ -1099,8 +1192,10 @@ function Package-Extension {
     $packageArgsStr = $packageArgs -join ' '
     Write-Log "[DEBUG] Package arguments: $packageArgsStr" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Using CaptureOutput for better path handling" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Working directory: $currentDir" -ForegroundColor DarkGray
     
-    $result = Invoke-LoggedCommand -Command "docker" -Arguments $packageArgs -CaptureOutput
+    # Pass working directory to ensure docker command runs from correct location
+    $result = Invoke-LoggedCommand -Command "docker" -Arguments $packageArgs -CaptureOutput -WorkingDirectory $currentDir.Path
     $exitCode = $result.ExitCode
     
     if ($exitCode -eq 0) {
@@ -1120,9 +1215,21 @@ function Test-NpmCompile {
     $testMsg = "Testing npm run compile in dev container..."
     Write-Log $testMsg -ForegroundColor Cyan
     
+    # Get current directory to ensure docker-compose runs from correct location
+    $currentDir = Get-Location
+    $composeFile = "docker-compose.yml"
+    $composeFilePath = Join-Path $currentDir.Path $composeFile
+    
+    if (-not (Test-Path $composeFilePath)) {
+        Write-Log "ERROR: docker-compose.yml not found in current directory: $currentDir" -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Log "[DEBUG] Working directory: $currentDir" -ForegroundColor DarkGray
+    
     try {
         Write-Log "[DEBUG] Checking if dev container is running..." -ForegroundColor DarkGray
-        $containerCheck = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("ps", "-q", "dev") -CaptureOutput
+        $containerCheck = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("ps", "-q", "dev") -CaptureOutput -WorkingDirectory $currentDir.Path
         if (-not $containerCheck.Output -or $containerCheck.Output.Count -eq 0) {
             $startCmd = '.\\build-docker.ps1 dev'
             $errorMsg = 'ERROR: Dev container is not running. Start it first with: ' + $startCmd
@@ -1181,7 +1288,7 @@ echo ""
 echo "=== END DIAGNOSTICS ==="
 '@
         
-        $diagnosticsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("exec", "-T", "dev", "bash", "-c", $diagnosticsCmd) -CaptureOutput
+        $diagnosticsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("exec", "-T", "dev", "bash", "-c", $diagnosticsCmd) -CaptureOutput -WorkingDirectory $currentDir.Path
         if ($diagnosticsResult.ExitCode -eq 0) {
             Write-Log "Diagnostics output:" -ForegroundColor Cyan
             if ($diagnosticsResult.Output) {
@@ -1208,7 +1315,7 @@ set -e
 cd /app
 npm run compile 2>&1
 '@
-        $compileResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("exec", "-T", "dev", "bash", "-c", $compileCmd) -CaptureOutput
+        $compileResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("exec", "-T", "dev", "bash", "-c", $compileCmd) -CaptureOutput -WorkingDirectory $currentDir.Path
         
         if ($compileResult.ExitCode -eq 0) {
             $successMsg = "SUCCESS: npm run compile succeeded!"
@@ -1261,12 +1368,28 @@ npm run compile 2>&1
 function Run-Tests {
     Write-Log "Running tests in Docker container..." -ForegroundColor Cyan
     
+    # Get current directory to ensure paths are resolved correctly
+    $currentDir = Get-Location
+    
     # Run tests in the container's /app directory (not mounted workspace)
     # This ensures node_modules and devDependencies are available
     # Convert Windows paths to forward slashes for Docker
-    $srcPath = (Resolve-Path "src").Path -replace '\\', '/'
-    $testsPath = (Resolve-Path "tests").Path -replace '\\', '/'
+    # Handle paths with spaces by using Resolve-Path with error handling
+    try {
+        $srcPath = (Resolve-Path "src" -ErrorAction Stop).Path -replace '\\', '/'
+    } catch {
+        Write-Log "ERROR: Failed to resolve src path: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
     
+    try {
+        $testsPath = (Resolve-Path "tests" -ErrorAction Stop).Path -replace '\\', '/'
+    } catch {
+        Write-Log "ERROR: Failed to resolve tests path: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Log "[DEBUG] Current directory: $currentDir" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Source path: $srcPath" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Tests path: $testsPath" -ForegroundColor DarkGray
     
@@ -1286,7 +1409,10 @@ function Run-Tests {
     
     $testArgsStr = $testArgs -join ' '
     Write-Log "[DEBUG] Running: docker $testArgsStr" -ForegroundColor DarkGray
-    $result = Invoke-LoggedCommand -Command "docker" -Arguments $testArgs -CaptureOutput
+    Write-Log "[DEBUG] Working directory: $currentDir" -ForegroundColor DarkGray
+    
+    # Pass working directory to ensure docker command runs from correct location
+    $result = Invoke-LoggedCommand -Command "docker" -Arguments $testArgs -CaptureOutput -WorkingDirectory $currentDir.Path
     $exitCode = $result.ExitCode
     
     if ($exitCode -ne 0) {
@@ -1320,11 +1446,22 @@ function Run-Tests {
 function Clean-Docker {
     Write-Log "Cleaning Docker resources..." -ForegroundColor Cyan
     
-    # Stop and remove containers
-    Write-Log "Stopping containers..." -ForegroundColor Yellow
-    Invoke-LoggedCommand -Command "docker-compose" -Arguments @("down") -NoOutput
+    # Get current directory to ensure docker-compose runs from correct location
+    $currentDir = Get-Location
+    $composeFile = "docker-compose.yml"
+    $composeFilePath = Join-Path $currentDir.Path $composeFile
     
-    # Remove images
+    # Only use docker-compose if docker-compose.yml exists
+    if (Test-Path $composeFilePath) {
+        Write-Log "[DEBUG] Using docker-compose from: $currentDir" -ForegroundColor DarkGray
+        # Stop and remove containers
+        Write-Log "Stopping containers..." -ForegroundColor Yellow
+        Invoke-LoggedCommand -Command "docker-compose" -Arguments @("down") -NoOutput -WorkingDirectory $currentDir.Path
+    } else {
+        Write-Log "[DEBUG] docker-compose.yml not found, skipping docker-compose down" -ForegroundColor DarkGray
+    }
+    
+    # Remove images (docker commands don't need working directory)
     Write-Log "Removing images..." -ForegroundColor Yellow
     Invoke-LoggedCommand -Command "docker" -Arguments @("rmi", $Tag) -NoOutput
     Invoke-LoggedCommand -Command "docker" -Arguments @("rmi", "vscode-dataflow-analyzer") -NoOutput
@@ -1339,11 +1476,22 @@ function Clean-Docker {
 function Clean-All {
     Write-Log "Performing complete Docker cleanup..." -ForegroundColor Cyan
     
-    # Stop containers
-    Write-Log "Stopping containers..." -ForegroundColor Yellow
-    Invoke-LoggedCommand -Command "docker-compose" -Arguments @("down") -NoOutput
+    # Get current directory to ensure docker-compose runs from correct location
+    $currentDir = Get-Location
+    $composeFile = "docker-compose.yml"
+    $composeFilePath = Join-Path $currentDir.Path $composeFile
     
-    # Remove containers
+    # Only use docker-compose if docker-compose.yml exists
+    if (Test-Path $composeFilePath) {
+        Write-Log "[DEBUG] Using docker-compose from: $currentDir" -ForegroundColor DarkGray
+        # Stop containers
+        Write-Log "Stopping containers..." -ForegroundColor Yellow
+        Invoke-LoggedCommand -Command "docker-compose" -Arguments @("down") -NoOutput -WorkingDirectory $currentDir.Path
+    } else {
+        Write-Log "[DEBUG] docker-compose.yml not found, skipping docker-compose down" -ForegroundColor DarkGray
+    }
+    
+    # Remove containers (docker commands don't need working directory)
     Write-Log "Removing containers..." -ForegroundColor Yellow
     Invoke-LoggedCommand -Command "docker" -Arguments @("container", "prune", "-f")
     
