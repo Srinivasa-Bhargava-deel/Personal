@@ -35,7 +35,8 @@ function Invoke-LoggedCommand {
         [string]$Command,
         [string[]]$Arguments = @(),
         [switch]$NoOutput,
-        [switch]$CaptureOutput
+        [switch]$CaptureOutput,
+        [string]$WorkingDirectory = $null
     )
     
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -372,7 +373,21 @@ function Invoke-LoggedCommand {
                 } else {
                     # For shorter commands, use the original method
                     Write-Log "[DEBUG] Using standard Start-Process with file redirection" -ForegroundColor DarkGray
-                    $process = Start-Process -FilePath $Command -ArgumentList $quotedArguments -NoNewWindow -PassThru -Wait -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+                    $processParams = @{
+                        FilePath = $Command
+                        ArgumentList = $quotedArguments
+                        NoNewWindow = $true
+                        PassThru = $true
+                        Wait = $true
+                        RedirectStandardOutput = $stdoutFile
+                        RedirectStandardError = $stderrFile
+                    }
+                    # Set working directory if specified
+                    if ($WorkingDirectory) {
+                        $processParams['WorkingDirectory'] = $WorkingDirectory
+                        Write-Log "[DEBUG] Setting working directory: $WorkingDirectory" -ForegroundColor DarkGray
+                    }
+                    $process = Start-Process @processParams
                     $exitCode = $process.ExitCode
                     
                     Write-Log "[DEBUG] Process exit code: $exitCode" -ForegroundColor DarkGray
@@ -487,7 +502,20 @@ function Invoke-LoggedCommand {
                 $stdoutFile = "$env:TEMP\docker_output_$(Get-Date -Format 'yyyyMMddHHmmss').txt"
                 $stderrFile = "$env:TEMP\docker_error_$(Get-Date -Format 'yyyyMMddHHmmss').txt"
                 
-                $process = Start-Process -FilePath $Command -ArgumentList $quotedArguments -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+                $processParams = @{
+                    FilePath = $Command
+                    ArgumentList = $quotedArguments
+                    NoNewWindow = $true
+                    Wait = $true
+                    PassThru = $true
+                    RedirectStandardOutput = $stdoutFile
+                    RedirectStandardError = $stderrFile
+                }
+                # Set working directory if specified
+                if ($WorkingDirectory) {
+                    $processParams['WorkingDirectory'] = $WorkingDirectory
+                }
+                $process = Start-Process @processParams
                 $exitCode = $process.ExitCode
                 
                 Write-Log "[DEBUG] Alternative method exit code: $exitCode" -ForegroundColor DarkGray
@@ -879,10 +907,29 @@ function Run-Container {
 function Start-DevContainer {
     Write-Log "Starting development container..." -ForegroundColor Cyan
     
+    # Ensure we're in the correct directory (where docker-compose.yml is located)
+    # Docker-compose needs to be run from the directory containing docker-compose.yml
+    $composeFile = "docker-compose.yml"
+    $currentDir = Get-Location
+    $composeFilePath = Join-Path $currentDir.Path $composeFile
+    
+    if (-not (Test-Path $composeFilePath)) {
+        Write-Log "ERROR: docker-compose.yml not found in current directory: $currentDir" -ForegroundColor Red
+        Write-Log "Current directory: $currentDir" -ForegroundColor Yellow
+        Write-Log "Expected file: $composeFilePath" -ForegroundColor Yellow
+        exit 1
+    }
+    
+    Write-Log "[DEBUG] docker-compose.yml found: $composeFilePath" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Running docker-compose from directory: $currentDir" -ForegroundColor DarkGray
+    
     # Use CaptureOutput to properly handle docker-compose output and get exit code
     # docker-compose writes normal output to STDERR, so we need to check exit code, not just STDERR
+    # CRITICAL: docker-compose must be run from the directory containing docker-compose.yml
+    # When paths contain spaces, we need to ensure we're in the correct directory
+    # Pass the working directory to Invoke-LoggedCommand so Start-Process uses it
     try {
-        $result = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("up", "-d", "dev") -CaptureOutput
+        $result = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("up", "-d", "dev") -CaptureOutput -WorkingDirectory $currentDir.Path
         
         # Validate result structure
         if (-not $result) {
@@ -968,7 +1015,7 @@ function Start-DevContainer {
             Write-Log $testCompileMsg -ForegroundColor Gray
             Write-Log ""
             Write-Log "[DEBUG] Checking container logs for any startup errors..." -ForegroundColor DarkGray
-            $logsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("logs", "--tail=20", "dev") -CaptureOutput
+            $logsResult = Invoke-LoggedCommand -Command "docker-compose" -Arguments @("logs", "--tail=20", "dev") -CaptureOutput -WorkingDirectory $currentDir.Path
             if ($logsResult.ExitCode -eq 0 -and $logsResult.Output) {
                 $errorPattern = "ERROR|error|WARNING|warning"
                 $errorLines = $logsResult.Output | Where-Object { $_ -match $errorPattern }
