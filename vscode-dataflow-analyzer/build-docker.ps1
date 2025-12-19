@@ -169,14 +169,45 @@ function Invoke-LoggedCommand {
                         Write-Log "[DEBUG-L3] Serialized arguments string length: $($argsString.Length)" -ForegroundColor DarkGray
                         
                         $jobScript = {
-                            param($Cmd, $ArgsString)
+                            param($Cmd, $ArgsString, $BuildContextPath)
                             Write-Output "[JOB-START] Job started at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff')"
                             Write-Output "[JOB-INFO] Command: $Cmd"
+                            Write-Output "[JOB-INFO] Build context path: $BuildContextPath"
+                            
+                            # CRITICAL: Change to the build context directory before running docker build
+                            # Docker build uses "." as the build context, so we must be in the correct directory
+                            try {
+                                Set-Location -Path $BuildContextPath -ErrorAction Stop
+                                Write-Output "[JOB-INFO] Changed to build context directory: $(Get-Location)"
+                            } catch {
+                                Write-Output "[JOB-ERROR] Failed to change to build context directory: $($_.Exception.Message)"
+                                return 1
+                            }
                             
                             # Reconstruct arguments array from serialized string
                             $Args = $ArgsString -split '\|ARGSEP\|'
                             Write-Output "[JOB-INFO] Arguments count: $($Args.Count)"
                             Write-Output "[JOB-INFO] Arguments: $($Args -join ' ')"
+                            
+                            # Verify Dockerfile exists in current directory
+                            $dockerfileArgIndex = -1
+                            for ($i = 0; $i -lt $Args.Count; $i++) {
+                                if ($Args[$i] -eq "-f" -and $i + 1 -lt $Args.Count) {
+                                    $dockerfileArgIndex = $i + 1
+                                    break
+                                }
+                            }
+                            if ($dockerfileArgIndex -ge 0) {
+                                $dockerfileRelative = $Args[$dockerfileArgIndex]
+                                $dockerfilePath = Join-Path (Get-Location).Path $dockerfileRelative
+                                if (-not (Test-Path $dockerfilePath)) {
+                                    Write-Output "[JOB-ERROR] Dockerfile not found in build context: $dockerfilePath"
+                                    Write-Output "[JOB-ERROR] Current directory: $(Get-Location)"
+                                    Write-Output "[JOB-ERROR] Expected Dockerfile: $dockerfileRelative"
+                                    return 1
+                                }
+                                Write-Output "[JOB-INFO] Verified Dockerfile exists: $dockerfilePath"
+                            }
                             
                             try {
                                 Write-Output "[JOB-INFO] Executing: $Cmd $($Args -join ' ')"
@@ -194,8 +225,9 @@ function Invoke-LoggedCommand {
                         }
                         
                         Write-Log "[DEBUG-L3] Job script created, starting job..." -ForegroundColor DarkGray
+                        Write-Log "[DEBUG-L3] Build context path for job: $buildContext" -ForegroundColor DarkGray
                         $jobStartTime = Get-Date
-                        $job = Start-Job -ScriptBlock $jobScript -ArgumentList $Command, $argsString
+                        $job = Start-Job -ScriptBlock $jobScript -ArgumentList $Command, $argsString, $buildContext
                         Write-Log "[DEBUG-L3] Job started successfully, Job ID: $($job.Id)" -ForegroundColor Green
                         Write-Log "[DEBUG-L3] Job state: $($job.State)" -ForegroundColor DarkGray
                         Write-Log "[DEBUG-L3] Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff')" -ForegroundColor DarkGray
@@ -571,28 +603,45 @@ Examples:
 function Build-Image {
     param([bool]$UseWindows)
     
-    $dockerfile = if ($UseWindows) { "Dockerfile.windows" } else { "Dockerfile" }
+    # Get the current directory and ensure we're in the right place
+    $currentDir = Get-Location
+    $dockerfileRelative = if ($UseWindows) { "Dockerfile.windows" } else { "Dockerfile" }
+    
+    # Resolve absolute path to Dockerfile to handle paths with spaces
+    $dockerfileAbsolute = (Resolve-Path $dockerfileRelative -ErrorAction SilentlyContinue).Path
+    if (-not $dockerfileAbsolute) {
+        # If Resolve-Path fails, try constructing absolute path manually
+        $dockerfileAbsolute = Join-Path $currentDir.Path $dockerfileRelative
+        if (-not (Test-Path $dockerfileAbsolute)) {
+            Write-Log "ERROR: Dockerfile not found: $dockerfileRelative" -ForegroundColor Red
+            Write-Log "Current directory: $currentDir" -ForegroundColor Yellow
+            Write-Log "Files in current directory:" -ForegroundColor Yellow
+            Get-ChildItem -File | Select-Object -First 10 Name | ForEach-Object { 
+                $fileName = $_.Name
+                Write-Log "  - $fileName" -ForegroundColor Gray 
+            }
+            exit 1
+        }
+    }
+    
+    # Verify Dockerfile has content (not empty)
+    $dockerfileInfo = Get-Item $dockerfileAbsolute -ErrorAction SilentlyContinue
+    if ($dockerfileInfo -and $dockerfileInfo.Length -lt 100) {
+        Write-Log "WARNING: Dockerfile appears to be very small ($($dockerfileInfo.Length) bytes). This may indicate a problem." -ForegroundColor Yellow
+    }
+    
     $platform = if ($UseWindows) { "windows/amd64" } else { "linux/amd64" }
     $platformName = if ($UseWindows) { "Windows AMD x64" } else { "Linux AMD x64" }
     
     Write-Log "Building Docker image for $platformName platform..." -ForegroundColor Cyan
-    Write-Log "Using Dockerfile: $dockerfile" -ForegroundColor Gray
+    Write-Log "Using Dockerfile: $dockerfileRelative" -ForegroundColor Gray
+    Write-Log "[DEBUG] Dockerfile absolute path: $dockerfileAbsolute" -ForegroundColor DarkGray
     Write-Log "Platform: $platform (compatible with AMD x64 and Intel x64)" -ForegroundColor Gray
     
     # Pre-build checks
     Write-Log "[DEBUG] Pre-build validation..." -ForegroundColor DarkGray
-    if (-not (Test-Path $dockerfile)) {
-        Write-Log "ERROR: Dockerfile not found: $dockerfile" -ForegroundColor Red
-        $currentDir = Get-Location
-        Write-Log "Current directory: $currentDir" -ForegroundColor Yellow
-        Write-Log "Files in current directory:" -ForegroundColor Yellow
-        Get-ChildItem -File | Select-Object -First 10 Name | ForEach-Object { 
-            $fileName = $_.Name
-            Write-Log "  - $fileName" -ForegroundColor Gray 
-        }
-        exit 1
-    }
-    Write-Log "[DEBUG] Dockerfile exists: $dockerfile" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Dockerfile exists: $dockerfileAbsolute" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Dockerfile size: $($dockerfileInfo.Length) bytes" -ForegroundColor DarkGray
     
     # Check Docker daemon
     Write-Log "[DEBUG] Checking Docker daemon..." -ForegroundColor DarkGray
@@ -617,11 +666,14 @@ function Build-Image {
     
     # Note: When using --platform flag, Docker automatically sets TARGETPLATFORM build arg
     # We don't need to pass it explicitly, and we don't need it in FROM statements
+    # CRITICAL: Use relative path for -f flag (relative to build context), not absolute path
+    # Docker expects the Dockerfile path to be relative to the build context "."
+    # The build context "." must be the directory containing the Dockerfile
     $buildArgs = @(
         "build",
         "--platform", $platform,
         "-t", $Tag,
-        "-f", $dockerfile,
+        "-f", $dockerfileRelative,  # Use relative path, not absolute
         "--progress", "plain"  # Use plain progress for better logging
     )
     
@@ -630,14 +682,18 @@ function Build-Image {
         Write-Log "[DEBUG] Building without cache" -ForegroundColor DarkGray
     }
     
+    # Build context must be "." (current directory) where Dockerfile is located
+    # Ensure we're in the correct directory before building
+    $buildContext = $currentDir.Path
     $buildArgs += "."
     
     $buildArgsStr = $buildArgs -join ' '
-    $buildContext = Get-Location
     $buildStartTime = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     $buildArgsCount = $buildArgs.Count
     Write-Log "Running: docker $buildArgsStr" -ForegroundColor Gray
     Write-Log "[DEBUG] Build context: $buildContext" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Build context directory exists: $(Test-Path $buildContext)" -ForegroundColor DarkGray
+    Write-Log "[DEBUG] Dockerfile in build context: $(Test-Path (Join-Path $buildContext $dockerfileRelative))" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Build started at: $buildStartTime" -ForegroundColor DarkGray
     Write-Log "[DEBUG] Build arguments count: $buildArgsCount" -ForegroundColor DarkGray
     # Build arguments string for logging (compatible with PowerShell 5.1)
@@ -653,7 +709,18 @@ function Build-Image {
     }
     Write-Log "[DEBUG] Docker command test passed: $testResult" -ForegroundColor DarkGray
     
+    # Verify Dockerfile exists in build context directory
+    $dockerfileInContext = Join-Path $buildContext $dockerfileRelative
+    if (-not (Test-Path $dockerfileInContext)) {
+        Write-Log "ERROR: Dockerfile not found in build context: $dockerfileInContext" -ForegroundColor Red
+        Write-Log "Build context directory: $buildContext" -ForegroundColor Yellow
+        Write-Log "Expected Dockerfile: $dockerfileRelative" -ForegroundColor Yellow
+        exit 1
+    }
+    Write-Log "[DEBUG] Verified Dockerfile exists in build context: $dockerfileInContext" -ForegroundColor DarkGray
+    
     # Capture output for detailed error analysis
+    # Note: The job script will change to the build context directory before running docker build
     $result = Invoke-LoggedCommand -Command "docker" -Arguments $buildArgs -CaptureOutput
     
     # Check if build actually succeeded
