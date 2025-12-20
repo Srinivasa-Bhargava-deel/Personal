@@ -539,21 +539,38 @@ export class ClangASTParser {
             // Verify binary is actually an ELF binary, not a script or corrupted file
             const child_process = require('child_process');
             try {
-              const fileOutput = child_process.execSync(`file "${exporterPath}"`, { encoding: 'utf-8', timeout: 5000 });
-              if (!fileOutput.includes('ELF') && !fileOutput.includes('executable')) {
+              // First check ELF magic bytes directly (more reliable than file command)
+              const fileBuffer = fs.readFileSync(exporterPath);
+              const elfMagic = fileBuffer.readUInt32BE(0);
+              const isValidELF = elfMagic === 0x7f454c46; // 0x7f 'E' 'L' 'F'
+              
+              if (!isValidELF) {
                 // Check if it looks like a shell script (starts with #!)
-                const fileBuffer = fs.readFileSync(exporterPath, { encoding: 'utf-8', flag: 'r' });
-                const firstBytes = fileBuffer.substring(0, 2);
+                const firstBytes = fileBuffer.toString('utf-8', 0, 2);
                 if (firstBytes === '#!') {
-                  reject(new Error(`cfg-exporter at ${exporterPath} appears to be a shell script, not a binary. File info: ${fileOutput.trim()}`));
+                  console.error(`[ClangASTParser] ERROR: cfg-exporter at ${exporterPath} appears to be a shell script, not a binary!`);
+                  console.error(`[ClangASTParser] First 20 bytes: ${fileBuffer.toString('hex', 0, 20)}`);
+                  reject(new Error(`cfg-exporter at ${exporterPath} appears to be corrupted or invalid. Expected ELF binary but found shell script. Please rebuild the Docker image.`));
                   return;
                 }
-                console.warn(`[ClangASTParser] Warning: Binary may not be valid ELF. File info: ${fileOutput.trim()}`);
-              } else {
-                console.log(`[ClangASTParser] Binary verified: ${fileOutput.trim()}`);
+                console.error(`[ClangASTParser] ERROR: Binary does not have valid ELF magic bytes! Got: 0x${elfMagic.toString(16)}`);
+                console.error(`[ClangASTParser] First 20 bytes: ${fileBuffer.toString('hex', 0, 20)}`);
+                reject(new Error(`cfg-exporter at ${exporterPath} appears to be corrupted or invalid. Expected ELF binary (magic: 0x7f454c46) but got: 0x${elfMagic.toString(16)}. Please rebuild the Docker image.`));
+                return;
               }
-            } catch (fileErr) {
-              console.warn(`[ClangASTParser] Could not verify binary type with 'file' command: ${fileErr}`);
+              
+              // Try to get more info with 'file' command if available
+              try {
+                const fileOutput = child_process.execSync(`file "${exporterPath}"`, { encoding: 'utf-8', timeout: 5000 });
+                console.log(`[ClangASTParser] Binary verified: ${fileOutput.trim()}`);
+              } catch (fileErr: any) {
+                // 'file' command not available or failed, but ELF magic bytes are valid
+                console.log(`[ClangASTParser] Binary verified via ELF magic bytes (file command not available: ${fileErr.message || fileErr})`);
+              }
+            } catch (verifyErr: any) {
+              console.error(`[ClangASTParser] ERROR: Failed to verify binary: ${verifyErr.message || verifyErr}`);
+              reject(new Error(`Failed to verify cfg-exporter binary at ${exporterPath}: ${verifyErr.message || verifyErr}`));
+              return;
             }
           } catch (statErr) {
             console.warn(`[ClangASTParser] Could not check binary permissions: ${statErr}`);
@@ -562,6 +579,81 @@ export class ClangASTParser {
         
         // Log the path being used for debugging
         console.log(`[ClangASTParser] Using cfg-exporter at: ${exporterPath}`);
+        
+        // Final pre-execution validation: Verify binary is actually executable
+        if (!isWindows) {
+          try {
+            // Check if file exists and is readable
+            if (!fs.existsSync(exporterPath)) {
+              reject(new Error(`cfg-exporter binary not found at ${exporterPath}`));
+              return;
+            }
+            
+            // Verify ELF magic bytes one more time before execution
+            const preExecBuffer = fs.readFileSync(exporterPath);
+            const preExecMagic = preExecBuffer.readUInt32BE(0);
+            if (preExecMagic !== 0x7f454c46) {
+              console.error(`[ClangASTParser] CRITICAL: Binary has invalid ELF magic bytes before execution!`);
+              console.error(`[ClangASTParser] Expected: 0x7f454c46, Got: 0x${preExecMagic.toString(16)}`);
+              console.error(`[ClangASTParser] First 20 bytes: ${preExecBuffer.toString('hex', 0, 20)}`);
+              reject(new Error(`cfg-exporter binary at ${exporterPath} is corrupted or invalid. ELF magic bytes: 0x${preExecMagic.toString(16)}. Please rebuild the Docker image.`));
+              return;
+            }
+            
+            // Ensure executable permissions
+            try {
+              fs.chmodSync(exporterPath, '755');
+            } catch (chmodErr) {
+              console.warn(`[ClangASTParser] Could not set executable permissions: ${chmodErr}`);
+            }
+            
+            // Test if binary can be executed (dry run with --help)
+            try {
+              const testResult = child_process.spawnSync(exporterPath, ['--help'], {
+                timeout: 5000,
+                encoding: 'utf-8',
+                stdio: ['ignore', 'pipe', 'pipe']
+              });
+              
+              if (testResult.error) {
+                const errorMsg = testResult.error.message || String(testResult.error);
+                if (errorMsg.includes('ENOENT')) {
+                  reject(new Error(`cfg-exporter binary not found or not executable at ${exporterPath}. Error: ${errorMsg}`));
+                  return;
+                } else if (errorMsg.includes('EACCES')) {
+                  reject(new Error(`cfg-exporter binary at ${exporterPath} is not executable. Please check permissions.`));
+                  return;
+                } else if (errorMsg.includes('Exec format error') || errorMsg.includes('cannot execute')) {
+                  console.error(`[ClangASTParser] CRITICAL: Binary architecture mismatch!`);
+                  console.error(`[ClangASTParser] Platform: ${process.platform}, Arch: ${process.arch}`);
+                  console.error(`[ClangASTParser] Binary path: ${exporterPath}`);
+                  reject(new Error(`cfg-exporter binary architecture mismatch. Platform: ${process.platform}, Arch: ${process.arch}. The binary may be built for a different architecture. Please rebuild the Docker image.`));
+                  return;
+                } else {
+                  console.warn(`[ClangASTParser] Pre-execution test failed: ${errorMsg}`);
+                  // Continue anyway - might be a different issue
+                }
+              }
+              
+              // Check for shell script errors (Syntax error)
+              if (testResult.stderr && (testResult.stderr.includes('Syntax error') || testResult.stderr.includes('unexpected'))) {
+                console.error(`[ClangASTParser] CRITICAL: Binary appears to be a shell script or corrupted!`);
+                console.error(`[ClangASTParser] stderr: ${testResult.stderr.substring(0, 200)}`);
+                reject(new Error(`cfg-exporter at ${exporterPath} appears corrupted or is being interpreted as a script. Error: ${testResult.stderr.substring(0, 200)}. Please rebuild the Docker image.`));
+                return;
+              }
+              
+              console.log(`[ClangASTParser] Pre-execution validation passed`);
+            } catch (testErr: any) {
+              console.warn(`[ClangASTParser] Pre-execution test failed: ${testErr.message || testErr}`);
+              // Continue anyway - might be a timeout or other non-critical issue
+            }
+          } catch (preExecErr: any) {
+            console.error(`[ClangASTParser] Pre-execution validation failed: ${preExecErr.message || preExecErr}`);
+            reject(new Error(`Failed to validate cfg-exporter binary before execution: ${preExecErr.message || preExecErr}`));
+            return;
+          }
+        }
       } catch (err) {
         reject(new Error(`Failed to check cfg-exporter path: ${err}`));
         return;
@@ -576,6 +668,7 @@ export class ClangASTParser {
         ...(this.cachedIncludePaths || [])
       ];
 
+      console.log(`[ClangASTParser] Spawning cfg-exporter with args: ${exporArgs.join(' ')}`);
       const child = child_process.spawn(exporterPath, exporArgs);
       let output = '';
       let errorOutput = '';
@@ -599,8 +692,9 @@ export class ClangASTParser {
 
       child.on('error', (err: Error) => {
         // Enhanced error reporting for debugging
+        const errorMsg = err.message || String(err);
         const errorDetails = {
-          message: err.message,
+          message: errorMsg,
           exporterPath: exporterPath,
           filePath: filePath,
           platform: process.platform,
@@ -608,8 +702,26 @@ export class ClangASTParser {
           envPath: process.env.PATH,
           cwd: process.cwd()
         };
+        
+        // Detect specific error types
+        if (errorMsg.includes('ENOENT')) {
+          console.error(`[ClangASTParser] ERROR: Binary not found at ${exporterPath}`);
+          reject(new Error(`cfg-exporter binary not found at ${exporterPath}. Please ensure the binary is built and available.`));
+          return;
+        } else if (errorMsg.includes('EACCES') || errorMsg.includes('permission denied')) {
+          console.error(`[ClangASTParser] ERROR: Binary is not executable at ${exporterPath}`);
+          reject(new Error(`cfg-exporter binary at ${exporterPath} is not executable. Please check permissions.`));
+          return;
+        } else if (errorMsg.includes('Exec format error') || errorMsg.includes('cannot execute binary file')) {
+          console.error(`[ClangASTParser] CRITICAL ERROR: Binary architecture mismatch!`);
+          console.error(`[ClangASTParser] Platform: ${process.platform}, Architecture: ${process.arch}`);
+          console.error(`[ClangASTParser] Binary path: ${exporterPath}`);
+          reject(new Error(`cfg-exporter binary architecture mismatch. The binary at ${exporterPath} was built for a different architecture (Platform: ${process.platform}, Arch: ${process.arch}). Please rebuild the Docker image for the correct architecture.`));
+          return;
+        }
+        
         console.error(`[ClangASTParser] Failed to spawn cfg-exporter:`, errorDetails);
-        reject(new Error(`Failed to spawn cfg-exporter: ${err.message}. Path: ${exporterPath}. Details: ${JSON.stringify(errorDetails, null, 2)}`));
+        reject(new Error(`Failed to spawn cfg-exporter: ${errorMsg}. Path: ${exporterPath}. Details: ${JSON.stringify(errorDetails, null, 2)}`));
       });
 
       child.on('close', (code) => {
@@ -617,19 +729,42 @@ export class ClangASTParser {
         if (code !== 0 || errorOutput) {
           console.warn(`[ClangASTParser] cfg-exporter exited with code ${code}`);
           if (errorOutput) {
-            console.warn(`[ClangASTParser] cfg-exporter stderr: ${errorOutput.substring(0, 500)}`);
-            // Check for common binary corruption errors
+            const errorPreview = errorOutput.substring(0, 500);
+            console.warn(`[ClangASTParser] cfg-exporter stderr: ${errorPreview}`);
+            
+            // Check for common binary corruption/architecture errors
             if (errorOutput.includes('Syntax error') || errorOutput.includes('unexpected')) {
-              console.error(`[ClangASTParser] ERROR: Binary appears corrupted or invalid!`);
+              console.error(`[ClangASTParser] CRITICAL ERROR: Binary appears corrupted or invalid!`);
               console.error(`[ClangASTParser] Binary path: ${exporterPath}`);
-              console.error(`[ClangASTParser] This error suggests the binary is being interpreted as a script.`);
+              console.error(`[ClangASTParser] Platform: ${process.platform}, Architecture: ${process.arch}`);
+              console.error(`[ClangASTParser] This error suggests the binary is being interpreted as a shell script.`);
+              console.error(`[ClangASTParser] Possible causes:`);
+              console.error(`[ClangASTParser]   1. Binary is corrupted or not a valid ELF file`);
+              console.error(`[ClangASTParser]   2. Binary architecture mismatch (built for different CPU)`);
+              console.error(`[ClangASTParser]   3. Binary was not copied correctly during Docker build`);
               console.error(`[ClangASTParser] Please rebuild the Docker image to ensure binary is built correctly.`);
+              reject(new Error(`cfg-exporter binary appears corrupted or invalid. The binary at ${exporterPath} is being interpreted as a script (Syntax error). This usually indicates the binary is corrupted, has wrong architecture, or was not built correctly. Please rebuild the Docker image. Error: ${errorPreview}`));
+              return;
+            } else if (errorOutput.includes('Exec format error') || errorOutput.includes('cannot execute binary file')) {
+              console.error(`[ClangASTParser] CRITICAL ERROR: Binary architecture mismatch!`);
+              console.error(`[ClangASTParser] Binary path: ${exporterPath}`);
+              console.error(`[ClangASTParser] Platform: ${process.platform}, Architecture: ${process.arch}`);
+              reject(new Error(`cfg-exporter binary architecture mismatch. The binary at ${exporterPath} was built for a different architecture (Platform: ${process.platform}, Arch: ${process.arch}). Please rebuild the Docker image for the correct architecture. Error: ${errorPreview}`));
+              return;
             }
           }
         }
         
         if (code !== 0) {
-          reject(new Error(`cfg-exporter exited with code ${code}: ${errorOutput}`));
+          // Provide more context about the failure
+          const errorContext = {
+            exitCode: code,
+            errorOutput: errorOutput.substring(0, 1000),
+            exporterPath: exporterPath,
+            platform: process.platform,
+            arch: process.arch
+          };
+          reject(new Error(`cfg-exporter exited with code ${code}. ${errorOutput.substring(0, 500)}. Context: ${JSON.stringify(errorContext, null, 2)}`));
           return;
         }
 

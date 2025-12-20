@@ -165,17 +165,32 @@ RUN mkdir -p build && \
     if [ -f cfg-exporter ]; then \
         echo "[DEBUG] Binary file info:" && \
         ls -lh cfg-exporter && \
+        echo "[DEBUG] Current platform architecture:" && \
+        uname -m && \
         file cfg-exporter && \
         echo "[DEBUG] Verifying binary architecture (must be Linux x86_64/amd64):" && \
         BINARY_ARCH=$(file cfg-exporter | grep -oE "x86-64|amd64|ELF 64-bit" || echo "unknown") && \
+        CURRENT_ARCH=$(uname -m) && \
         if echo "$BINARY_ARCH" | grep -qE "x86-64|amd64|ELF 64-bit"; then \
             echo "✓ Binary architecture verified: Linux x86_64/amd64" && \
+            echo "[DEBUG] Platform architecture: $CURRENT_ARCH" && \
+            if [ "$CURRENT_ARCH" != "x86_64" ] && [ "$CURRENT_ARCH" != "amd64" ]; then \
+                echo "⚠ WARNING: Building on $CURRENT_ARCH but binary is x86_64/amd64 - may cause execution issues"; \
+            fi && \
+            echo "[DEBUG] Testing binary execution:" && \
+            if ./cfg-exporter --help >/dev/null 2>&1; then \
+                echo "✓ Binary executes successfully on build platform"; \
+            else \
+                echo "⚠ WARNING: Binary exists but execution test failed on build platform" && \
+                echo "[DEBUG] This may indicate architecture mismatch"; \
+            fi && \
             echo "[DEBUG] Checking binary dependencies:" && \
             ldd cfg-exporter 2>&1 | head -10 || echo "[DEBUG] Binary may be statically linked"; \
         else \
             echo "✗ ERROR: Binary architecture mismatch! Expected Linux x86_64/amd64, got: $BINARY_ARCH" && \
             echo "[DEBUG] Full file output:" && \
             file cfg-exporter && \
+            echo "[DEBUG] Platform architecture: $CURRENT_ARCH" && \
             exit 1; \
         fi && \
         echo "[DEBUG] Stripping binary:" && \
@@ -184,6 +199,14 @@ RUN mkdir -p build && \
         ls -lh cfg-exporter && \
         echo "[DEBUG] Making binary executable:" && \
         chmod +x cfg-exporter && \
+        echo "[DEBUG] Verifying ELF magic bytes after stripping:" && \
+        BINARY_MAGIC=$(head -c 4 cfg-exporter | od -An -tx1 | tr -d ' \n') && \
+        if [ "$BINARY_MAGIC" = "7f454c46" ]; then \
+            echo "✓ Binary still has valid ELF magic bytes after stripping"; \
+        else \
+            echo "✗ ERROR: Binary lost ELF magic bytes after stripping! Got: $BINARY_MAGIC" && \
+            exit 1; \
+        fi && \
         echo "✓ Binary verification complete"; \
     else \
         echo "✗ ERROR: Binary not found!" && \
@@ -254,6 +277,8 @@ RUN apt-get update && \
     gcc \
     g++ \
     make \
+    # File type detection utility (needed for binary verification)
+    file \
     # LLVM/Clang for ClangASTParser
     2>&1 | (grep -v "update-alternatives: warning" || true) && \
     rm -rf /var/lib/apt/lists/*
@@ -351,19 +376,37 @@ RUN mkdir -p /app/cpp-tools/cfg-exporter/build
 COPY --from=cpp-builder --chmod=755 /build/cpp-tools/cfg-exporter/build/cfg-exporter ./cpp-tools/cfg-exporter/build/cfg-exporter
 RUN echo "[DEBUG] Verifying copied binary is valid ELF:" && \
     if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
-        echo "[DEBUG] Binary exists, checking ELF magic bytes:" && \
+        echo "[DEBUG] Binary exists, checking file info:" && \
+        ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+        file /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "[WARN] 'file' command not available, using fallback verification" && \
+        echo "[DEBUG] Checking ELF magic bytes:" && \
         BINARY_MAGIC=$(head -c 4 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 | tr -d ' \n') && \
         if [ "$BINARY_MAGIC" = "7f454c46" ]; then \
             echo "✓ Binary has valid ELF magic bytes (0x7f ELF)" && \
-            ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter; \
+            echo "[DEBUG] Verifying binary is executable:" && \
+            chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+            echo "[DEBUG] Testing binary execution:" && \
+            if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
+                echo "✓ Binary executes successfully"; \
+            else \
+                echo "⚠ WARNING: Binary exists but execution test failed" && \
+                echo "[DEBUG] Checking binary architecture:" && \
+                uname -m && \
+                echo "[DEBUG] Checking library dependencies:" && \
+                (ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "[DEBUG] ldd check completed (may show errors for statically linked binaries)"); \
+            fi; \
         else \
             echo "✗ ERROR: Binary does not have ELF magic bytes! Got: $BINARY_MAGIC" && \
             echo "[DEBUG] First 20 bytes:" && \
             head -c 20 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 && \
+            echo "[DEBUG] File type info:" && \
+            (file /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "[DEBUG] 'file' command not available") && \
             exit 1; \
         fi; \
     else \
         echo "✗ ERROR: Binary not found after copy!" && \
+        echo "[DEBUG] Checking directory structure:" && \
+        ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1 || echo "[DEBUG] build directory does not exist" && \
         exit 1; \
     fi
 
@@ -464,6 +507,7 @@ RUN apt-get update && \
     ca-certificates \
     wget \
     gnupg \
+    file \
     2>&1 | (grep -v "update-alternatives: warning" || true) && \
     rm -rf /var/lib/apt/lists/*
 
@@ -510,19 +554,37 @@ RUN mkdir -p /app/cpp-tools/cfg-exporter/build
 COPY --from=cpp-builder --chmod=755 /build/cpp-tools/cfg-exporter/build/cfg-exporter ./cpp-tools/cfg-exporter/build/cfg-exporter
 RUN echo "[DEBUG] Verifying copied binary is valid ELF:" && \
     if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
-        echo "[DEBUG] Binary exists, checking ELF magic bytes:" && \
+        echo "[DEBUG] Binary exists, checking file info:" && \
+        ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+        file /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "[WARN] 'file' command not available, using fallback verification" && \
+        echo "[DEBUG] Checking ELF magic bytes:" && \
         BINARY_MAGIC=$(head -c 4 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 | tr -d ' \n') && \
         if [ "$BINARY_MAGIC" = "7f454c46" ]; then \
             echo "✓ Binary has valid ELF magic bytes (0x7f ELF)" && \
-            ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter; \
+            echo "[DEBUG] Verifying binary is executable:" && \
+            chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+            echo "[DEBUG] Testing binary execution:" && \
+            if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
+                echo "✓ Binary executes successfully"; \
+            else \
+                echo "⚠ WARNING: Binary exists but execution test failed" && \
+                echo "[DEBUG] Checking binary architecture:" && \
+                uname -m && \
+                echo "[DEBUG] Checking library dependencies:" && \
+                (ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "[DEBUG] ldd check completed (may show errors for statically linked binaries)"); \
+            fi; \
         else \
             echo "✗ ERROR: Binary does not have ELF magic bytes! Got: $BINARY_MAGIC" && \
             echo "[DEBUG] First 20 bytes:" && \
             head -c 20 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 && \
+            echo "[DEBUG] File type info:" && \
+            (file /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "[DEBUG] 'file' command not available") && \
             exit 1; \
         fi; \
     else \
         echo "✗ ERROR: Binary not found after copy!" && \
+        echo "[DEBUG] Checking directory structure:" && \
+        ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1 || echo "[DEBUG] build directory does not exist" && \
         exit 1; \
     fi
 

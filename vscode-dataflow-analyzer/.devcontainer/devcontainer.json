@@ -3,7 +3,10 @@
 	"build": {
 		"dockerfile": "../Dockerfile",
 		"context": "..",
-		"target": "dev"
+		"target": "dev",
+		"args": {
+			"BUILDKIT_INLINE_CACHE": "1"
+		}
 	},
 	"runArgs": [
 		"--privileged"
