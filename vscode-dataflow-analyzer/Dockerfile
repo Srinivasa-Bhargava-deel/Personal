@@ -176,19 +176,21 @@ RUN set -e && \
                 continue; \
             fi && \
             # Update package list (with explicit error handling) \
-            echo "Running apt-get update..." && \
-            if ! apt-get update; then \
-                echo "ERROR: apt-get update failed (exit code: $?)" && \
+            echo "[DEBUG] Running apt-get update..." && \
+            if apt-get update; then \
+                echo "[SUCCESS] ✓ apt-get update completed successfully"; \
+            else \
+                APT_UPDATE_EXIT=$? && \
+                echo "[FAILURE] ✗ ERROR: apt-get update failed (exit code: $APT_UPDATE_EXIT)" && \
                 retry_count=$((retry_count + 1)) && \
                 if [ $retry_count -lt $max_retries ]; then \
-                    echo "Waiting ${delay}s before retry..." && \
+                    echo "[DEBUG] Waiting ${delay}s before retry..." && \
                     sleep $delay && \
                     delay=$((delay * 2)) && \
                     apt-get clean; \
                 fi && \
                 continue; \
             fi && \
-            echo "apt-get update completed successfully" && \
             # Install LLVM packages \
             echo "[DEBUG] Installing LLVM packages: llvm-17, clang-17, libclang-17-dev, llvm-17-dev" && \
             if apt-get install -y --no-install-recommends \
@@ -305,7 +307,6 @@ RUN mkdir -p build && \
     echo "[DEBUG] Clang_DIR: ${Clang_DIR:-not set}" && \
     echo "[DEBUG] Running cmake configuration..." && \
     if cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja 2>&1 | tee cmake_output.log; then \
-        CMAKE_EXIT_CODE=0 && \
         echo "[SUCCESS] ✓ CMake configuration completed successfully"; \
     else \
         CMAKE_EXIT_CODE=$? && \
@@ -348,7 +349,6 @@ RUN mkdir -p build && \
     echo "[DEBUG] Starting build with cmake --build ." && \
     echo "[DEBUG] Build type: Release" && \
     if cmake --build . 2>&1 | tee build_output.log; then \
-        BUILD_EXIT_CODE=0 && \
         echo "[SUCCESS] ✓ Build completed successfully"; \
     else \
         BUILD_EXIT_CODE=$? && \
@@ -359,8 +359,14 @@ RUN mkdir -p build && \
     fi && \
     echo "[DEBUG] Checking for binary..." && \
     if [ -f cfg-exporter ]; then \
-        echo "[SUCCESS] ✓ Binary exists after build"; \
+        echo "[SUCCESS] ✓ Binary exists after build" && \
         echo "[DEBUG] Binary size before verification: $(ls -lh cfg-exporter | awk '{print $5}')"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: Binary not found after build!" && \
+        echo "[DEBUG] Current directory: $(pwd)" && \
+        echo "[DEBUG] Files in build directory:" && \
+        ls -la . && \
+        exit 1; \
     fi && \
     echo "[DEBUG] ========== Step 4: Verifying binary ==========" && \
     if [ -f cfg-exporter ]; then \
@@ -555,27 +561,42 @@ COPY tsconfig.json ./
 COPY .eslintrc.json ./
 RUN echo "[DEBUG] ========== Package Files Copied ==========" && \
     echo "[DEBUG] Verifying copied files..." && \
+    PACKAGE_CHECK_FAILED=0 && \
     if [ -f package.json ]; then \
-        echo "[DEBUG] ✓ package.json exists" && \
-        echo "[DEBUG] Package name: $(node -p 'require(\"./package.json\").name' 2>&1 || echo 'not found')" && \
-        echo "[DEBUG] Package version: $(node -p 'require(\"./package.json\").version' 2>&1 || echo 'not found')"; \
+        echo "[SUCCESS] ✓ package.json exists" && \
+        PACKAGE_NAME=$(node -p 'require("./package.json").name' 2>&1 || echo 'not found') && \
+        PACKAGE_VERSION=$(node -p 'require("./package.json").version' 2>&1 || echo 'not found') && \
+        echo "[DEBUG] Package name: $PACKAGE_NAME" && \
+        echo "[DEBUG] Package version: $PACKAGE_VERSION" && \
+        if [ "$PACKAGE_NAME" != "not found" ] && [ "$PACKAGE_VERSION" != "not found" ]; then \
+            echo "[SUCCESS] ✓ package.json is valid"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: package.json is invalid or corrupted!" && \
+            PACKAGE_CHECK_FAILED=1; \
+        fi; \
     else \
-        echo "[DEBUG] ✗ ERROR: package.json NOT found!" && \
+        echo "[FAILURE] ✗ ERROR: package.json NOT found!" && \
         echo "[DEBUG] Current directory: $(pwd)" && \
         echo "[DEBUG] Listing files:" && \
         ls -la . && \
-        exit 1; \
+        PACKAGE_CHECK_FAILED=1; \
     fi && \
     if [ -f tsconfig.json ]; then \
-        echo "[DEBUG] ✓ tsconfig.json exists"; \
+        echo "[SUCCESS] ✓ tsconfig.json exists"; \
     else \
-        echo "[DEBUG] ✗ ERROR: tsconfig.json NOT found!" && \
-        exit 1; \
+        echo "[FAILURE] ✗ ERROR: tsconfig.json NOT found!" && \
+        PACKAGE_CHECK_FAILED=1; \
     fi && \
     if [ -f .eslintrc.json ]; then \
-        echo "[DEBUG] ✓ .eslintrc.json exists"; \
+        echo "[SUCCESS] ✓ .eslintrc.json exists"; \
     else \
-        echo "[DEBUG] ⚠ WARNING: .eslintrc.json NOT found (may be optional)"; \
+        echo "[WARNING] ⚠ WARNING: .eslintrc.json NOT found (may be optional)"; \
+    fi && \
+    if [ $PACKAGE_CHECK_FAILED -eq 0 ]; then \
+        echo "[SUCCESS] ✓ All package files verified successfully"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: Package files validation failed!" && \
+        exit 1; \
     fi && \
     echo "[DEBUG] ========== Package Files Verification Complete =========="
 
@@ -1375,36 +1396,170 @@ FROM --platform=linux/amd64 node:20-slim
 
 # Install runtime dependencies including LLVM libraries for cfg-exporter
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    ca-certificates \
-    wget \
-    gnupg \
-    file \
-    2>&1 | (grep -v "update-alternatives: warning" || true) && \
-    rm -rf /var/lib/apt/lists/*
+RUN echo "[DEBUG] ========== Installing Runtime Dependencies (PRODUCTION STAGE) ==========" && \
+    echo "[DEBUG] Starting apt-get update..." && \
+    if apt-get update; then \
+        echo "[SUCCESS] ✓ apt-get update completed successfully"; \
+    else \
+        APT_UPDATE_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: apt-get update failed with exit code: $APT_UPDATE_EXIT" && \
+        exit $APT_UPDATE_EXIT; \
+    fi && \
+    echo "[DEBUG] Installing packages: ca-certificates, wget, gnupg, file" && \
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        ca-certificates \
+        wget \
+        gnupg \
+        file \
+        2>&1 | (grep -v "update-alternatives: warning" || true); then \
+        echo "[SUCCESS] ✓ All runtime packages installed successfully"; \
+    else \
+        APT_INSTALL_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: Package installation failed with exit code: $APT_INSTALL_EXIT" && \
+        exit $APT_INSTALL_EXIT; \
+    fi && \
+    echo "[DEBUG] ========== Verifying Installed Runtime Tools ==========" && \
+    RUNTIME_TOOL_CHECK_FAILED=0 && \
+    if command -v wget >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ wget: $(wget --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: wget not found!" && \
+        RUNTIME_TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v gpg >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ gpg: $(gpg --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: gpg not found!" && \
+        RUNTIME_TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v file >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ file: $(file --version 2>&1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: file not found!" && \
+        RUNTIME_TOOL_CHECK_FAILED=1; \
+    fi && \
+    rm -rf /var/lib/apt/lists/* && \
+    if [ $RUNTIME_TOOL_CHECK_FAILED -eq 0 ]; then \
+        echo "[SUCCESS] ✓ All runtime dependencies verified successfully"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: One or more required runtime tools are missing!" && \
+        exit 1; \
+    fi
 
 # Install LLVM-17 runtime libraries and clang (needed by cfg-exporter binary and include path discovery)
 # cfg-exporter requires libLLVM-17.so.1 which is provided by llvm-17 package
 # clang-17 is needed for include path discovery in ClangASTParser
-RUN set -e && \
+RUN echo "[DEBUG] ========== Installing LLVM Runtime Libraries (PRODUCTION STAGE) ==========" && \
+    set -e && \
     install_llvm_runtime() { \
+        echo "[DEBUG] Cleaning up previous LLVM installation attempts..." && \
         rm -f /etc/apt/sources.list.d/llvm.list /etc/apt/trusted.gpg.d/llvm-snapshot.gpg /tmp/llvm-snapshot.gpg.key 2>/dev/null || true && \
-        wget --timeout=60 --tries=3 --retry-connrefused -O /tmp/llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key && \
-        gpg --dearmor < /tmp/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/llvm-snapshot.gpg && \
+        echo "[DEBUG] Downloading LLVM GPG key..." && \
+        if wget --timeout=60 --tries=3 --retry-connrefused -O /tmp/llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key; then \
+            echo "[SUCCESS] ✓ GPG key downloaded successfully"; \
+        else \
+            WGET_EXIT=$? && \
+            echo "[FAILURE] ✗ ERROR: Failed to download GPG key (exit code: $WGET_EXIT)" && \
+            return $WGET_EXIT; \
+        fi && \
+        echo "[DEBUG] Converting GPG key..." && \
+        if gpg --dearmor < /tmp/llvm-snapshot.gpg.key > /etc/apt/trusted.gpg.d/llvm-snapshot.gpg; then \
+            echo "[SUCCESS] ✓ GPG key converted successfully"; \
+        else \
+            GPG_EXIT=$? && \
+            echo "[FAILURE] ✗ ERROR: Failed to convert GPG key (exit code: $GPG_EXIT)" && \
+            return $GPG_EXIT; \
+        fi && \
+        echo "[DEBUG] Adding LLVM repository..." && \
         echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" > /etc/apt/sources.list.d/llvm.list && \
-        apt-get update && \
-        apt-get install -y --no-install-recommends llvm-17 clang-17 && \
-        rm -f /tmp/llvm-snapshot.gpg.key && \
-        rm -rf /var/lib/apt/lists/*; \
+        if [ -f /etc/apt/sources.list.d/llvm.list ]; then \
+            echo "[SUCCESS] ✓ Repository file created successfully"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: Failed to create repository file!" && \
+            return 1; \
+        fi && \
+        echo "[DEBUG] Running apt-get update..." && \
+        if apt-get update; then \
+            echo "[SUCCESS] ✓ apt-get update completed successfully"; \
+        else \
+            APT_UPDATE_EXIT=$? && \
+            echo "[FAILURE] ✗ ERROR: apt-get update failed (exit code: $APT_UPDATE_EXIT)" && \
+            return $APT_UPDATE_EXIT; \
+        fi && \
+        echo "[DEBUG] Installing LLVM packages: llvm-17, clang-17" && \
+        if apt-get install -y --no-install-recommends llvm-17 clang-17; then \
+            echo "[SUCCESS] ✓ LLVM packages installed successfully" && \
+            echo "[DEBUG] ========== Verifying LLVM Installation (PRODUCTION STAGE) ==========" && \
+            LLVM_RUNTIME_VERIFY_FAILED=0 && \
+            if command -v clang-17 >/dev/null 2>&1; then \
+                echo "[SUCCESS] ✓ clang-17: $(clang-17 --version | head -1 2>&1)"; \
+            else \
+                echo "[FAILURE] ✗ ERROR: clang-17 not found!" && \
+                LLVM_RUNTIME_VERIFY_FAILED=1; \
+            fi && \
+            if [ -d /usr/lib/llvm-17/lib ]; then \
+                echo "[SUCCESS] ✓ LLVM libraries directory exists"; \
+                LLVM_LIB_COUNT=$(ls -1 /usr/lib/llvm-17/lib/libLLVM*.so* 2>/dev/null | wc -l || echo "0") && \
+                if [ "$LLVM_LIB_COUNT" -gt 0 ]; then \
+                    echo "[SUCCESS] ✓ Found $LLVM_LIB_COUNT LLVM library files"; \
+                else \
+                    echo "[FAILURE] ✗ ERROR: No LLVM libraries found!" && \
+                    LLVM_RUNTIME_VERIFY_FAILED=1; \
+                fi; \
+            else \
+                echo "[FAILURE] ✗ ERROR: LLVM libraries directory not found!" && \
+                LLVM_RUNTIME_VERIFY_FAILED=1; \
+            fi && \
+            rm -f /tmp/llvm-snapshot.gpg.key && \
+            rm -rf /var/lib/apt/lists/* && \
+            if [ $LLVM_RUNTIME_VERIFY_FAILED -eq 0 ]; then \
+                echo "[SUCCESS] ✓ LLVM runtime installation verified successfully" && \
+                return 0; \
+            else \
+                echo "[FAILURE] ✗ ERROR: LLVM runtime installation verification failed!" && \
+                return 1; \
+            fi; \
+        else \
+            APT_INSTALL_EXIT=$? && \
+            echo "[FAILURE] ✗ ERROR: LLVM package installation failed (exit code: $APT_INSTALL_EXIT)" && \
+            rm -f /tmp/llvm-snapshot.gpg.key && \
+            return $APT_INSTALL_EXIT; \
+        fi; \
     } && \
-    install_llvm_runtime
+    if install_llvm_runtime; then \
+        echo "[SUCCESS] ✓ LLVM runtime installation completed successfully"; \
+    else \
+        LLVM_RUNTIME_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: LLVM runtime installation failed (exit code: $LLVM_RUNTIME_EXIT)" && \
+        exit $LLVM_RUNTIME_EXIT; \
+    fi
 
 # Install C standard library headers (needed for stdio.h and other standard headers)
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    libc6-dev \
-    2>&1 | (grep -v "update-alternatives: warning" || true) && \
+RUN echo "[DEBUG] ========== Installing C Standard Library Headers (PRODUCTION STAGE) ==========" && \
+    echo "[DEBUG] Starting apt-get update..." && \
+    if apt-get update; then \
+        echo "[SUCCESS] ✓ apt-get update completed successfully"; \
+    else \
+        APT_UPDATE_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: apt-get update failed with exit code: $APT_UPDATE_EXIT" && \
+        exit $APT_UPDATE_EXIT; \
+    fi && \
+    echo "[DEBUG] Installing package: libc6-dev" && \
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        libc6-dev \
+        2>&1 | (grep -v "update-alternatives: warning" || true); then \
+        echo "[SUCCESS] ✓ libc6-dev installed successfully"; \
+    else \
+        APT_INSTALL_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: libc6-dev installation failed with exit code: $APT_INSTALL_EXIT" && \
+        exit $APT_INSTALL_EXIT; \
+    fi && \
+    if [ -d /usr/include ]; then \
+        echo "[SUCCESS] ✓ C standard library headers directory exists"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: C standard library headers directory not found!" && \
+        exit 1; \
+    fi && \
     rm -rf /var/lib/apt/lists/*
 
 # Upgrade npm to latest version (11.7.0) to avoid version warnings
@@ -1423,41 +1578,77 @@ COPY --from=extension-builder /build/tsconfig.json ./
 COPY --from=extension-builder /build/.eslintrc.json ./
 
 # Copy built C++ binary with proper permissions and verification
-RUN mkdir -p /app/cpp-tools/cfg-exporter/build
+RUN echo "[DEBUG] ========== Preparing Binary Directory (PRODUCTION STAGE) ==========" && \
+    if mkdir -p /app/cpp-tools/cfg-exporter/build; then \
+        if [ -d /app/cpp-tools/cfg-exporter/build ]; then \
+            echo "[SUCCESS] ✓ Binary directory created successfully"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: Directory creation command succeeded but directory does not exist!" && \
+            exit 1; \
+        fi; \
+    else \
+        MKDIR_BIN_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: Failed to create binary directory (exit code: $MKDIR_BIN_EXIT)!" && \
+        exit $MKDIR_BIN_EXIT; \
+    fi
 COPY --from=cpp-builder --chmod=755 /build/cpp-tools/cfg-exporter/build/cfg-exporter ./cpp-tools/cfg-exporter/build/cfg-exporter
-RUN echo "[DEBUG] Verifying copied binary is valid ELF:" && \
+RUN echo "[DEBUG] ========== Verifying Copied Binary (PRODUCTION STAGE) ==========" && \
+    echo "[DEBUG] Verifying copied binary is valid ELF:" && \
     if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
-        echo "[DEBUG] Binary exists, checking file info:" && \
+        echo "[SUCCESS] ✓ Binary file exists after copy" && \
+        echo "[DEBUG] Binary file info:" && \
         ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
-        file /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "[WARN] 'file' command not available, using fallback verification" && \
+        echo "[DEBUG] File type check:" && \
+        (file /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "[WARN] 'file' command not available, using fallback verification") && \
         echo "[DEBUG] Checking ELF magic bytes:" && \
         BINARY_MAGIC=$(head -c 4 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 | tr -d ' \n') && \
         if [ "$BINARY_MAGIC" = "7f454c46" ]; then \
-            echo "✓ Binary has valid ELF magic bytes (0x7f ELF)" && \
+            echo "[SUCCESS] ✓ Binary has valid ELF magic bytes (0x7f ELF)" && \
             echo "[DEBUG] Verifying binary is executable:" && \
-            chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+            if chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter; then \
+                echo "[SUCCESS] ✓ Binary permissions set successfully"; \
+            else \
+                CHMOD_BIN_EXIT=$? && \
+                echo "[FAILURE] ✗ ERROR: Failed to set executable permissions (exit code: $CHMOD_BIN_EXIT)" && \
+                exit $CHMOD_BIN_EXIT; \
+            fi && \
             echo "[DEBUG] Testing binary execution:" && \
             if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
-                echo "✓ Binary executes successfully"; \
+                echo "[SUCCESS] ✓ Binary executes successfully"; \
             else \
-                echo "⚠ WARNING: Binary exists but execution test failed" && \
+                EXEC_TEST_EXIT=$? && \
+                echo "[FAILURE] ✗ ERROR: Binary execution test FAILED (exit code: $EXEC_TEST_EXIT)" && \
                 echo "[DEBUG] Checking binary architecture:" && \
-                uname -m && \
+                echo "[DEBUG] Platform: $(uname -m)" && \
                 echo "[DEBUG] Checking library dependencies:" && \
-                (ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "[DEBUG] ldd check completed (may show errors for statically linked binaries)"); \
+                LDD_OUTPUT=$(ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1) && \
+                echo "$LDD_OUTPUT" | head -10 && \
+                if echo "$LDD_OUTPUT" | grep -q "not a dynamic executable"; then \
+                    echo "[DEBUG] Binary is statically linked"; \
+                elif echo "$LDD_OUTPUT" | grep -q "No such file"; then \
+                    echo "[FAILURE] ✗ ERROR: Missing shared library dependencies!"; \
+                fi && \
+                exit 1; \
             fi; \
         else \
-            echo "✗ ERROR: Binary does not have ELF magic bytes! Got: $BINARY_MAGIC" && \
+            echo "[FAILURE] ✗ ERROR: Binary does not have ELF magic bytes! Got: $BINARY_MAGIC" && \
+            echo "[DEBUG] Expected: 7f454c46 (ELF Linux)" && \
             echo "[DEBUG] First 20 bytes:" && \
             head -c 20 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 && \
             echo "[DEBUG] File type info:" && \
             (file /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "[DEBUG] 'file' command not available") && \
             exit 1; \
-        fi; \
+        fi && \
+        echo "[SUCCESS] ✓ Binary verification complete"; \
     else \
-        echo "✗ ERROR: Binary not found after copy!" && \
+        echo "[FAILURE] ✗ ERROR: Binary not found after copy!" && \
         echo "[DEBUG] Checking directory structure:" && \
-        ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1 || echo "[DEBUG] build directory does not exist" && \
+        if [ -d /app/cpp-tools/cfg-exporter/build ]; then \
+            echo "[DEBUG] build directory exists, listing contents:" && \
+            ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1; \
+        else \
+            echo "[FAILURE] ✗ ERROR: build directory does not exist"; \
+        fi && \
         exit 1; \
     fi
 
@@ -1466,7 +1657,19 @@ COPY README.md ./
 COPY CHANGELOG.md ./
 
 # Create directory for extension output
-RUN mkdir -p /app/dist
+RUN echo "[DEBUG] ========== Creating Extension Output Directory (PRODUCTION STAGE) ==========" && \
+    if mkdir -p /app/dist; then \
+        if [ -d /app/dist ]; then \
+            echo "[SUCCESS] ✓ dist directory created successfully"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: mkdir succeeded but directory does not exist!" && \
+            exit 1; \
+        fi; \
+    else \
+        MKDIR_DIST_PROD_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: Failed to create dist directory (exit code: $MKDIR_DIST_PROD_EXIT)!" && \
+        exit $MKDIR_DIST_PROD_EXIT; \
+    fi
 
 # Set environment variables
 ENV NODE_ENV=production
