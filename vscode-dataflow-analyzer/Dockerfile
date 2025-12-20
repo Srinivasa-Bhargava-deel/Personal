@@ -7,9 +7,12 @@
 # Stage 1: Build C++ cfg-exporter binary
 # ============================================================================
 # Using Ubuntu 22.04 AMD64 (x86_64) base image - works on AMD and Intel x64 processors
+# CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
 # Platform is set via --platform flag in docker build command
-# Docker automatically sets TARGETPLATFORM when --platform is used, so we don't need to specify it in FROM
-FROM ubuntu:22.04 AS cpp-builder
+# Docker automatically sets TARGETPLATFORM when --platform is used
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} ubuntu:22.04 AS cpp-builder
 
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -163,10 +166,40 @@ RUN mkdir -p build && \
     cmake --build . 2>&1 | tee build_output.log && \
     echo "=== Step 4: Verifying binary ===" && \
     if [ -f cfg-exporter ]; then \
+        echo "[DEBUG] ========== DRY RUN: Binary Verification ==========" && \
         echo "[DEBUG] Binary file info:" && \
         ls -lh cfg-exporter && \
         echo "[DEBUG] Current platform architecture:" && \
         uname -m && \
+        echo "[DEBUG] TARGETPLATFORM: ${TARGETPLATFORM:-not set}" && \
+        echo "[DEBUG] BUILDPLATFORM: ${BUILDPLATFORM:-not set}" && \
+        echo "[DEBUG] ========== CRITICAL: ELF Magic Byte Check ==========" && \
+        BINARY_MAGIC=$(head -c 4 cfg-exporter | od -An -tx1 | tr -d ' \n') && \
+        echo "[DEBUG] Binary magic bytes (first 4 bytes): $BINARY_MAGIC" && \
+        if [ "$BINARY_MAGIC" = "7f454c46" ]; then \
+            echo "✓ CRITICAL CHECK PASSED: Binary has valid ELF magic bytes (0x7f ELF)" && \
+            echo "[DEBUG] ELF format confirmed - this is a Linux binary"; \
+        elif [ "$BINARY_MAGIC" = "cffaedfe" ] || [ "$BINARY_MAGIC" = "feedfacf" ]; then \
+            echo "✗ CRITICAL ERROR: Binary is Mach-O format (macOS), not ELF (Linux)!" && \
+            echo "[DEBUG] Magic bytes: $BINARY_MAGIC indicates macOS binary" && \
+            echo "[DEBUG] This binary was built for macOS, not Linux!" && \
+            echo "[DEBUG] First 20 bytes:" && \
+            head -c 20 cfg-exporter | od -An -tx1 && \
+            echo "[DEBUG] Platform info:" && \
+            uname -a && \
+            echo "[DEBUG] TARGETPLATFORM: ${TARGETPLATFORM:-not set}" && \
+            echo "[DEBUG] BUILDPLATFORM: ${BUILDPLATFORM:-not set}" && \
+            echo "[DEBUG] SOLUTION: Rebuild with --platform linux/amd64 flag" && \
+            exit 1; \
+        else \
+            echo "✗ CRITICAL ERROR: Binary has unknown magic bytes: $BINARY_MAGIC" && \
+            echo "[DEBUG] Expected: 7f454c46 (ELF Linux)" && \
+            echo "[DEBUG] Got: $BINARY_MAGIC" && \
+            echo "[DEBUG] First 20 bytes:" && \
+            head -c 20 cfg-exporter | od -An -tx1 && \
+            exit 1; \
+        fi && \
+        echo "[DEBUG] ========== File Type Check ==========" && \
         file cfg-exporter && \
         echo "[DEBUG] Verifying binary architecture (must be Linux x86_64/amd64):" && \
         BINARY_ARCH=$(file cfg-exporter | grep -oE "x86-64|amd64|ELF 64-bit" || echo "unknown") && \
@@ -193,23 +226,32 @@ RUN mkdir -p build && \
             echo "[DEBUG] Platform architecture: $CURRENT_ARCH" && \
             exit 1; \
         fi && \
+        echo "[DEBUG] ========== Stripping Binary ==========" && \
         echo "[DEBUG] Stripping binary:" && \
         strip cfg-exporter || true && \
         echo "[DEBUG] Final binary size:" && \
         ls -lh cfg-exporter && \
         echo "[DEBUG] Making binary executable:" && \
         chmod +x cfg-exporter && \
+        echo "[DEBUG] ========== Post-Strip Verification ==========" && \
         echo "[DEBUG] Verifying ELF magic bytes after stripping:" && \
-        BINARY_MAGIC=$(head -c 4 cfg-exporter | od -An -tx1 | tr -d ' \n') && \
-        if [ "$BINARY_MAGIC" = "7f454c46" ]; then \
+        BINARY_MAGIC_POST=$(head -c 4 cfg-exporter | od -An -tx1 | tr -d ' \n') && \
+        if [ "$BINARY_MAGIC_POST" = "7f454c46" ]; then \
             echo "✓ Binary still has valid ELF magic bytes after stripping"; \
         else \
-            echo "✗ ERROR: Binary lost ELF magic bytes after stripping! Got: $BINARY_MAGIC" && \
+            echo "✗ ERROR: Binary lost ELF magic bytes after stripping! Got: $BINARY_MAGIC_POST" && \
+            echo "[DEBUG] Expected: 7f454c46 (ELF)" && \
             exit 1; \
         fi && \
-        echo "✓ Binary verification complete"; \
+        echo "[DEBUG] ========== Final Verification ==========" && \
+        echo "[DEBUG] Final file check:" && \
+        file cfg-exporter && \
+        echo "✓ Binary verification complete - ready for copy"; \
     else \
         echo "✗ ERROR: Binary not found!" && \
+        echo "[DEBUG] Current directory: $(pwd)" && \
+        echo "[DEBUG] Listing build directory:" && \
+        ls -la . && \
         exit 1; \
     fi
 
@@ -217,9 +259,10 @@ RUN mkdir -p build && \
 # Stage 2: Build TypeScript extension
 # ============================================================================
 # Node.js 20 AMD64 image - compatible with AMD and Intel x64 processors
-# Platform is set via --platform flag in docker build command
-# Docker automatically sets TARGETPLATFORM when --platform is used, so we don't need to specify it in FROM
-FROM node:20-slim AS extension-builder
+# CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} node:20-slim AS extension-builder
 
 # Install build tools for native modules (if needed)
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr
@@ -252,7 +295,10 @@ RUN npm run compile
 # Stage 3: Development image - Full development environment with all tools
 # ============================================================================
 # Development image with all build tools for testing and development
-FROM node:20-slim AS dev
+# CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} node:20-slim AS dev
 
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -496,9 +542,10 @@ CMD ["tail", "-f", "/dev/null"]
 # Stage 4: Final production image - Package everything together
 # ============================================================================
 # Final AMD64 image - compatible with AMD and Intel x64 processors
-# Platform is set via --platform flag in docker build command
-# Docker automatically sets TARGETPLATFORM when --platform is used, so we don't need to specify it in FROM
-FROM node:20-slim
+# CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
+ARG TARGETPLATFORM=linux/amd64
+ARG BUILDPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} node:20-slim
 
 # Install runtime dependencies including LLVM libraries for cfg-exporter
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr

@@ -39,7 +39,9 @@ export class LoggingConfig {
   
   // File logging
   private static logFilePath: string | null = null;
+  private static log2FilePath: string | null = null; // logs2.txt for debug console output
   private static logStream: fs.WriteStream | null = null;
+  private static log2Stream: fs.WriteStream | null = null; // Stream for logs2.txt
   private static writeQueue: string[] = [];
   private static isWriting: boolean = false;
   private static writeToFileCallCount: number = 0; // Diagnostic counter
@@ -171,7 +173,9 @@ export class LoggingConfig {
       }
       
       LoggingConfig.logFilePath = path.join(vscodeDir, 'logs.txt');
+      LoggingConfig.log2FilePath = path.join(absoluteWorkspacePath, 'logs2.txt'); // logs2.txt in workspace root
       LoggingConfig.diagWrite(`[${timestamp}] [LoggingConfig] [DIAG] Log file path: ${LoggingConfig.logFilePath}`);
+      LoggingConfig.diagWrite(`[${timestamp}] [LoggingConfig] [DIAG] Log2 file path (debug console): ${LoggingConfig.log2FilePath}`);
       LoggingConfig.diagWrite(`[${timestamp}] [LoggingConfig] [DIAG] Log file path is absolute: ${path.isAbsolute(LoggingConfig.logFilePath)}`);
       LoggingConfig.diagWrite(`[${timestamp}] [LoggingConfig] [DIAG] Log file exists: ${fs.existsSync(LoggingConfig.logFilePath)}`);
       
@@ -187,6 +191,22 @@ export class LoggingConfig {
       LoggingConfig.diagWrite(`[${timestamp}] [LoggingConfig] [DIAG] Clearing log file...`);
       fs.writeFileSync(LoggingConfig.logFilePath, '', 'utf8');
       LoggingConfig.diagWrite(`[${timestamp}] [LoggingConfig] [DIAG] Log file cleared`);
+      
+      // Initialize logs2.txt (debug console output log) - append mode to preserve build logs
+      try {
+        if (!fs.existsSync(LoggingConfig.log2FilePath)) {
+          fs.writeFileSync(LoggingConfig.log2FilePath, `[${timestamp}] [LoggingConfig] === Debug Console Log Started ===\n`, 'utf8');
+        } else {
+          fs.appendFileSync(LoggingConfig.log2FilePath, `\n[${timestamp}] [LoggingConfig] === Debug Console Log Session Started ===\n`, 'utf8');
+        }
+        LoggingConfig.log2Stream = fs.createWriteStream(LoggingConfig.log2FilePath, { 
+          flags: 'a',
+          encoding: 'utf8'
+        });
+        LoggingConfig.diagWrite(`[${timestamp}] [LoggingConfig] [DIAG] logs2.txt initialized for debug console output`);
+      } catch (log2Error) {
+        LoggingConfig.diagWrite(`[${timestamp}] [LoggingConfig] [DIAG] WARNING: Failed to initialize logs2.txt: ${log2Error}`);
+      }
       
       // Write initialization marker directly to file
       fs.appendFileSync(LoggingConfig.logFilePath, `[${timestamp}] [LoggingConfig] === Log session started ===\n`, 'utf8');
@@ -224,6 +244,7 @@ export class LoggingConfig {
       // Log initialization message (this will also be written to file via interception)
       console.log(`[LoggingConfig] File logging initialized: ${LoggingConfig.logFilePath}`);
       console.log(`[LoggingConfig] All logs will be automatically written to: ${LoggingConfig.logFilePath}`);
+      console.log(`[LoggingConfig] Debug console output will be automatically written to: ${LoggingConfig.log2FilePath || 'logs2.txt'}`);
       console.log(`[LoggingConfig] Log file will be cleared when EDH window closes`);
       
       // Write session start marker directly (before console interception is fully active)
@@ -284,6 +305,14 @@ export class LoggingConfig {
           // Use synchronous write for immediate, reliable writes
           fs.appendFileSync(LoggingConfig.logFilePath, message + '\n', 'utf8');
         }
+        // Also write to logs2.txt (debug console output)
+        if (LoggingConfig.log2FilePath) {
+          try {
+            fs.appendFileSync(LoggingConfig.log2FilePath, message + '\n', 'utf8');
+          } catch (log2Err) {
+            // Silently fail if logs2.txt write fails
+          }
+        }
       } catch (e) {
         // If sync write fails, fall back to async queue
         const message = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
@@ -299,6 +328,14 @@ export class LoggingConfig {
         if (LoggingConfig.logFilePath) {
           fs.appendFileSync(LoggingConfig.logFilePath, message + '\n', 'utf8');
         }
+        // Also write to logs2.txt (debug console output)
+        if (LoggingConfig.log2FilePath) {
+          try {
+            fs.appendFileSync(LoggingConfig.log2FilePath, message + '\n', 'utf8');
+          } catch (log2Err) {
+            // Silently fail if logs2.txt write fails
+          }
+        }
       } catch (e) {
         const message = '[ERROR] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
         LoggingConfig.writeToFile(message);
@@ -312,6 +349,14 @@ export class LoggingConfig {
         const message = '[WARN] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
         if (LoggingConfig.logFilePath) {
           fs.appendFileSync(LoggingConfig.logFilePath, message + '\n', 'utf8');
+        }
+        // Also write to logs2.txt (debug console output)
+        if (LoggingConfig.log2FilePath) {
+          try {
+            fs.appendFileSync(LoggingConfig.log2FilePath, message + '\n', 'utf8');
+          } catch (log2Err) {
+            // Silently fail if logs2.txt write fails
+          }
         }
       } catch (e) {
         const message = '[WARN] ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
@@ -558,9 +603,15 @@ export class LoggingConfig {
           const closingMessage = `\n[LoggingConfig] === Log session ended at ${new Date().toISOString()} ===\n`;
           LoggingConfig.logStream.write(closingMessage, () => {
             if (LoggingConfig.logStream) {
-              // Close the stream
+              // Close the streams
               LoggingConfig.logStream.end(() => {
                 LoggingConfig.logStream = null;
+                
+                // Close logs2.txt stream if it exists
+                if (LoggingConfig.log2Stream) {
+                  LoggingConfig.log2Stream.end();
+                  LoggingConfig.log2Stream = null;
+                }
                 
                 // Step 3: Clear the file completely if requested
                 if (clearOnClose && LoggingConfig.logFilePath) {
@@ -573,8 +624,9 @@ export class LoggingConfig {
                   }
                 }
                 
-                // Clear the file path reference
+                // Clear the file path references
                 LoggingConfig.logFilePath = null;
+                LoggingConfig.log2FilePath = null;
                 LoggingConfig.writeQueue = [];
                 LoggingConfig.isWriting = false;
                 
@@ -595,6 +647,7 @@ export class LoggingConfig {
             }
           }
           LoggingConfig.logFilePath = null;
+          LoggingConfig.log2FilePath = null;
           LoggingConfig.writeQueue = [];
           LoggingConfig.isWriting = false;
           resolve();

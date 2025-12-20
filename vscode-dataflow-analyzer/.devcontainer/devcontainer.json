@@ -8,6 +8,10 @@
 			"BUILDKIT_INLINE_CACHE": "1"
 		}
 	},
+	"image": null,
+	"buildOptions": {
+		"platform": "linux/amd64"
+	},
 	"runArgs": [
 		"--privileged"
 	],
