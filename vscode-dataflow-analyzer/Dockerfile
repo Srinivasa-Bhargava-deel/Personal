@@ -683,20 +683,57 @@ RUN echo "[DEBUG] ========== Verifying Copied Binary (DEV STAGE) ==========" && 
             echo "[DEBUG] Verifying binary is executable:" && \
             chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
             echo "[DEBUG] Binary permissions after chmod: $(ls -l /app/cpp-tools/cfg-exporter/build/cfg-exporter | awk '{print $1}')" && \
+            echo "[DEBUG] ========== Comprehensive Binary Analysis ==========" && \
+            echo "[DEBUG] Reading binary header (first 64 bytes):" && \
+            head -c 64 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 -v | head -8 && \
+            echo "[DEBUG] Checking ELF class (32-bit vs 64-bit):" && \
+            ELF_CLASS=$(dd if=/app/cpp-tools/cfg-exporter/build/cfg-exporter bs=1 skip=4 count=1 2>/dev/null | od -An -tu1 | tr -d ' ') && \
+            if [ "$ELF_CLASS" = "1" ]; then \
+                echo "[DEBUG] ELF class: 32-bit"; \
+            elif [ "$ELF_CLASS" = "2" ]; then \
+                echo "[DEBUG] ELF class: 64-bit"; \
+            else \
+                echo "[DEBUG] ELF class: unknown ($ELF_CLASS)"; \
+            fi && \
+            echo "[DEBUG] Checking ELF machine type:" && \
+            ELF_MACHINE=$(dd if=/app/cpp-tools/cfg-exporter/build/cfg-exporter bs=1 skip=18 count=2 2>/dev/null | od -An -tu2 | tr -d ' ') && \
+            echo "[DEBUG] ELF machine type: $ELF_MACHINE (62=x86_64, 3=i386, 183=ARM64)" && \
+            if [ "$ELF_MACHINE" = "62" ]; then \
+                echo "[DEBUG] ✓ Binary is x86_64 (correct for linux/amd64)"; \
+            else \
+                echo "[DEBUG] ⚠ WARNING: Binary machine type $ELF_MACHINE may not match platform!"; \
+            fi && \
             echo "[DEBUG] Testing binary execution with --help:" && \
             if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
                 echo "✓ Binary executes successfully" && \
-                echo "[DEBUG] Binary execution test passed"; \
+                echo "[DEBUG] Binary execution test passed" && \
+                echo "[DEBUG] Capturing --help output:" && \
+                /app/cpp-tools/cfg-exporter/build/cfg-exporter --help 2>&1 | head -10 || true; \
             else \
                 EXEC_ERROR=$? && \
-                echo "⚠ WARNING: Binary exists but execution test failed (exit code: $EXEC_ERROR)" && \
-                echo "[DEBUG] Checking binary architecture:" && \
+                echo "✗ ERROR: Binary execution test FAILED (exit code: $EXEC_ERROR)" && \
+                echo "[DEBUG] ========== Detailed Error Analysis ==========" && \
                 echo "[DEBUG] Platform architecture: $(uname -m)" && \
+                echo "[DEBUG] Platform OS: $(uname -s)" && \
                 echo "[DEBUG] Checking library dependencies:" && \
-                (ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "[DEBUG] ldd check completed (may show errors for statically linked binaries)") && \
+                LDD_OUTPUT=$(ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1) && \
+                echo "$LDD_OUTPUT" | head -20 && \
+                if echo "$LDD_OUTPUT" | grep -q "not a dynamic executable"; then \
+                    echo "[DEBUG] ✓ Binary is statically linked (no dynamic dependencies)"; \
+                elif echo "$LDD_OUTPUT" | grep -q "No such file"; then \
+                    echo "[DEBUG] ✗ ERROR: Missing shared library dependencies!" && \
+                    echo "[DEBUG] Missing libraries:" && \
+                    echo "$LDD_OUTPUT" | grep "No such file" || true; \
+                fi && \
                 echo "[DEBUG] Checking LLVM library availability:" && \
-                (ls -1 /usr/lib/llvm-17/lib/libLLVM*.so* 2>&1 | head -5 || echo "[DEBUG] LLVM libraries not found") && \
-                echo "[DEBUG] LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}"; \
+                LLVM_LIBS=$(ls -1 /usr/lib/llvm-17/lib/libLLVM*.so* 2>&1 | head -5 || echo "[DEBUG] LLVM libraries not found") && \
+                echo "$LLVM_LIBS" && \
+                echo "[DEBUG] LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}" && \
+                echo "[DEBUG] Testing with strace to see system calls:" && \
+                (strace -e trace=execve,openat /app/cpp-tools/cfg-exporter/build/cfg-exporter --help 2>&1 | head -20 || echo "[DEBUG] strace not available or failed") && \
+                echo "[DEBUG] Attempting to read binary with readelf:" && \
+                (readelf -h /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -20 || echo "[DEBUG] readelf not available") && \
+                exit 1; \
             fi && \
             echo "[DEBUG] ========== Binary Verification Summary ==========" && \
             echo "[DEBUG] ✓ Binary file exists" && \
@@ -732,7 +769,23 @@ RUN echo "[DEBUG] ========== Verifying Copied Binary (DEV STAGE) ==========" && 
         find /app -name "cfg-exporter" -type f 2>/dev/null | head -5 || echo "[DEBUG] cfg-exporter not found anywhere" && \
         exit 1; \
     fi && \
-    echo "[DEBUG] ========== Binary Copy Verification Complete (DEV STAGE) =========="
+        echo "[DEBUG] ========== Binary Copy Verification Complete (DEV STAGE) ==========" && \
+        echo "[DEBUG] Creating wrapper script for easier access:" && \
+        echo '#!/bin/bash' > /usr/local/bin/cfg-exporter && \
+        echo 'exec /app/cpp-tools/cfg-exporter/build/cfg-exporter "$@"' >> /usr/local/bin/cfg-exporter && \
+        chmod +x /usr/local/bin/cfg-exporter && \
+        echo "[DEBUG] ✓ Wrapper script created at /usr/local/bin/cfg-exporter" && \
+        echo "[DEBUG] Testing wrapper script:" && \
+        if cfg-exporter --help >/dev/null 2>&1; then \
+            echo "[DEBUG] ✓ Wrapper script works correctly"; \
+        else \
+            echo "[DEBUG] ⚠ WARNING: Wrapper script test failed, but binary path should still work"; \
+        fi && \
+        echo "[DEBUG] ========== Final Binary Verification Summary ==========" && \
+        echo "[DEBUG] Binary location: /app/cpp-tools/cfg-exporter/build/cfg-exporter" && \
+        echo "[DEBUG] Wrapper location: /usr/local/bin/cfg-exporter" && \
+        echo "[DEBUG] PATH includes: /app/cpp-tools/cfg-exporter/build" && \
+        echo "[DEBUG] ✓ Binary is ready for use"
 
 # Copy other necessary files
 COPY README.md ./
@@ -785,8 +838,13 @@ RUN echo "[DEBUG] ========== Final Development Environment Verification ========
     python3 --version && \
     cmake --version && \
     echo "=== Verifying cfg-exporter binary ===" && \
-        echo "[DEBUG] Checking for cfg-exporter at /app/cpp-tools/cfg-exporter/build/cfg-exporter" && \
+        echo "[DEBUG] ========== Runtime Binary Verification ==========" && \
+        echo "[DEBUG] Checking for cfg-exporter at multiple locations:" && \
+        echo "[DEBUG] 1. Direct path: /app/cpp-tools/cfg-exporter/build/cfg-exporter" && \
+        echo "[DEBUG] 2. Wrapper script: /usr/local/bin/cfg-exporter" && \
+        echo "[DEBUG] 3. PATH lookup: $(which cfg-exporter 2>&1 || echo 'not in PATH')" && \
         if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
+            echo "[DEBUG] ✓ Binary found at direct path" && \
             echo "✓ cfg-exporter binary exists" && \
             ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
             echo "[DEBUG] ========== Comprehensive Binary Validation ==========" && \
@@ -818,18 +876,42 @@ RUN echo "[DEBUG] ========== Final Development Environment Verification ========
             echo "=== Checking binary architecture compatibility ===" && \
             echo "[DEBUG] Platform architecture: $(uname -m)" && \
             echo "[DEBUG] OS: $(uname -s)" && \
-            echo "[DEBUG] Testing binary execution:" && \
-            if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
-                echo "✓ Binary executes successfully" && \
-                echo "[DEBUG] Binary execution test passed"; \
+        echo "[DEBUG] Testing binary execution:" && \
+        if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
+            echo "✓ Binary executes successfully" && \
+            echo "[DEBUG] Binary execution test passed" && \
+            echo "[DEBUG] Testing wrapper script:" && \
+            if cfg-exporter --help >/dev/null 2>&1; then \
+                echo "[DEBUG] ✓ Wrapper script also works"; \
             else \
-                EXEC_ERROR=$? && \
-                echo "⚠ WARNING: Binary exists but may have execution issues (exit code: $EXEC_ERROR)" && \
-                echo "[DEBUG] Attempting to run with strace:" && \
-                (strace -e trace=execve /app/cpp-tools/cfg-exporter/build/cfg-exporter --help 2>&1 | head -10 || echo "[DEBUG] strace not available or binary failed") && \
-                echo "[DEBUG] Checking library dependencies:" && \
-                ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "[DEBUG] ldd check completed (may show errors for statically linked binaries)"; \
+                echo "[DEBUG] ⚠ WARNING: Wrapper script failed but direct path works"; \
+            fi; \
+        else \
+            EXEC_ERROR=$? && \
+            echo "✗ ERROR: Binary execution FAILED (exit code: $EXEC_ERROR)" && \
+            echo "[DEBUG] ========== Comprehensive Error Diagnosis ==========" && \
+            echo "[DEBUG] Platform info:" && \
+            echo "[DEBUG]   Architecture: $(uname -m)" && \
+            echo "[DEBUG]   OS: $(uname -s)" && \
+            echo "[DEBUG]   Kernel: $(uname -r)" && \
+            echo "[DEBUG] Binary analysis:" && \
+            echo "[DEBUG]   Magic bytes: $(head -c 4 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 | tr -d ' \n')" && \
+            echo "[DEBUG]   File type: $(file /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 || echo 'file command not available')" && \
+            echo "[DEBUG]   Permissions: $(ls -l /app/cpp-tools/cfg-exporter/build/cfg-exporter | awk '{print $1}')" && \
+            echo "[DEBUG] Attempting to run with strace:" && \
+            (strace -e trace=execve,openat,open /app/cpp-tools/cfg-exporter/build/cfg-exporter --help 2>&1 | head -30 || echo "[DEBUG] strace not available or binary failed") && \
+            echo "[DEBUG] Checking library dependencies:" && \
+            LDD_OUT=$(ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1) && \
+            echo "$LDD_OUT" | head -15 && \
+            if echo "$LDD_OUT" | grep -q "not a dynamic executable"; then \
+                echo "[DEBUG] ✓ Binary is statically linked"; \
+            elif echo "$LDD_OUT" | grep -q "No such file"; then \
+                echo "[DEBUG] ✗ Missing libraries detected!"; \
             fi && \
+            echo "[DEBUG] Checking readelf output:" && \
+            (readelf -h /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -15 || echo "[DEBUG] readelf not available") && \
+            exit 1; \
+        fi && \
             echo "[DEBUG] Checking library dependencies" && \
             ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "ldd check completed (may show errors for statically linked binaries)" && \
             echo "[DEBUG] Checking LLVM library availability" && \

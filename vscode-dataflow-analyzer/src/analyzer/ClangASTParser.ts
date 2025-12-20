@@ -611,6 +611,63 @@ export class ClangASTParser {
             try {
               const testResult = child_process.spawnSync(exporterPath, ['--help'], {
                 timeout: 5000,
+                encoding: 'utf-8'
+              });
+              
+              if (testResult.error) {
+                const errorMsg = testResult.error.message || String(testResult.error);
+                console.error(`[ClangASTParser] CRITICAL: Pre-execution test failed!`);
+                console.error(`[ClangASTParser] Error: ${errorMsg}`);
+                console.error(`[ClangASTParser] Binary path: ${exporterPath}`);
+                console.error(`[ClangASTParser] Platform: ${process.platform}, Arch: ${process.arch}`);
+                console.error(`[ClangASTParser] Binary stats:`, fs.statSync(exporterPath));
+                
+                // Check if it's an architecture mismatch
+                if (errorMsg.includes('Exec format error') || errorMsg.includes('cannot execute binary')) {
+                  console.error(`[ClangASTParser] This is an architecture mismatch error!`);
+                  console.error(`[ClangASTParser] The binary at ${exporterPath} was built for a different architecture.`);
+                  console.error(`[ClangASTParser] Current platform: ${process.platform}, architecture: ${process.arch}`);
+                  console.error(`[ClangASTParser] Please rebuild the Docker image with --platform linux/amd64`);
+                  reject(new Error(`cfg-exporter binary architecture mismatch. Platform: ${process.platform}, Arch: ${process.arch}. The binary may be built for a different architecture. Please rebuild the Docker image.`));
+                  return;
+                }
+                
+                reject(new Error(`cfg-exporter binary not found or not executable at ${exporterPath}. Error: ${errorMsg}`));
+                return;
+              }
+              
+              if (testResult.status !== 0 && testResult.status !== null) {
+                console.warn(`[ClangASTParser] Pre-execution test returned non-zero exit code: ${testResult.status}`);
+                console.warn(`[ClangASTParser] stderr: ${testResult.stderr?.substring(0, 200)}`);
+              }
+            } catch (preExecErr: any) {
+              console.error(`[ClangASTParser] CRITICAL: Pre-execution validation failed!`);
+              console.error(`[ClangASTParser] Error: ${preExecErr.message || preExecErr}`);
+              console.error(`[ClangASTParser] Binary path: ${exporterPath}`);
+              
+              // Check for architecture mismatch
+              if (preExecErr.message && (preExecErr.message.includes('Exec format error') || preExecErr.message.includes('cannot execute binary'))) {
+                reject(new Error(`cfg-exporter binary architecture mismatch. The binary at ${exporterPath} was built for a different architecture (Platform: ${process.platform}, Arch: ${process.arch}). Please rebuild the Docker image.`));
+                return;
+              }
+              
+              reject(new Error(`Failed to validate cfg-exporter binary before execution: ${preExecErr.message || preExecErr}`));
+              return;
+            }
+          } catch (statErr) {
+            console.warn(`[ClangASTParser] Could not check binary permissions: ${statErr}`);
+          }
+        }
+        
+        // Log the path being used for debugging
+        console.log(`[ClangASTParser] Using cfg-exporter at: ${exporterPath}`);
+        console.log(`[ClangASTParser] Platform: ${process.platform}, Architecture: ${process.arch}`);
+        console.log(`[ClangASTParser] Current working directory: ${process.cwd()}`);
+        console.log(`[ClangASTParser] PATH: ${process.env.PATH || 'not set'}`);
+        
+        // Note: Binary validation was already done above, so we proceed directly to execution {
+              const testResult = child_process.spawnSync(exporterPath, ['--help'], {
+                timeout: 5000,
                 encoding: 'utf-8',
                 stdio: ['ignore', 'pipe', 'pipe']
               });
