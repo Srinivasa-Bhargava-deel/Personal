@@ -916,12 +916,17 @@ RUN echo "[DEBUG] ========== Extension Files Validation Complete ==========" && 
 # Copy built C++ binary with proper permissions and verification
 RUN echo "[DEBUG] ========== Copying C++ Binary from cpp-builder (DEV STAGE) ==========" && \
     echo "[DEBUG] Creating directory structure..." && \
-    mkdir -p /app/cpp-tools/cfg-exporter/build && \
-    if [ -d /app/cpp-tools/cfg-exporter/build ]; then \
-        echo "[DEBUG] ✓ Directory created successfully"; \
+    if mkdir -p /app/cpp-tools/cfg-exporter/build; then \
+        if [ -d /app/cpp-tools/cfg-exporter/build ]; then \
+            echo "[SUCCESS] ✓ Directory created successfully"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: Directory creation command succeeded but directory does not exist!" && \
+            exit 1; \
+        fi; \
     else \
-        echo "[DEBUG] ✗ ERROR: Failed to create directory!" && \
-        exit 1; \
+        MKDIR_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: Failed to create directory (exit code: $MKDIR_EXIT)!" && \
+        exit $MKDIR_EXIT; \
     fi && \
     echo "[DEBUG] Source binary location: /build/cpp-tools/cfg-exporter/build/cfg-exporter" && \
     echo "[DEBUG] Target binary location: /app/cpp-tools/cfg-exporter/build/cfg-exporter" && \
@@ -1008,12 +1013,13 @@ RUN echo "[DEBUG] ========== Verifying Copied Binary (DEV STAGE) ==========" && 
                 exit 1; \
             fi && \
             echo "[DEBUG] ========== Binary Verification Summary ==========" && \
-            echo "[DEBUG] ✓ Binary file exists" && \
-            echo "[DEBUG] ✓ ELF magic bytes verified (7f454c46)" && \
-            echo "[DEBUG] ✓ Binary is executable" && \
-            echo "[DEBUG] ✓ Binary ready for use"; \
+            echo "[SUCCESS] ✓ Binary file exists" && \
+            echo "[SUCCESS] ✓ ELF magic bytes verified (7f454c46)" && \
+            echo "[SUCCESS] ✓ Binary is executable" && \
+            echo "[SUCCESS] ✓ Binary execution test passed" && \
+            echo "[SUCCESS] ✓ Binary ready for use"; \
         elif [ "$BINARY_MAGIC" = "cffaedfe" ] || [ "$BINARY_MAGIC" = "feedfacf" ]; then \
-            echo "✗ CRITICAL ERROR: Binary is Mach-O format (macOS), not ELF (Linux)!" && \
+            echo "[FAILURE] ✗ CRITICAL ERROR: Binary is Mach-O format (macOS), not ELF (Linux)!" && \
             echo "[DEBUG] Magic bytes: $BINARY_MAGIC indicates macOS binary" && \
             echo "[DEBUG] This binary was built for macOS, not Linux!" && \
             echo "[DEBUG] First 20 bytes:" && \
@@ -1023,7 +1029,7 @@ RUN echo "[DEBUG] ========== Verifying Copied Binary (DEV STAGE) ==========" && 
             echo "[DEBUG] SOLUTION: Rebuild with --platform linux/amd64 flag" && \
             exit 1; \
         else \
-            echo "✗ CRITICAL ERROR: Binary does not have ELF magic bytes! Got: $BINARY_MAGIC" && \
+            echo "[FAILURE] ✗ CRITICAL ERROR: Binary does not have ELF magic bytes! Got: $BINARY_MAGIC" && \
             echo "[DEBUG] Expected: 7f454c46 (ELF Linux)" && \
             echo "[DEBUG] Got: $BINARY_MAGIC" && \
             echo "[DEBUG] First 20 bytes:" && \
@@ -1033,31 +1039,47 @@ RUN echo "[DEBUG] ========== Verifying Copied Binary (DEV STAGE) ==========" && 
             exit 1; \
         fi; \
     else \
-        echo "✗ ERROR: Binary not found after copy!" && \
+        echo "[FAILURE] ✗ ERROR: Binary not found after copy!" && \
         echo "[DEBUG] Checking directory structure:" && \
-        echo "[DEBUG] /app/cpp-tools/cfg-exporter/build exists: $([ -d /app/cpp-tools/cfg-exporter/build ] && echo 'yes' || echo 'no')" && \
-        ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1 || echo "[DEBUG] build directory does not exist" && \
+        if [ -d /app/cpp-tools/cfg-exporter/build ]; then \
+            echo "[DEBUG] Directory exists, listing contents:" && \
+            ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1; \
+        else \
+            echo "[FAILURE] ✗ ERROR: build directory does not exist!"; \
+        fi && \
         echo "[DEBUG] Searching for cfg-exporter:" && \
-        find /app -name "cfg-exporter" -type f 2>/dev/null | head -5 || echo "[DEBUG] cfg-exporter not found anywhere" && \
+        CFG_FOUND=$(find /app -name "cfg-exporter" -type f 2>/dev/null | head -5 || echo "") && \
+        if [ -n "$CFG_FOUND" ]; then \
+            echo "[DEBUG] Found cfg-exporter at:" && \
+            echo "$CFG_FOUND"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: cfg-exporter not found anywhere in /app"; \
+        fi && \
         exit 1; \
     fi && \
-        echo "[DEBUG] ========== Binary Copy Verification Complete (DEV STAGE) ==========" && \
-        echo "[DEBUG] Creating wrapper script for easier access:" && \
-        echo '#!/bin/bash' > /usr/local/bin/cfg-exporter && \
-        echo 'exec /app/cpp-tools/cfg-exporter/build/cfg-exporter "$@"' >> /usr/local/bin/cfg-exporter && \
-        chmod +x /usr/local/bin/cfg-exporter && \
-        echo "[DEBUG] ✓ Wrapper script created at /usr/local/bin/cfg-exporter" && \
+    echo "[DEBUG] ========== Binary Copy Verification Complete (DEV STAGE) ==========" && \
+    echo "[DEBUG] Creating wrapper script for easier access:" && \
+    if echo '#!/bin/bash' > /usr/local/bin/cfg-exporter && \
+       echo 'exec /app/cpp-tools/cfg-exporter/build/cfg-exporter "$@"' >> /usr/local/bin/cfg-exporter && \
+       chmod +x /usr/local/bin/cfg-exporter; then \
+        echo "[SUCCESS] ✓ Wrapper script created at /usr/local/bin/cfg-exporter" && \
         echo "[DEBUG] Testing wrapper script:" && \
         if cfg-exporter --help >/dev/null 2>&1; then \
-            echo "[DEBUG] ✓ Wrapper script works correctly"; \
+            echo "[SUCCESS] ✓ Wrapper script works correctly"; \
         else \
-            echo "[DEBUG] ⚠ WARNING: Wrapper script test failed, but binary path should still work"; \
-        fi && \
-        echo "[DEBUG] ========== Final Binary Verification Summary ==========" && \
-        echo "[DEBUG] Binary location: /app/cpp-tools/cfg-exporter/build/cfg-exporter" && \
-        echo "[DEBUG] Wrapper location: /usr/local/bin/cfg-exporter" && \
-        echo "[DEBUG] PATH includes: /app/cpp-tools/cfg-exporter/build" && \
-        echo "[DEBUG] ✓ Binary is ready for use"
+            WRAPPER_TEST_EXIT=$? && \
+            echo "[WARNING] ⚠ WARNING: Wrapper script test failed (exit code: $WRAPPER_TEST_EXIT), but binary path should still work"; \
+        fi; \
+    else \
+        WRAPPER_CREATE_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: Failed to create wrapper script (exit code: $WRAPPER_CREATE_EXIT)" && \
+        exit $WRAPPER_CREATE_EXIT; \
+    fi && \
+    echo "[DEBUG] ========== Final Binary Verification Summary ==========" && \
+    echo "[SUCCESS] ✓ Binary location: /app/cpp-tools/cfg-exporter/build/cfg-exporter" && \
+    echo "[SUCCESS] ✓ Wrapper location: /usr/local/bin/cfg-exporter" && \
+    echo "[SUCCESS] ✓ PATH includes: /app/cpp-tools/cfg-exporter/build" && \
+    echo "[SUCCESS] ✓ Binary is ready for use"
 
 # Copy other necessary files
 COPY README.md ./
@@ -1123,10 +1145,11 @@ RUN echo "[DEBUG] ========== Final Development Environment Verification ========
             echo "[DEBUG] Verifying ELF magic bytes:" && \
             BINARY_MAGIC=$(head -c 4 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 | tr -d ' \n') && \
             if [ "$BINARY_MAGIC" = "7f454c46" ]; then \
-                echo "✓ Binary has valid ELF magic bytes (0x7f ELF)" && \
+                echo "[SUCCESS] ✓ Binary has valid ELF magic bytes (0x7f ELF)" && \
                 echo "[DEBUG] ELF format confirmed"; \
             else \
-                echo "✗ ERROR: Binary does not have ELF magic bytes! Got: $BINARY_MAGIC" && \
+                echo "[FAILURE] ✗ ERROR: Binary does not have ELF magic bytes! Got: $BINARY_MAGIC" && \
+                echo "[DEBUG] Expected: 7f454c46 (ELF Linux)" && \
                 echo "[DEBUG] First 20 bytes:" && \
                 head -c 20 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 && \
                 exit 1; \
@@ -1139,11 +1162,16 @@ RUN echo "[DEBUG] ========== Final Development Environment Verification ========
             echo "[DEBUG] Binary owner: $BINARY_OWNER" && \
             echo "[DEBUG] Checking if binary is executable" && \
             if [ -x "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
-                echo "✓ Binary is executable"; \
+                echo "[SUCCESS] ✓ Binary is executable"; \
             else \
                 echo "[DEBUG] Making binary executable..." && \
-                chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
-                echo "✓ Made binary executable"; \
+                if chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter; then \
+                    echo "[SUCCESS] ✓ Made binary executable"; \
+                else \
+                    CHMOD_EXIT=$? && \
+                    echo "[FAILURE] ✗ ERROR: Failed to make binary executable (exit code: $CHMOD_EXIT)" && \
+                    exit $CHMOD_EXIT; \
+                fi; \
             fi && \
             echo "=== Checking binary architecture compatibility ===" && \
             echo "[DEBUG] Platform architecture: $(uname -m)" && \
@@ -1193,44 +1221,92 @@ RUN echo "[DEBUG] ========== Final Development Environment Verification ========
             echo "[DEBUG] LLVM library count: $LLVM_COUNT" && \
             echo "[DEBUG] ✓ Binary validation complete"; \
         else \
-            echo "✗ ERROR: cfg-exporter binary not found at /app/cpp-tools/cfg-exporter/build/cfg-exporter!" && \
+            echo "[FAILURE] ✗ ERROR: cfg-exporter binary not found at /app/cpp-tools/cfg-exporter/build/cfg-exporter!" && \
             echo "[DEBUG] Checking parent directory structure:" && \
-            ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1 || echo "[DEBUG] build directory does not exist" && \
-            ls -la /app/cpp-tools/cfg-exporter/ 2>&1 || echo "[DEBUG] cfg-exporter directory does not exist" && \
-            ls -la /app/cpp-tools/ 2>&1 || echo "[DEBUG] cpp-tools directory does not exist" && \
-            find /app -name "cfg-exporter" -type f 2>/dev/null | head -5 || echo "[DEBUG] No cfg-exporter found anywhere in /app" && \
+            if [ -d /app/cpp-tools/cfg-exporter/build ]; then \
+                echo "[DEBUG] build directory exists, listing contents:" && \
+                ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1; \
+            else \
+                echo "[FAILURE] ✗ ERROR: build directory does not exist"; \
+            fi && \
+            if [ -d /app/cpp-tools/cfg-exporter ]; then \
+                echo "[DEBUG] cfg-exporter directory exists, listing contents:" && \
+                ls -la /app/cpp-tools/cfg-exporter/ 2>&1; \
+            else \
+                echo "[FAILURE] ✗ ERROR: cfg-exporter directory does not exist"; \
+            fi && \
+            if [ -d /app/cpp-tools ]; then \
+                echo "[DEBUG] cpp-tools directory exists, listing contents:" && \
+                ls -la /app/cpp-tools/ 2>&1; \
+            else \
+                echo "[FAILURE] ✗ ERROR: cpp-tools directory does not exist"; \
+            fi && \
+            CFG_SEARCH=$(find /app -name "cfg-exporter" -type f 2>/dev/null | head -5 || echo "") && \
+            if [ -n "$CFG_SEARCH" ]; then \
+                echo "[DEBUG] Found cfg-exporter at:" && \
+                echo "$CFG_SEARCH"; \
+            else \
+                echo "[FAILURE] ✗ ERROR: No cfg-exporter found anywhere in /app"; \
+            fi && \
             exit 1; \
         fi && \
         echo "=== Verifying environment setup ===" && \
-        NODE_VERSION=$(node --version 2>&1 || echo 'not found') && \
-        NPM_VERSION=$(npm --version 2>&1 || echo 'not found') && \
-        echo "[DEBUG] Node.js version: $NODE_VERSION" && \
-        echo "[DEBUG] npm version: $NPM_VERSION" && \
-        if [ -d "/app/node_modules" ]; then \
-            echo "[DEBUG] ✓ node_modules exists"; \
+        ENV_VERIFY_FAILED=0 && \
+        if command -v node >/dev/null 2>&1; then \
+            NODE_VERSION=$(node --version 2>&1) && \
+            echo "[SUCCESS] ✓ Node.js: $NODE_VERSION"; \
         else \
-            echo "[DEBUG] ✗ ERROR: node_modules missing!" && \
-            exit 1; \
+            echo "[FAILURE] ✗ ERROR: node not found!" && \
+            ENV_VERIFY_FAILED=1; \
+        fi && \
+        if command -v npm >/dev/null 2>&1; then \
+            NPM_VERSION=$(npm --version 2>&1) && \
+            echo "[SUCCESS] ✓ npm: $NPM_VERSION"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: npm not found!" && \
+            ENV_VERIFY_FAILED=1; \
+        fi && \
+        if [ -d "/app/node_modules" ]; then \
+            echo "[SUCCESS] ✓ node_modules exists"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: node_modules missing!" && \
+            ENV_VERIFY_FAILED=1; \
         fi && \
         if [ -d "/app/out" ]; then \
-            echo "[DEBUG] ✓ out directory exists"; \
+            echo "[SUCCESS] ✓ out directory exists"; \
         else \
-            echo "[DEBUG] ✗ ERROR: out directory missing!" && \
-            exit 1; \
+            echo "[FAILURE] ✗ ERROR: out directory missing!" && \
+            ENV_VERIFY_FAILED=1; \
         fi && \
         if [ -f "/app/out/extension.js" ]; then \
-            echo "[DEBUG] ✓ Extension entry point exists"; \
+            echo "[SUCCESS] ✓ Extension entry point exists"; \
         else \
-            echo "[DEBUG] ✗ ERROR: Extension entry point missing!" && \
-            exit 1; \
+            echo "[FAILURE] ✗ ERROR: Extension entry point missing!" && \
+            ENV_VERIFY_FAILED=1; \
         fi && \
         JS_COUNT=$(find /app/out -type f -name "*.js" 2>/dev/null | wc -l || echo "0") && \
         echo "[DEBUG] Compiled files count: $JS_COUNT" && \
+        if [ "$JS_COUNT" -gt 0 ]; then \
+            echo "[SUCCESS] ✓ Found $JS_COUNT compiled JavaScript files"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: No compiled JavaScript files found!" && \
+            ENV_VERIFY_FAILED=1; \
+        fi && \
+        if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
+            echo "[SUCCESS] ✓ Binary ready: yes"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: Binary not found!" && \
+            ENV_VERIFY_FAILED=1; \
+        fi && \
         echo "[DEBUG] ========== Environment Summary ==========" && \
-        echo "[DEBUG] ✓ Node.js: $NODE_VERSION" && \
-        echo "[DEBUG] ✓ npm: $NPM_VERSION" && \
-        echo "[DEBUG] ✓ Extension compiled: yes" && \
-        echo "[DEBUG] ✓ Binary ready: yes" && \
+        if [ $ENV_VERIFY_FAILED -eq 0 ]; then \
+            echo "[SUCCESS] ✓ All development tools verified successfully" && \
+            echo "[SUCCESS] ✓ Environment is ready for development"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: Environment verification failed!" && \
+            echo "[FAILURE] ✗ One or more required components are missing!" && \
+            exit 1; \
+        fi && \
         echo "=== All development tools verified ==="
 
 # Default command - keep container running
