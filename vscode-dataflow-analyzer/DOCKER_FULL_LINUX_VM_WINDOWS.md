@@ -229,6 +229,81 @@ When you need to rebuild from scratch:
      npm run compile
      ```
 
+## ✅ Validate Docker Fixes (Dry-Run Validation)
+
+Before committing changes or troubleshooting issues, run the validation script to verify all Docker fixes are in place:
+
+### Running the Validation Script
+
+**From Windows PowerShell (in project directory):**
+```powershell
+# Navigate to project directory
+cd C:\Users\YourName\Desktop\Personal\vscode-dataflow-analyzer
+
+# Run validation script (outputs to logs2.txt)
+bash validate-docker-fixes.sh
+```
+
+**From VS Code Container Terminal:**
+```bash
+# In VS Code container terminal
+cd /app
+bash validate-docker-fixes.sh
+```
+
+### What the Script Validates
+
+The `validate-docker-fixes.sh` script checks:
+
+1. **devcontainer.json Configuration**
+   - ✓ `workspaceFolder` is set to `/app`
+   - ✓ `postCreateCommand` includes `cd /app`
+
+2. **Dockerfile Binary Architecture**
+   - ✓ Binary architecture verification for Linux x86_64/amd64
+   - ✓ Binary executable permissions set (`chmod +x`)
+
+3. **Dry-Run Logging**
+   - ✓ `[DRY RUN]` logging present at major stages
+
+4. **Working Directory Enforcement**
+   - ✓ `docker-compose.yml` enforces `/app` working directory
+
+5. **LD_LIBRARY_PATH Configuration**
+   - ✓ `LD_LIBRARY_PATH` set correctly
+   - ✓ No undefined variable warnings
+
+### Output
+
+- **Console Output**: Validation results displayed in terminal
+- **Log File**: All output written to `logs2.txt` with timestamp
+- **Exit Code**: `0` if all checks pass, `1` if any check fails
+
+### Example Output
+
+```
+=== DRY RUN: Validating Docker Fixes ===
+Timestamp: 2025-12-20 10:30:45
+
+[DRY RUN] Checking devcontainer.json...
+  ✓ workspaceFolder is set to /app
+  ✓ postCreateCommand includes cd /app
+[DRY RUN] Checking Dockerfile for binary architecture verification...
+  ✓ Binary architecture verification found
+...
+=== DRY RUN VALIDATION COMPLETE ===
+✓ All checks passed!
+✓ Validation output written to logs2.txt
+```
+
+### Troubleshooting
+
+If validation fails:
+1. Check `logs2.txt` for detailed error messages
+2. Review the specific check that failed
+3. Fix the issue in the corresponding file (Dockerfile, devcontainer.json, or docker-compose.yml)
+4. Re-run validation: `bash validate-docker-fixes.sh`
+
 ## 🐛 Troubleshooting
 
 ### Issue: "Cannot connect to Docker daemon"
