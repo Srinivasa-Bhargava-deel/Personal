@@ -1085,25 +1085,32 @@ RUN echo "[DEBUG] ========== Verifying Copied Binary (DEV STAGE) ==========" && 
 COPY README.md ./
 COPY CHANGELOG.md ./
 RUN echo "[DEBUG] ========== Documentation Files Copied ==========" && \
+    DOC_CHECK_FAILED=0 && \
     if [ -f README.md ]; then \
-        echo "[DEBUG] ✓ README.md exists"; \
+        echo "[SUCCESS] ✓ README.md exists"; \
     else \
-        echo "[DEBUG] ⚠ WARNING: README.md NOT found (may be optional)"; \
+        echo "[WARNING] ⚠ WARNING: README.md NOT found (may be optional)"; \
     fi && \
     if [ -f CHANGELOG.md ]; then \
-        echo "[DEBUG] ✓ CHANGELOG.md exists"; \
+        echo "[SUCCESS] ✓ CHANGELOG.md exists"; \
     else \
-        echo "[DEBUG] ⚠ WARNING: CHANGELOG.md NOT found (may be optional)"; \
-    fi
+        echo "[WARNING] ⚠ WARNING: CHANGELOG.md NOT found (may be optional)"; \
+    fi && \
+    echo "[DEBUG] Documentation files check completed"
 
 # Create directory for extension output
 RUN echo "[DEBUG] ========== Creating Extension Output Directory ==========" && \
-    mkdir -p /app/dist && \
-    if [ -d /app/dist ]; then \
-        echo "[DEBUG] ✓ dist directory created successfully"; \
+    if mkdir -p /app/dist; then \
+        if [ -d /app/dist ]; then \
+            echo "[SUCCESS] ✓ dist directory created successfully"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: mkdir succeeded but directory does not exist!" && \
+            exit 1; \
+        fi; \
     else \
-        echo "[DEBUG] ✗ ERROR: Failed to create dist directory!" && \
-        exit 1; \
+        MKDIR_DIST_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: Failed to create dist directory (exit code: $MKDIR_DIST_EXIT)!" && \
+        exit $MKDIR_DIST_EXIT; \
     fi
 
 # Set environment variables
@@ -1126,11 +1133,43 @@ RUN echo "[DEBUG] ========== Final Development Environment Verification ========
     echo "[DEBUG] Current working directory: $(pwd)" && \
     echo "[DEBUG] PATH: $PATH" && \
     echo "[DEBUG] LD_LIBRARY_PATH: $LD_LIBRARY_PATH" && \
-    clang-17 --version && \
-    gcc --version && \
-    g++ --version && \
-    python3 --version && \
-    cmake --version && \
+    TOOL_VERIFY_FAILED=0 && \
+    if command -v clang-17 >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ clang-17: $(clang-17 --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: clang-17 not found!" && \
+        TOOL_VERIFY_FAILED=1; \
+    fi && \
+    if command -v gcc >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ gcc: $(gcc --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: gcc not found!" && \
+        TOOL_VERIFY_FAILED=1; \
+    fi && \
+    if command -v g++ >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ g++: $(g++ --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: g++ not found!" && \
+        TOOL_VERIFY_FAILED=1; \
+    fi && \
+    if command -v python3 >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ python3: $(python3 --version)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: python3 not found!" && \
+        TOOL_VERIFY_FAILED=1; \
+    fi && \
+    if command -v cmake >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ cmake: $(cmake --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: cmake not found!" && \
+        TOOL_VERIFY_FAILED=1; \
+    fi && \
+    if [ $TOOL_VERIFY_FAILED -eq 0 ]; then \
+        echo "[SUCCESS] ✓ All development tools verified"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: One or more development tools are missing!" && \
+        exit 1; \
+    fi && \
     echo "=== Verifying cfg-exporter binary ===" && \
         echo "[DEBUG] ========== Runtime Binary Verification ==========" && \
         echo "[DEBUG] Checking for cfg-exporter at multiple locations:" && \
@@ -1138,8 +1177,8 @@ RUN echo "[DEBUG] ========== Final Development Environment Verification ========
         echo "[DEBUG] 2. Wrapper script: /usr/local/bin/cfg-exporter" && \
         echo "[DEBUG] 3. PATH lookup: $(which cfg-exporter 2>&1 || echo 'not in PATH')" && \
         if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
-            echo "[DEBUG] ✓ Binary found at direct path" && \
-            echo "✓ cfg-exporter binary exists" && \
+            echo "[SUCCESS] ✓ Binary found at direct path" && \
+            echo "[SUCCESS] ✓ cfg-exporter binary exists" && \
             ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
             echo "[DEBUG] ========== Comprehensive Binary Validation ==========" && \
             echo "[DEBUG] Verifying ELF magic bytes:" && \
@@ -1176,19 +1215,20 @@ RUN echo "[DEBUG] ========== Final Development Environment Verification ========
             echo "=== Checking binary architecture compatibility ===" && \
             echo "[DEBUG] Platform architecture: $(uname -m)" && \
             echo "[DEBUG] OS: $(uname -s)" && \
-        echo "[DEBUG] Testing binary execution:" && \
-        if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
-            echo "✓ Binary executes successfully" && \
-            echo "[DEBUG] Binary execution test passed" && \
-            echo "[DEBUG] Testing wrapper script:" && \
-            if cfg-exporter --help >/dev/null 2>&1; then \
-                echo "[DEBUG] ✓ Wrapper script also works"; \
+            echo "[DEBUG] Testing binary execution:" && \
+            if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
+                echo "[SUCCESS] ✓ Binary executes successfully" && \
+                echo "[DEBUG] Binary execution test passed" && \
+                echo "[DEBUG] Testing wrapper script:" && \
+                if cfg-exporter --help >/dev/null 2>&1; then \
+                    echo "[SUCCESS] ✓ Wrapper script also works"; \
+                else \
+                    WRAPPER_TEST_EXIT=$? && \
+                    echo "[WARNING] ⚠ WARNING: Wrapper script test failed (exit code: $WRAPPER_TEST_EXIT), but direct path works"; \
+                fi; \
             else \
-                echo "[DEBUG] ⚠ WARNING: Wrapper script failed but direct path works"; \
-            fi; \
-        else \
-            EXEC_ERROR=$? && \
-            echo "✗ ERROR: Binary execution FAILED (exit code: $EXEC_ERROR)" && \
+                EXEC_ERROR=$? && \
+                echo "[FAILURE] ✗ ERROR: Binary execution FAILED (exit code: $EXEC_ERROR)" && \
             echo "[DEBUG] ========== Comprehensive Error Diagnosis ==========" && \
             echo "[DEBUG] Platform info:" && \
             echo "[DEBUG]   Architecture: $(uname -m)" && \
@@ -1213,13 +1253,26 @@ RUN echo "[DEBUG] ========== Final Development Environment Verification ========
             exit 1; \
         fi && \
             echo "[DEBUG] Checking library dependencies" && \
-            ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "ldd check completed (may show errors for statically linked binaries)" && \
+            LDD_CHECK=$(ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1) && \
+            echo "$LDD_CHECK" | head -10 || echo "[DEBUG] ldd check completed (may show errors for statically linked binaries)" && \
+            if echo "$LDD_CHECK" | grep -q "not a dynamic executable"; then \
+                echo "[SUCCESS] ✓ Binary is statically linked (no dynamic dependencies)"; \
+            elif echo "$LDD_CHECK" | grep -q "No such file"; then \
+                echo "[FAILURE] ✗ ERROR: Missing shared library dependencies detected!"; \
+            else \
+                echo "[SUCCESS] ✓ Library dependencies check completed"; \
+            fi && \
             echo "[DEBUG] Checking LLVM library availability" && \
-            LLVM_LIBS=$(find /usr/lib/llvm-17 -name "libLLVM*.so*" 2>/dev/null | head -5 || echo "⚠ WARNING: Could not find LLVM libraries") && \
-            echo "$LLVM_LIBS" && \
-            LLVM_COUNT=$(find /usr/lib/llvm-17 -name "libLLVM*.so*" 2>/dev/null | wc -l || echo "0") && \
-            echo "[DEBUG] LLVM library count: $LLVM_COUNT" && \
-            echo "[DEBUG] ✓ Binary validation complete"; \
+            LLVM_LIBS=$(find /usr/lib/llvm-17 -name "libLLVM*.so*" 2>/dev/null | head -5 || echo "") && \
+            if [ -n "$LLVM_LIBS" ]; then \
+                echo "[SUCCESS] ✓ LLVM libraries found:" && \
+                echo "$LLVM_LIBS" && \
+                LLVM_COUNT=$(find /usr/lib/llvm-17 -name "libLLVM*.so*" 2>/dev/null | wc -l || echo "0") && \
+                echo "[SUCCESS] ✓ Found $LLVM_COUNT LLVM library files"; \
+            else \
+                echo "[WARNING] ⚠ WARNING: Could not find LLVM libraries"; \
+            fi && \
+            echo "[SUCCESS] ✓ Binary validation complete"; \
         else \
             echo "[FAILURE] ✗ ERROR: cfg-exporter binary not found at /app/cpp-tools/cfg-exporter/build/cfg-exporter!" && \
             echo "[DEBUG] Checking parent directory structure:" && \
