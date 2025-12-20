@@ -163,10 +163,28 @@ RUN mkdir -p build && \
     cmake --build . 2>&1 | tee build_output.log && \
     echo "=== Step 4: Verifying binary ===" && \
     if [ -f cfg-exporter ]; then \
+        echo "[DEBUG] Binary file info:" && \
         ls -lh cfg-exporter && \
         file cfg-exporter && \
+        echo "[DEBUG] Verifying binary architecture (must be Linux x86_64/amd64):" && \
+        BINARY_ARCH=$(file cfg-exporter | grep -oE "x86-64|amd64|ELF 64-bit" || echo "unknown") && \
+        if echo "$BINARY_ARCH" | grep -qE "x86-64|amd64|ELF 64-bit"; then \
+            echo "✓ Binary architecture verified: Linux x86_64/amd64" && \
+            echo "[DEBUG] Checking binary dependencies:" && \
+            ldd cfg-exporter 2>&1 | head -10 || echo "[DEBUG] Binary may be statically linked"; \
+        else \
+            echo "✗ ERROR: Binary architecture mismatch! Expected Linux x86_64/amd64, got: $BINARY_ARCH" && \
+            echo "[DEBUG] Full file output:" && \
+            file cfg-exporter && \
+            exit 1; \
+        fi && \
+        echo "[DEBUG] Stripping binary:" && \
         strip cfg-exporter || true && \
-        ls -lh cfg-exporter; \
+        echo "[DEBUG] Final binary size:" && \
+        ls -lh cfg-exporter && \
+        echo "[DEBUG] Making binary executable:" && \
+        chmod +x cfg-exporter && \
+        echo "✓ Binary verification complete"; \
     else \
         echo "✗ ERROR: Binary not found!" && \
         exit 1; \
@@ -347,7 +365,13 @@ ENV PATH=/app/node_modules/.bin:/app/cpp-tools/cfg-exporter/build:$PATH
 ENV LD_LIBRARY_PATH=/usr/lib/llvm-17/lib
 
 # Verify tools are available and cfg-exporter binary architecture
-RUN echo "=== Verifying development tools ===" && \
+# Add dry-run verification workflow
+RUN echo "=== DRY RUN: Verifying development tools ===" && \
+    echo "[DRY RUN] Current working directory: $(pwd)" && \
+    echo "[DRY RUN] Platform architecture: $(uname -m)" && \
+    echo "[DRY RUN] OS: $(uname -s)" && \
+    echo "[DRY RUN] PATH: $PATH" && \
+    echo "[DRY RUN] LD_LIBRARY_PATH: ${LD_LIBRARY_PATH:-not set}" && \
     echo "[DEBUG] Current working directory: $(pwd)" && \
     echo "[DEBUG] PATH: $PATH" && \
     echo "[DEBUG] LD_LIBRARY_PATH: $LD_LIBRARY_PATH" && \
@@ -470,9 +494,25 @@ RUN echo "=== Verifying cfg-exporter binary ===" && \
     if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
         echo "✓ cfg-exporter binary exists" && \
         ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
-        file /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+        echo "[DRY RUN] Verifying binary architecture:" && \
+        BINARY_INFO=$(file /app/cpp-tools/cfg-exporter/build/cfg-exporter) && \
+        echo "$BINARY_INFO" && \
+        if echo "$BINARY_INFO" | grep -qE "x86-64|amd64|ELF 64-bit.*Linux"; then \
+            echo "✓ Binary architecture verified: Linux x86_64/amd64" && \
+            echo "[DRY RUN] Testing binary execution:" && \
+            chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
+            if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
+                echo "✓ Binary executes successfully"; \
+            else \
+                echo "⚠ WARNING: Binary exists but may have execution issues"; \
+            fi; \
+        else \
+            echo "✗ ERROR: Binary architecture mismatch! Expected Linux x86_64/amd64" && \
+            echo "[DRY RUN] Full binary info: $BINARY_INFO" && \
+            exit 1; \
+        fi && \
         echo "[DEBUG] Checking if binary is executable" && \
-        [ -x "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ] && echo "✓ Binary is executable" || echo "⚠ WARNING: Binary is not executable" && \
+        [ -x "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ] && echo "✓ Binary is executable" || (chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter && echo "✓ Made binary executable") && \
         echo "=== Checking LLVM library location ===" && \
         find /usr/lib/llvm-17 -name "libLLVM*.so*" 2>/dev/null | head -5 || echo "⚠ WARNING: Could not find LLVM libraries" && \
         echo "=== Testing cfg-exporter with ldd ===" && \

@@ -1,0 +1,179 @@
+while running the docker container setup [https://github.com/Srinivasa-Bhargava-deel/Personal/blob/main/vscode-dataflow-analyzer/DOCKER_FULL_LINUX_VM_WINDOWS.md?plain=1: extension functionality]
+
+A. PRIMARY ERRORS/FAILURES/FAILS/ISSUES: 
+
+1. The extension fails to work, but builds successfully. Find the logical errors and fix them. Add more debugging to verify working stages across the failing pipeline.
+
+
+
+
+
+
+
+B. FOR LLM:
+Fix all of A by finding and fixing all the root causes. 
+CONTAINER TERMINAL output, logs2.txt and VSCODE DEV CONSOLE OUTPUT are attached below. VSCODE extension output and VSCODE DEV CONSOLE OUTPUT are unavailable as it failed early.
+I have ignored the results of npm test as they are logical errors for now.
+
+CONTAINER TERMINAL output = "
+
+root@e7c0f8b8d34c:/# bash
+     node --version
+     npm --version
+     cfg-exporter --help
+root@e7c0f8b8d34c:/# node --version
+v20.19.6
+root@e7c0f8b8d34c:/# npm --version
+11.7.0
+root@e7c0f8b8d34c:/# cfg-exporter --help
+bash: /app/cpp-tools/cfg-exporter/build/cfg-exporter: cannot execute binary file: Exec format error
+root@e7c0f8b8d34c:/# npm run compile
+npm error code ENOENT
+npm error syscall open
+npm error path /package.json
+npm error errno -2
+npm error enoent Could not read package.json: Error: ENOENT: no such file or directory, open '/package.json'
+npm error enoent This is related to npm not being able to find a file.
+npm error enoent
+
+"
+
+
+
+VSCODE extension output = "
+
+
+
+
+"
+
+
+logs2.txt = "
+
+
+[2025-12-20 05:40:19] === Starting Docker Build Script ===
+[2025-12-20 05:40:19] Command: cleanall
+[2025-12-20 05:40:19] Tag: vscode-dataflow-analyzer:latest
+[2025-12-20 05:40:19] Windows: False
+[2025-12-20 05:40:19] NoCache: False
+[2025-12-20 05:40:19] Performing complete Docker cleanup...
+[2025-12-20 05:40:19] [DEBUG] Using docker-compose from: C:\Users\xx\Desktop\sem 7\Program Analysis for Software Engineering\Final_Proj_8Dec\Personal-main\vscode-dataflow-analyzer
+[2025-12-20 05:40:19] Stopping containers...
+[2025-12-20 05:40:19] Executing: docker-compose down
+[2025-12-20 05:40:19] [DEBUG] Full command: docker-compose down
+[2025-12-20 05:40:20] Removing containers...
+[2025-12-20 05:40:20] Executing: docker container prune -f
+[2025-12-20 05:40:20] [DEBUG] Full command: docker container prune -f
+[2025-12-20 05:40:20] [DEBUG] Direct execution: docker container prune -f
+T o t a l   r e c l a i m e d   s p a c e :   0 B 
+ 
+ [2025-12-20 05:40:20] Removing images...
+[2025-12-20 05:40:20] Executing: docker rmi vscode-dataflow-analyzer:latest
+[2025-12-20 05:40:20] [DEBUG] Full command: docker rmi vscode-dataflow-analyzer:latest
+[2025-12-20 05:40:20] [2025-12-20 05:40:20] ERROR executing docker rmi vscode-dataflow-analyzer:latest : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+[2025-12-20 05:40:20] Exception details: 
+
+SerializedRemoteException      : 
+SerializedRemoteInvocationInfo : 
+ErrorRecord                    : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+WasThrownFromThrowStatement    : False
+Message                        : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+Data                           : {}
+InnerException                 : 
+TargetSite                     : 
+StackTrace                     : 
+HelpLink                       : 
+Source                         : 
+HResult                        : -2146233087
+
+
+
+
+[2025-12-20 05:40:20] ERROR executing docker rmi vscode-dataflow-analyzer:latest : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+Exception details: 
+
+SerializedRemoteException      : 
+SerializedRemoteInvocationInfo : 
+ErrorRecord                    : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+WasThrownFromThrowStatement    : False
+Message                        : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+Data                           : {}
+InnerException                 : 
+TargetSite                     : 
+StackTrace                     : 
+HelpLink                       : 
+Source                         : 
+HResult                        : -2146233087
+
+
+
+
+[2025-12-20 05:40:20] Executing: docker rmi vscode-dataflow-analyzer
+[2025-12-20 05:40:20] [DEBUG] Full command: docker rmi vscode-dataflow-analyzer
+[2025-12-20 05:40:20] [2025-12-20 05:40:20] ERROR executing docker rmi vscode-dataflow-analyzer : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+[2025-12-20 05:40:20] Exception details: 
+
+SerializedRemoteException      : 
+SerializedRemoteInvocationInfo : 
+ErrorRecord                    : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+WasThrownFromThrowStatement    : False
+Message                        : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+Data                           : {}
+InnerException                 : 
+TargetSite                     : 
+StackTrace                     : 
+HelpLink                       : 
+Source                         : 
+HResult                        : -2146233087
+
+
+
+
+[2025-12-20 05:40:20] ERROR executing docker rmi vscode-dataflow-analyzer : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+Exception details: 
+
+SerializedRemoteException      : 
+SerializedRemoteInvocationInfo : 
+ErrorRecord                    : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+WasThrownFromThrowStatement    : False
+Message                        : Error response from daemon: No such image: vscode-dataflow-analyzer:latest
+Data                           : {}
+InnerException                 : 
+TargetSite                     : 
+StackTrace                     : 
+HelpLink                       : 
+Source                         : 
+HResult                        : -2146233087
+
+
+
+
+[2025-12-20 05:40:20] Executing: docker image prune -a -f
+[2025-12-20 05:40:20] [DEBUG] Full command: docker image prune -a -f
+[2025-12-20 05:40:20] [DEBUG] Direct execution: docker image prune -a -f
+T o t a l   r e c l a i m e d   s p a c e :   0 B 
+ 
+ [2025-12-20 05:40:20] Clearing build cache...
+[2025-12-20 05:40:20] Executing: docker builder prune -a -f
+[2025-12-20 05:40:20] [DEBUG] Full command: docker builder prune -a -f
+[2025-12-20 05:40:20] [DEBUG] Direct execution: docker builder prune -a -f
+T o t a l : 	 0 B 
+ 
+ [2025-12-20 05:40:20] Complete cleanup finished!
+[2025-12-20 05:40:20] Run '.\\build-docker.ps1 build -NoCache' for fresh build
+[2025-12-20 05:40:20] === Script completed successfully ===
+
+
+"
+
+
+VSCODE DEV CONSOLE OUTPUT = "
+
+
+
+
+
+
+
+
+"

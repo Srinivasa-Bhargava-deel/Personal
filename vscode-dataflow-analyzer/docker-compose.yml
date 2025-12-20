@@ -47,7 +47,11 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
+        cd /app || exit 1
         echo "=== Setting up development environment ==="
+        echo "[DRY RUN] Current working directory: $(pwd)"
+        echo "[DRY RUN] Platform architecture: $(uname -m)"
+        echo "[DRY RUN] OS: $(uname -s)"
         mkdir -p /app/out
         chmod -R 777 /app/out || true
         echo ""
@@ -83,13 +87,27 @@ services:
           echo "✓ cfg-exporter: available at $(which cfg-exporter)"
           if [ -x "$(which cfg-exporter)" ]; then
             echo "  Binary is executable"
-            file "$(which cfg-exporter)" || true
+            BINARY_INFO=$(file "$(which cfg-exporter)" || echo "unknown")
+            echo "  $BINARY_INFO"
+            if echo "$BINARY_INFO" | grep -qE "x86-64|amd64|ELF 64-bit.*Linux"; then
+              echo "  ✓ Binary architecture verified: Linux x86_64/amd64"
+            else
+              echo "  ✗ ERROR: Binary architecture mismatch!"
+            fi
           fi
         else
           echo "⚠ WARNING: cfg-exporter not found in PATH (may need full path)"
           if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then
             echo "  Found at /app/cpp-tools/cfg-exporter/build/cfg-exporter"
-            file /app/cpp-tools/cfg-exporter/build/cfg-exporter || true
+            BINARY_INFO=$(file /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "unknown")
+            echo "  $BINARY_INFO"
+            if echo "$BINARY_INFO" | grep -qE "x86-64|amd64|ELF 64-bit.*Linux"; then
+              echo "  ✓ Binary architecture verified: Linux x86_64/amd64"
+              chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter
+              echo "  Made binary executable"
+            else
+              echo "  ✗ ERROR: Binary architecture mismatch! Expected Linux x86_64/amd64"
+            fi
           fi
         fi
         echo ""
@@ -142,12 +160,20 @@ services:
         fi
         echo ""
         echo "=== Testing npm compile setup ==="
-        echo "Running: npm run compile --dry-run 2>&1 || echo 'Note: --dry-run may not be supported, will test actual compile'"
+        echo "[DRY RUN] Verifying npm can find package.json:"
+        if [ -f "/app/package.json" ]; then
+          echo "  ✓ package.json found at /app/package.json"
+          echo "[DRY RUN] Current directory: $(pwd)"
+          echo "[DRY RUN] Testing npm from /app directory:"
+          cd /app && npm --version >/dev/null 2>&1 && echo "  ✓ npm works from /app" || echo "  ✗ ERROR: npm failed from /app"
+        else
+          echo "  ✗ ERROR: package.json not found at /app/package.json"
+        fi
         echo ""
         echo "=== Development environment ready ==="
         echo ""
         echo "To test npm compile, run:"
-        echo "  docker-compose exec dev npm run compile"
+        echo "  docker-compose exec dev bash -c 'cd /app && npm run compile'"
         echo ""
         echo "If compile fails, check:"
         echo "  - node_modules/.bin/tsc exists: docker-compose exec dev ls -la /app/node_modules/.bin/tsc"

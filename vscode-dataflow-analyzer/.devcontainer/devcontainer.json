@@ -9,7 +9,9 @@
 		"--privileged"
 	],
 	"workspaceFolder": "/app",
-	"workspaceMount": "source=${localWorkspaceFolder},target=/app,type=bind",
+	"mounts": [
+		"source=${localWorkspaceFolder},target=/app,type=bind,consistency=cached"
+	],
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -26,8 +28,8 @@
 		}
 	},
 	"features": {},
-	"postCreateCommand": "npm install && npm run compile",
-	"postStartCommand": "echo 'Development container ready! Run: npm run compile'",
+	"postCreateCommand": "cd /app && npm install && npm run compile",
+	"postStartCommand": "cd /app && echo 'Development container ready! Run: npm run compile'",
 	"remoteUser": "root",
 	"remoteEnv": {
 		"PATH": "/app/node_modules/.bin:/usr/lib/llvm-17/bin:/usr/bin:/usr/local/bin:/app/cpp-tools/cfg-exporter/build:${containerEnv:PATH}",
