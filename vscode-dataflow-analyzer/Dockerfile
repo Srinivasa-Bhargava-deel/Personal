@@ -33,30 +33,88 @@ RUN echo "============================================================" && \
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr
 RUN echo "[DEBUG] ========== Installing Build Dependencies ==========" && \
     echo "[DEBUG] Starting apt-get update..." && \
-    apt-get update && \
+    if apt-get update; then \
+        echo "[SUCCESS] ✓ apt-get update completed successfully"; \
+    else \
+        APT_UPDATE_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: apt-get update failed with exit code: $APT_UPDATE_EXIT" && \
+        exit $APT_UPDATE_EXIT; \
+    fi && \
     echo "[DEBUG] Installing packages: build-essential, cmake, ninja-build, git, wget, curl, ca-certificates, gnupg, file" && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    build-essential \
-    cmake \
-    ninja-build \
-    git \
-    wget \
-    curl \
-    ca-certificates \
-    gnupg \
-    file \
-    2>&1 | (grep -v "update-alternatives: warning" || true) && \
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        build-essential \
+        cmake \
+        ninja-build \
+        git \
+        wget \
+        curl \
+        ca-certificates \
+        gnupg \
+        file \
+        2>&1 | (grep -v "update-alternatives: warning" || true); then \
+        echo "[SUCCESS] ✓ All packages installed successfully"; \
+    else \
+        APT_INSTALL_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: Package installation failed with exit code: $APT_INSTALL_EXIT" && \
+        exit $APT_INSTALL_EXIT; \
+    fi && \
     echo "[DEBUG] ========== Verifying Installed Tools ==========" && \
-    echo "[DEBUG] gcc version: $(gcc --version | head -1)" && \
-    echo "[DEBUG] g++ version: $(g++ --version | head -1)" && \
-    echo "[DEBUG] cmake version: $(cmake --version | head -1)" && \
-    echo "[DEBUG] ninja version: $(ninja --version 2>&1 || echo 'not found')" && \
-    echo "[DEBUG] git version: $(git --version)" && \
-    echo "[DEBUG] file version: $(file --version 2>&1 || echo 'not found')" && \
-    echo "[DEBUG] wget version: $(wget --version | head -1)" && \
-    echo "[DEBUG] curl version: $(curl --version | head -1)" && \
+    TOOL_CHECK_FAILED=0 && \
+    if command -v gcc >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ gcc: $(gcc --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: gcc not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v g++ >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ g++: $(g++ --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: g++ not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v cmake >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ cmake: $(cmake --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: cmake not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v ninja >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ ninja: $(ninja --version 2>&1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: ninja not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v git >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ git: $(git --version)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: git not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v file >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ file: $(file --version 2>&1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: file not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v wget >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ wget: $(wget --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: wget not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v curl >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ curl: $(curl --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: curl not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
     rm -rf /var/lib/apt/lists/* && \
-    echo "[DEBUG] ✓ Build dependencies installed and verified"
+    if [ $TOOL_CHECK_FAILED -eq 0 ]; then \
+        echo "[SUCCESS] ✓ All build dependencies verified successfully"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: One or more required tools are missing!" && \
+        exit 1; \
+    fi
 
 # Install LLVM/Clang 17 (or latest available)
 # Using LLVM official repository for better compatibility
@@ -138,17 +196,48 @@ RUN set -e && \
                    clang-17 \
                    libclang-17-dev \
                    llvm-17-dev 2>&1; then \
+                echo "[SUCCESS] ✓ LLVM packages installed successfully" && \
                 echo "[DEBUG] ========== Verifying LLVM Installation ==========" && \
-                echo "[DEBUG] LLVM installation successful!" && \
-                echo "[DEBUG] clang-17 version: $(clang-17 --version | head -1 2>&1 || echo 'not found')" && \
-                echo "[DEBUG] clang++-17 version: $(clang++-17 --version | head -1 2>&1 || echo 'not found')" && \
-                echo "[DEBUG] LLVM version: $(llvm-config-17 --version 2>&1 || echo 'llvm-config not found')" && \
-                echo "[DEBUG] LLVM libraries location: $(ls -d /usr/lib/llvm-17/lib 2>&1 | head -1 || echo 'not found')" && \
-                echo "[DEBUG] Clang libraries:" && \
-                ls -1 /usr/lib/llvm-17/lib/libclang* 2>&1 | head -5 || echo "[DEBUG] No libclang libraries found" && \
+                LLVM_VERIFY_FAILED=0 && \
+                if command -v clang-17 >/dev/null 2>&1; then \
+                    echo "[SUCCESS] ✓ clang-17: $(clang-17 --version | head -1 2>&1)"; \
+                else \
+                    echo "[FAILURE] ✗ ERROR: clang-17 not found!" && \
+                    LLVM_VERIFY_FAILED=1; \
+                fi && \
+                if command -v clang++-17 >/dev/null 2>&1; then \
+                    echo "[SUCCESS] ✓ clang++-17: $(clang++-17 --version | head -1 2>&1)"; \
+                else \
+                    echo "[FAILURE] ✗ ERROR: clang++-17 not found!" && \
+                    LLVM_VERIFY_FAILED=1; \
+                fi && \
+                if command -v llvm-config-17 >/dev/null 2>&1; then \
+                    echo "[SUCCESS] ✓ llvm-config-17: $(llvm-config-17 --version 2>&1)"; \
+                else \
+                    echo "[FAILURE] ✗ ERROR: llvm-config-17 not found!" && \
+                    LLVM_VERIFY_FAILED=1; \
+                fi && \
+                if [ -d /usr/lib/llvm-17/lib ]; then \
+                    echo "[SUCCESS] ✓ LLVM libraries directory exists: /usr/lib/llvm-17/lib"; \
+                    LLVM_LIB_COUNT=$(ls -1 /usr/lib/llvm-17/lib/libclang* 2>/dev/null | wc -l || echo "0") && \
+                    if [ "$LLVM_LIB_COUNT" -gt 0 ]; then \
+                        echo "[SUCCESS] ✓ Found $LLVM_LIB_COUNT Clang library files"; \
+                    else \
+                        echo "[FAILURE] ✗ ERROR: No Clang libraries found in /usr/lib/llvm-17/lib!" && \
+                        LLVM_VERIFY_FAILED=1; \
+                    fi; \
+                else \
+                    echo "[FAILURE] ✗ ERROR: LLVM libraries directory not found!" && \
+                    LLVM_VERIFY_FAILED=1; \
+                fi && \
                 rm -f /tmp/llvm-snapshot.gpg.key && \
-                echo "[DEBUG] ✓ LLVM installation verified" && \
-                return 0; \
+                if [ $LLVM_VERIFY_FAILED -eq 0 ]; then \
+                    echo "[SUCCESS] ✓ LLVM installation verified successfully" && \
+                    return 0; \
+                else \
+                    echo "[FAILURE] ✗ ERROR: LLVM installation verification failed!" && \
+                    return 1; \
+                fi; \
             else \
                 echo "Package installation failed" && \
                 retry_count=$((retry_count + 1)) && \
@@ -210,17 +299,30 @@ RUN mkdir -p build && \
     echo "[DEBUG] Clang_DIR: ${Clang_DIR:-not set}" && \
     echo "[DEBUG] Running cmake configuration..." && \
     cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja 2>&1 | tee cmake_output.log && \
-    echo "[DEBUG] CMake configuration completed" && \
-    if [ -f CMakeCache.txt ]; then \
-        echo "[DEBUG] ✓ CMake cache file exists"; \
+    if [ $CMAKE_EXIT_CODE -eq 0 ]; then \
+        echo "[SUCCESS] ✓ CMake configuration completed successfully"; \
     else \
-        echo "[DEBUG] ✗ ERROR: CMake cache file NOT found!" && \
+        echo "[FAILURE] ✗ ERROR: CMake configuration failed with exit code: $CMAKE_EXIT_CODE" && \
+        echo "[DEBUG] CMake output:" && \
+        cat cmake_output.log 2>&1 | tail -50 && \
+        exit $CMAKE_EXIT_CODE; \
+    fi && \
+    if [ -f CMakeCache.txt ]; then \
+        echo "[SUCCESS] ✓ CMake cache file exists"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: CMake cache file NOT found!" && \
+        echo "[DEBUG] Current directory: $(pwd)" && \
+        echo "[DEBUG] Files in directory:" && \
+        ls -la . && \
         exit 1; \
     fi && \
     if [ -f build.ninja ]; then \
-        echo "[DEBUG] ✓ Build files generated"; \
+        echo "[SUCCESS] ✓ Build files generated (build.ninja exists)"; \
     else \
-        echo "[DEBUG] ✗ ERROR: Build files NOT generated!" && \
+        echo "[FAILURE] ✗ ERROR: Build files NOT generated (build.ninja missing)!" && \
+        echo "[DEBUG] Current directory: $(pwd)" && \
+        echo "[DEBUG] Files in directory:" && \
+        ls -la . && \
         exit 1; \
     fi && \
     echo "[DEBUG] ========== Step 2: Verifying JSON header download ==========" && \
@@ -238,10 +340,19 @@ RUN mkdir -p build && \
     echo "[DEBUG] ========== Step 3: Building ==========" && \
     echo "[DEBUG] Starting build with cmake --build ." && \
     echo "[DEBUG] Build type: Release" && \
-    cmake --build . 2>&1 | tee build_output.log && \
-    echo "[DEBUG] Build completed, checking for binary..." && \
+    if cmake --build . 2>&1 | tee build_output.log; then \
+        BUILD_EXIT_CODE=0 && \
+        echo "[SUCCESS] ✓ Build completed successfully"; \
+    else \
+        BUILD_EXIT_CODE=$? && \
+        echo "[FAILURE] ✗ ERROR: Build failed with exit code: $BUILD_EXIT_CODE" && \
+        echo "[DEBUG] Build output (last 50 lines):" && \
+        tail -50 build_output.log 2>&1 || true && \
+        exit $BUILD_EXIT_CODE; \
+    fi && \
+    echo "[DEBUG] Checking for binary..." && \
     if [ -f cfg-exporter ]; then \
-        echo "[DEBUG] ✓ Binary exists after build"; \
+        echo "[SUCCESS] ✓ Binary exists after build"; \
         echo "[DEBUG] Binary size before verification: $(ls -lh cfg-exporter | awk '{print $5}')"; \
     fi && \
     echo "[DEBUG] ========== Step 4: Verifying binary ==========" && \
@@ -285,22 +396,26 @@ RUN mkdir -p build && \
         BINARY_ARCH=$(file cfg-exporter 2>/dev/null | grep -oE "x86-64|amd64|ELF 64-bit" || echo "x86-64") && \
         CURRENT_ARCH=$(uname -m) && \
         if echo "$BINARY_ARCH" | grep -qE "x86-64|amd64|ELF 64-bit"; then \
-            echo "✓ Binary architecture verified: Linux x86_64/amd64" && \
+            echo "[SUCCESS] ✓ Binary architecture verified: Linux x86_64/amd64" && \
             echo "[DEBUG] Platform architecture: $CURRENT_ARCH" && \
             if [ "$CURRENT_ARCH" != "x86_64" ] && [ "$CURRENT_ARCH" != "amd64" ]; then \
-                echo "⚠ WARNING: Building on $CURRENT_ARCH but binary is x86_64/amd64 - may cause execution issues"; \
+                echo "[WARNING] ⚠ Building on $CURRENT_ARCH but binary is x86_64/amd64 - may cause execution issues"; \
             fi && \
             echo "[DEBUG] Testing binary execution:" && \
             if ./cfg-exporter --help >/dev/null 2>&1; then \
-                echo "✓ Binary executes successfully on build platform"; \
+                echo "[SUCCESS] ✓ Binary executes successfully on build platform"; \
             else \
-                echo "⚠ WARNING: Binary exists but execution test failed on build platform" && \
-                echo "[DEBUG] This may indicate architecture mismatch"; \
+                EXEC_TEST_EXIT=$? && \
+                echo "[FAILURE] ✗ ERROR: Binary execution test failed on build platform (exit code: $EXEC_TEST_EXIT)" && \
+                echo "[DEBUG] This may indicate architecture mismatch or missing dependencies" && \
+                echo "[DEBUG] Checking binary dependencies:" && \
+                ldd cfg-exporter 2>&1 | head -10 || echo "[DEBUG] Binary may be statically linked" && \
+                exit 1; \
             fi && \
             echo "[DEBUG] Checking binary dependencies:" && \
             ldd cfg-exporter 2>&1 | head -10 || echo "[DEBUG] Binary may be statically linked"; \
         else \
-            echo "✗ ERROR: Binary architecture mismatch! Expected Linux x86_64/amd64, got: $BINARY_ARCH" && \
+            echo "[FAILURE] ✗ ERROR: Binary architecture mismatch! Expected Linux x86_64/amd64, got: $BINARY_ARCH" && \
             echo "[DEBUG] Full file output:" && \
             (file cfg-exporter || echo "[DEBUG] 'file' command not available") && \
             echo "[DEBUG] Platform architecture: $CURRENT_ARCH" && \
@@ -318,10 +433,11 @@ RUN mkdir -p build && \
         echo "[DEBUG] Verifying ELF magic bytes after stripping:" && \
         BINARY_MAGIC_POST=$(head -c 4 cfg-exporter | od -An -tx1 | tr -d ' \n') && \
         if [ "$BINARY_MAGIC_POST" = "7f454c46" ]; then \
-            echo "✓ Binary still has valid ELF magic bytes after stripping"; \
+            echo "[SUCCESS] ✓ Binary still has valid ELF magic bytes after stripping"; \
         else \
-            echo "✗ ERROR: Binary lost ELF magic bytes after stripping! Got: $BINARY_MAGIC_POST" && \
+            echo "[FAILURE] ✗ ERROR: Binary lost ELF magic bytes after stripping! Got: $BINARY_MAGIC_POST" && \
             echo "[DEBUG] Expected: 7f454c46 (ELF)" && \
+            echo "[DEBUG] This indicates the strip command corrupted the binary!" && \
             exit 1; \
         fi && \
         echo "[DEBUG] ========== Final Verification ==========" && \
@@ -332,17 +448,20 @@ RUN mkdir -p build && \
         echo "[DEBUG] Final binary size: $(ls -lh cfg-exporter | awk '{print $5}')" && \
         echo "[DEBUG] Binary location: $(pwd)/cfg-exporter" && \
         echo "[DEBUG] ========== Summary ==========" && \
-        echo "[DEBUG] ✓ Binary built successfully" && \
-        echo "[DEBUG] ✓ ELF format verified (magic bytes: 7f454c46)" && \
-        echo "[DEBUG] ✓ Architecture verified: Linux x86_64/amd64" && \
-        echo "[DEBUG] ✓ Binary is executable" && \
-        echo "[DEBUG] ✓ Ready for copy to dev stage" && \
-        echo "✓ Binary verification complete - ready for copy"; \
+        echo "[SUCCESS] ✓ Binary built successfully" && \
+        echo "[SUCCESS] ✓ ELF format verified (magic bytes: 7f454c46)" && \
+        echo "[SUCCESS] ✓ Architecture verified: Linux x86_64/amd64" && \
+        echo "[SUCCESS] ✓ Binary is executable" && \
+        echo "[SUCCESS] ✓ Execution test passed" && \
+        echo "[SUCCESS] ✓ Ready for copy to dev stage" && \
+        echo "[SUCCESS] ✓ Binary verification complete - ready for copy"; \
     else \
-        echo "✗ ERROR: Binary not found!" && \
+        echo "[FAILURE] ✗ ERROR: Binary not found!" && \
         echo "[DEBUG] Current directory: $(pwd)" && \
         echo "[DEBUG] Listing build directory:" && \
         ls -la . && \
+        echo "[DEBUG] Searching for cfg-exporter:" && \
+        find . -name "cfg-exporter" -type f 2>/dev/null || echo "[DEBUG] cfg-exporter not found anywhere" && \
         exit 1; \
     fi
 
@@ -371,21 +490,54 @@ RUN echo "============================================================" && \
 
 # Install build tools for native modules (if needed)
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr
-RUN echo "[DEBUG] ========== Installing Build Tools ==========" && \
+RUN     echo "[DEBUG] ========== Installing Build Tools ==========" && \
     echo "[DEBUG] Starting apt-get update..." && \
-    apt-get update && \
+    if apt-get update; then \
+        echo "[SUCCESS] ✓ apt-get update completed successfully"; \
+    else \
+        APT_UPDATE_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: apt-get update failed with exit code: $APT_UPDATE_EXIT" && \
+        exit $APT_UPDATE_EXIT; \
+    fi && \
     echo "[DEBUG] Installing packages: python3, make, g++" && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    2>&1 | (grep -v "update-alternatives: warning" || true) && \
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        python3 \
+        make \
+        g++ \
+        2>&1 | (grep -v "update-alternatives: warning" || true); then \
+        echo "[SUCCESS] ✓ All packages installed successfully"; \
+    else \
+        APT_INSTALL_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: Package installation failed with exit code: $APT_INSTALL_EXIT" && \
+        exit $APT_INSTALL_EXIT; \
+    fi && \
     echo "[DEBUG] ========== Verifying Installed Tools ==========" && \
-    echo "[DEBUG] python3 version: $(python3 --version)" && \
-    echo "[DEBUG] make version: $(make --version | head -1)" && \
-    echo "[DEBUG] g++ version: $(g++ --version | head -1)" && \
+    TOOL_CHECK_FAILED=0 && \
+    if command -v python3 >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ python3: $(python3 --version)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: python3 not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v make >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ make: $(make --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: make not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v g++ >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ g++: $(g++ --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: g++ not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
     rm -rf /var/lib/apt/lists/* && \
-    echo "[DEBUG] ✓ Build tools installed and verified"
+    if [ $TOOL_CHECK_FAILED -eq 0 ]; then \
+        echo "[SUCCESS] ✓ All build tools verified successfully"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: One or more required tools are missing!" && \
+        exit 1; \
+    fi
 
 WORKDIR /build
 RUN echo "[DEBUG] Working directory set to: $(pwd)"
@@ -423,10 +575,26 @@ RUN echo "[DEBUG] ========== Package Files Copied ==========" && \
 # Install dependencies
 RUN echo "[DEBUG] ========== Installing Dependencies ==========" && \
     echo "[DEBUG] Running npm ci..." && \
-    npm ci && \
-    echo "[DEBUG] Dependencies installed" && \
-    echo "[DEBUG] node_modules size: $(du -sh node_modules 2>/dev/null | awk '{print $1}' || echo 'unknown')" && \
-    echo "[DEBUG] TypeScript version: $(npx tsc --version 2>&1 || echo 'not found')"
+    if npm ci; then \
+        echo "[SUCCESS] ✓ npm ci completed successfully" && \
+        echo "[DEBUG] node_modules size: $(du -sh node_modules 2>/dev/null | awk '{print $1}' || echo 'unknown')" && \
+        if command -v npx >/dev/null 2>&1; then \
+            echo "[SUCCESS] ✓ TypeScript version: $(npx tsc --version 2>&1)"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: npx not found!" && \
+            exit 1; \
+        fi && \
+        if [ -d node_modules ]; then \
+            echo "[SUCCESS] ✓ node_modules directory exists"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: node_modules directory not found!" && \
+            exit 1; \
+        fi; \
+    else \
+        NPM_CI_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: npm ci failed with exit code: $NPM_CI_EXIT" && \
+        exit $NPM_CI_EXIT; \
+    fi
 
 # Copy source files
 COPY src/ ./src/
@@ -443,23 +611,37 @@ RUN echo "[DEBUG] ========== Source Files Copied ==========" && \
 # Build TypeScript
 RUN echo "[DEBUG] ========== Building TypeScript ==========" && \
     echo "[DEBUG] Running npm run compile..." && \
-    npm run compile && \
-    echo "[DEBUG] Build completed" && \
-    if [ -d out ]; then \
-        echo "[DEBUG] ✓ Output directory exists" && \
-        JS_COUNT=$(find out -type f -name '*.js' 2>/dev/null | wc -l || echo "0") && \
-        echo "[DEBUG] Compiled files count: $JS_COUNT"; \
+    if npm run compile; then \
+        echo "[SUCCESS] ✓ npm run compile completed successfully" && \
+        echo "[DEBUG] Build completed, verifying output..." && \
+        if [ -d out ]; then \
+            echo "[SUCCESS] ✓ Output directory exists" && \
+            JS_COUNT=$(find out -type f -name '*.js' 2>/dev/null | wc -l || echo "0") && \
+            echo "[DEBUG] Compiled files count: $JS_COUNT" && \
+            if [ "$JS_COUNT" -gt 0 ]; then \
+                echo "[SUCCESS] ✓ Found $JS_COUNT compiled JavaScript files"; \
+            else \
+                echo "[FAILURE] ✗ ERROR: No compiled JavaScript files found!" && \
+                exit 1; \
+            fi; \
+        else \
+            echo "[FAILURE] ✗ ERROR: Output directory NOT found!" && \
+            exit 1; \
+        fi && \
+        if [ -f out/extension.js ]; then \
+            echo "[SUCCESS] ✓ Extension entry point exists (out/extension.js)"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: Extension entry point NOT found (out/extension.js missing)!" && \
+            echo "[DEBUG] Files in out directory:" && \
+            ls -la out/ 2>&1 || echo "[DEBUG] out directory does not exist" && \
+            exit 1; \
+        fi && \
+        echo "[SUCCESS] ✓ TypeScript compilation verified successfully"; \
     else \
-        echo "[DEBUG] ✗ ERROR: Output directory NOT found!" && \
-        exit 1; \
-    fi && \
-    if [ -f out/extension.js ]; then \
-        echo "[DEBUG] ✓ Extension entry point exists"; \
-    else \
-        echo "[DEBUG] ✗ ERROR: Extension entry point NOT found!" && \
-        exit 1; \
-    fi && \
-    echo "[DEBUG] ✓ TypeScript compilation verified"
+        COMPILE_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: npm run compile failed with exit code: $COMPILE_EXIT" && \
+        exit $COMPILE_EXIT; \
+    fi
 
 # ============================================================================
 # Stage 3: Development image - Full development environment with all tools
