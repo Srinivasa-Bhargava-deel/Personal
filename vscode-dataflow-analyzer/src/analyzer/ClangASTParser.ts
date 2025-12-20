@@ -522,7 +522,7 @@ export class ClangASTParser {
           }
         }
         
-        // Verify binary is executable (Unix/Linux)
+        // Verify binary is executable and valid ELF (Unix/Linux)
         if (!isWindows) {
           try {
             const stats = fs.statSync(exporterPath);
@@ -534,6 +534,26 @@ export class ClangASTParser {
               } catch (chmodErr) {
                 console.warn(`[ClangASTParser] Could not make binary executable: ${chmodErr}`);
               }
+            }
+            
+            // Verify binary is actually an ELF binary, not a script or corrupted file
+            const child_process = require('child_process');
+            try {
+              const fileOutput = child_process.execSync(`file "${exporterPath}"`, { encoding: 'utf-8', timeout: 5000 });
+              if (!fileOutput.includes('ELF') && !fileOutput.includes('executable')) {
+                // Check if it looks like a shell script (starts with #!)
+                const fileBuffer = fs.readFileSync(exporterPath, { encoding: 'utf-8', flag: 'r' });
+                const firstBytes = fileBuffer.substring(0, 2);
+                if (firstBytes === '#!') {
+                  reject(new Error(`cfg-exporter at ${exporterPath} appears to be a shell script, not a binary. File info: ${fileOutput.trim()}`));
+                  return;
+                }
+                console.warn(`[ClangASTParser] Warning: Binary may not be valid ELF. File info: ${fileOutput.trim()}`);
+              } else {
+                console.log(`[ClangASTParser] Binary verified: ${fileOutput.trim()}`);
+              }
+            } catch (fileErr) {
+              console.warn(`[ClangASTParser] Could not verify binary type with 'file' command: ${fileErr}`);
             }
           } catch (statErr) {
             console.warn(`[ClangASTParser] Could not check binary permissions: ${statErr}`);
@@ -598,6 +618,13 @@ export class ClangASTParser {
           console.warn(`[ClangASTParser] cfg-exporter exited with code ${code}`);
           if (errorOutput) {
             console.warn(`[ClangASTParser] cfg-exporter stderr: ${errorOutput.substring(0, 500)}`);
+            // Check for common binary corruption errors
+            if (errorOutput.includes('Syntax error') || errorOutput.includes('unexpected')) {
+              console.error(`[ClangASTParser] ERROR: Binary appears corrupted or invalid!`);
+              console.error(`[ClangASTParser] Binary path: ${exporterPath}`);
+              console.error(`[ClangASTParser] This error suggests the binary is being interpreted as a script.`);
+              console.error(`[ClangASTParser] Please rebuild the Docker image to ensure binary is built correctly.`);
+            }
           }
         }
         

@@ -87,9 +87,9 @@ services:
           echo "✓ cfg-exporter: available at $(which cfg-exporter)"
           if [ -x "$(which cfg-exporter)" ]; then
             echo "  Binary is executable"
-            BINARY_INFO=$(file "$(which cfg-exporter)" || echo "unknown")
-            echo "  $BINARY_INFO"
-            if echo "$BINARY_INFO" | grep -qE "x86-64|amd64|ELF 64-bit.*Linux"; then
+            CFG_BINARY_INFO=$(file "$(which cfg-exporter)" 2>/dev/null || echo "unknown")
+            echo "  $CFG_BINARY_INFO"
+            if echo "$CFG_BINARY_INFO" | grep -qE "x86-64|amd64|ELF 64-bit.*Linux"; then
               echo "  ✓ Binary architecture verified: Linux x86_64/amd64"
             else
               echo "  ✗ ERROR: Binary architecture mismatch!"
@@ -99,14 +99,16 @@ services:
           echo "⚠ WARNING: cfg-exporter not found in PATH (may need full path)"
           if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then
             echo "  Found at /app/cpp-tools/cfg-exporter/build/cfg-exporter"
-            BINARY_INFO=$(file /app/cpp-tools/cfg-exporter/build/cfg-exporter || echo "unknown")
-            echo "  $BINARY_INFO"
-            if echo "$BINARY_INFO" | grep -qE "x86-64|amd64|ELF 64-bit.*Linux"; then
+            CFG_BINARY_INFO=$(file /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>/dev/null || echo "unknown")
+            echo "  $CFG_BINARY_INFO"
+            if echo "$CFG_BINARY_INFO" | grep -qE "x86-64|amd64|ELF 64-bit.*Linux"; then
               echo "  ✓ Binary architecture verified: Linux x86_64/amd64"
               chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter
               echo "  Made binary executable"
             else
               echo "  ✗ ERROR: Binary architecture mismatch! Expected Linux x86_64/amd64"
+              echo "  [DEBUG] Checking if file is corrupted or script:"
+              head -5 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -c | head -3 || true
             fi
           fi
         fi
