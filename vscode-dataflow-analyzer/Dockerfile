@@ -276,15 +276,21 @@ RUN echo "[DEBUG] ========== Source Files Copied ==========" && \
     echo "[DEBUG] Source files:" && \
     ls -la . && \
     if [ -f CMakeLists.txt ]; then \
-        echo "[DEBUG] ✓ CMakeLists.txt exists"; \
+        echo "[SUCCESS] ✓ CMakeLists.txt exists"; \
     else \
-        echo "[DEBUG] ✗ ERROR: CMakeLists.txt NOT found!" && \
+        echo "[FAILURE] ✗ ERROR: CMakeLists.txt NOT found!" && \
+        echo "[DEBUG] Current directory: $(pwd)" && \
+        echo "[DEBUG] Files in directory:" && \
+        ls -la . && \
         exit 1; \
     fi && \
     if [ -f cfg-exporter.cpp ]; then \
-        echo "[DEBUG] ✓ cfg-exporter.cpp exists"; \
+        echo "[SUCCESS] ✓ cfg-exporter.cpp exists"; \
     else \
-        echo "[DEBUG] ✗ ERROR: cfg-exporter.cpp NOT found!" && \
+        echo "[FAILURE] ✗ ERROR: cfg-exporter.cpp NOT found!" && \
+        echo "[DEBUG] Current directory: $(pwd)" && \
+        echo "[DEBUG] Files in directory:" && \
+        ls -la . && \
         exit 1; \
     fi
 
@@ -298,10 +304,11 @@ RUN mkdir -p build && \
     echo "[DEBUG] LLVM_DIR: ${LLVM_DIR:-not set}" && \
     echo "[DEBUG] Clang_DIR: ${Clang_DIR:-not set}" && \
     echo "[DEBUG] Running cmake configuration..." && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja 2>&1 | tee cmake_output.log && \
-    if [ $CMAKE_EXIT_CODE -eq 0 ]; then \
+    if cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja 2>&1 | tee cmake_output.log; then \
+        CMAKE_EXIT_CODE=0 && \
         echo "[SUCCESS] ✓ CMake configuration completed successfully"; \
     else \
+        CMAKE_EXIT_CODE=$? && \
         echo "[FAILURE] ✗ ERROR: CMake configuration failed with exit code: $CMAKE_EXIT_CODE" && \
         echo "[DEBUG] CMake output:" && \
         cat cmake_output.log 2>&1 | tail -50 && \
@@ -327,14 +334,14 @@ RUN mkdir -p build && \
     fi && \
     echo "[DEBUG] ========== Step 2: Verifying JSON header download ==========" && \
     if [ -f json_include/nlohmann/json.hpp ]; then \
-        echo "✓ JSON header found at: json_include/nlohmann/json.hpp" && \
+        echo "[SUCCESS] ✓ JSON header found at: json_include/nlohmann/json.hpp" && \
         ls -lh json_include/nlohmann/json.hpp; \
     else \
-        echo "✗ ERROR: JSON header NOT found!" && \
-        echo "Searching for json.hpp:" && \
-        find . -name "json.hpp" 2>/dev/null || echo "No json.hpp found anywhere" && \
-        echo "Contents of json_include:" && \
-        ls -la json_include/ 2>/dev/null || echo "json_include directory does not exist" && \
+        echo "[FAILURE] ✗ ERROR: JSON header NOT found!" && \
+        echo "[DEBUG] Searching for json.hpp:" && \
+        find . -name "json.hpp" 2>/dev/null || echo "[DEBUG] No json.hpp found anywhere" && \
+        echo "[DEBUG] Contents of json_include:" && \
+        ls -la json_include/ 2>/dev/null || echo "[DEBUG] json_include directory does not exist" && \
         exit 1; \
     fi && \
     echo "[DEBUG] ========== Step 3: Building ==========" && \
@@ -368,10 +375,10 @@ RUN mkdir -p build && \
         BINARY_MAGIC=$(head -c 4 cfg-exporter | od -An -tx1 | tr -d ' \n') && \
         echo "[DEBUG] Binary magic bytes (first 4 bytes): $BINARY_MAGIC" && \
         if [ "$BINARY_MAGIC" = "7f454c46" ]; then \
-            echo "✓ CRITICAL CHECK PASSED: Binary has valid ELF magic bytes (0x7f ELF)" && \
+            echo "[SUCCESS] ✓ CRITICAL CHECK PASSED: Binary has valid ELF magic bytes (0x7f ELF)" && \
             echo "[DEBUG] ELF format confirmed - this is a Linux binary"; \
         elif [ "$BINARY_MAGIC" = "cffaedfe" ] || [ "$BINARY_MAGIC" = "feedfacf" ]; then \
-            echo "✗ CRITICAL ERROR: Binary is Mach-O format (macOS), not ELF (Linux)!" && \
+            echo "[FAILURE] ✗ CRITICAL ERROR: Binary is Mach-O format (macOS), not ELF (Linux)!" && \
             echo "[DEBUG] Magic bytes: $BINARY_MAGIC indicates macOS binary" && \
             echo "[DEBUG] This binary was built for macOS, not Linux!" && \
             echo "[DEBUG] First 20 bytes:" && \
@@ -383,7 +390,7 @@ RUN mkdir -p build && \
             echo "[DEBUG] SOLUTION: Rebuild with --platform linux/amd64 flag" && \
             exit 1; \
         else \
-            echo "✗ CRITICAL ERROR: Binary has unknown magic bytes: $BINARY_MAGIC" && \
+            echo "[FAILURE] ✗ CRITICAL ERROR: Binary has unknown magic bytes: $BINARY_MAGIC" && \
             echo "[DEBUG] Expected: 7f454c46 (ELF Linux)" && \
             echo "[DEBUG] Got: $BINARY_MAGIC" && \
             echo "[DEBUG] First 20 bytes:" && \
