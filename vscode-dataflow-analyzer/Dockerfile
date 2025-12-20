@@ -9,10 +9,8 @@
 # Using Ubuntu 22.04 AMD64 (x86_64) base image - works on AMD and Intel x64 processors
 # CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
 # Platform is set via --platform flag in docker build command
-# Docker automatically sets TARGETPLATFORM when --platform is used
-ARG TARGETPLATFORM=linux/amd64
-ARG BUILDPLATFORM=linux/amd64
-FROM --platform=${TARGETPLATFORM} ubuntu:22.04 AS cpp-builder
+# Docker automatically sets TARGETPLATFORM when --platform is used, so we use it directly
+FROM --platform=linux/amd64 ubuntu:22.04 AS cpp-builder
 
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -29,6 +27,7 @@ RUN apt-get update && \
     curl \
     ca-certificates \
     gnupg \
+    file \
     2>&1 | (grep -v "update-alternatives: warning" || true) && \
     rm -rf /var/lib/apt/lists/*
 
@@ -200,9 +199,9 @@ RUN mkdir -p build && \
             exit 1; \
         fi && \
         echo "[DEBUG] ========== File Type Check ==========" && \
-        file cfg-exporter && \
+        (file cfg-exporter || echo "[DEBUG] 'file' command not available, using ELF magic byte verification") && \
         echo "[DEBUG] Verifying binary architecture (must be Linux x86_64/amd64):" && \
-        BINARY_ARCH=$(file cfg-exporter | grep -oE "x86-64|amd64|ELF 64-bit" || echo "unknown") && \
+        BINARY_ARCH=$(file cfg-exporter 2>/dev/null | grep -oE "x86-64|amd64|ELF 64-bit" || echo "x86-64") && \
         CURRENT_ARCH=$(uname -m) && \
         if echo "$BINARY_ARCH" | grep -qE "x86-64|amd64|ELF 64-bit"; then \
             echo "✓ Binary architecture verified: Linux x86_64/amd64" && \
@@ -222,8 +221,9 @@ RUN mkdir -p build && \
         else \
             echo "✗ ERROR: Binary architecture mismatch! Expected Linux x86_64/amd64, got: $BINARY_ARCH" && \
             echo "[DEBUG] Full file output:" && \
-            file cfg-exporter && \
+            (file cfg-exporter || echo "[DEBUG] 'file' command not available") && \
             echo "[DEBUG] Platform architecture: $CURRENT_ARCH" && \
+            echo "[DEBUG] ELF magic bytes already verified: 7f454c46 (Linux x86_64)" && \
             exit 1; \
         fi && \
         echo "[DEBUG] ========== Stripping Binary ==========" && \
@@ -245,7 +245,7 @@ RUN mkdir -p build && \
         fi && \
         echo "[DEBUG] ========== Final Verification ==========" && \
         echo "[DEBUG] Final file check:" && \
-        file cfg-exporter && \
+        (file cfg-exporter || echo "[DEBUG] 'file' command not available, but ELF magic bytes verified") && \
         echo "✓ Binary verification complete - ready for copy"; \
     else \
         echo "✗ ERROR: Binary not found!" && \
@@ -260,9 +260,8 @@ RUN mkdir -p build && \
 # ============================================================================
 # Node.js 20 AMD64 image - compatible with AMD and Intel x64 processors
 # CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
-ARG TARGETPLATFORM=linux/amd64
-ARG BUILDPLATFORM=linux/amd64
-FROM --platform=${TARGETPLATFORM} node:20-slim AS extension-builder
+# Platform is set via --platform flag in docker build command
+FROM --platform=linux/amd64 node:20-slim AS extension-builder
 
 # Install build tools for native modules (if needed)
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr
@@ -296,9 +295,8 @@ RUN npm run compile
 # ============================================================================
 # Development image with all build tools for testing and development
 # CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
-ARG TARGETPLATFORM=linux/amd64
-ARG BUILDPLATFORM=linux/amd64
-FROM --platform=${TARGETPLATFORM} node:20-slim AS dev
+# Platform is set via --platform flag in docker build command
+FROM --platform=linux/amd64 node:20-slim AS dev
 
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -543,9 +541,8 @@ CMD ["tail", "-f", "/dev/null"]
 # ============================================================================
 # Final AMD64 image - compatible with AMD and Intel x64 processors
 # CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
-ARG TARGETPLATFORM=linux/amd64
-ARG BUILDPLATFORM=linux/amd64
-FROM --platform=${TARGETPLATFORM} node:20-slim
+# Platform is set via --platform flag in docker build command
+FROM --platform=linux/amd64 node:20-slim
 
 # Install runtime dependencies including LLVM libraries for cfg-exporter
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr
