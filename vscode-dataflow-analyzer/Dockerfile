@@ -680,37 +680,75 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr
 RUN echo "[DEBUG] ========== Installing Development Dependencies ==========" && \
     echo "[DEBUG] Starting apt-get update..." && \
-    apt-get update && \
+    if apt-get update; then \
+        echo "[SUCCESS] ✓ apt-get update completed successfully"; \
+    else \
+        APT_UPDATE_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: apt-get update failed with exit code: $APT_UPDATE_EXIT" && \
+        exit $APT_UPDATE_EXIT; \
+    fi && \
     echo "[DEBUG] Installing packages: build-essential, cmake, ninja-build, git, wget, curl, ca-certificates, gnupg, python3, python3-pip, gcc, g++, make, file" && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    # Build essentials
-    build-essential \
-    cmake \
-    ninja-build \
-    git \
-    wget \
-    curl \
-    ca-certificates \
-    gnupg \
-    # Python for scripts and native modules
-    python3 \
-    python3-pip \
-    # C/C++ compilers
-    gcc \
-    g++ \
-    make \
-    # File type detection utility (needed for binary verification)
-    file \
-    # LLVM/Clang for ClangASTParser
-    2>&1 | (grep -v "update-alternatives: warning" || true) && \
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        build-essential \
+        cmake \
+        ninja-build \
+        git \
+        wget \
+        curl \
+        ca-certificates \
+        gnupg \
+        python3 \
+        python3-pip \
+        gcc \
+        g++ \
+        make \
+        file \
+        2>&1 | (grep -v "update-alternatives: warning" || true); then \
+        echo "[SUCCESS] ✓ All packages installed successfully"; \
+    else \
+        APT_INSTALL_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: Package installation failed with exit code: $APT_INSTALL_EXIT" && \
+        exit $APT_INSTALL_EXIT; \
+    fi && \
     echo "[DEBUG] ========== Verifying Installed Tools ==========" && \
-    echo "[DEBUG] gcc version: $(gcc --version | head -1)" && \
-    echo "[DEBUG] g++ version: $(g++ --version | head -1)" && \
-    echo "[DEBUG] cmake version: $(cmake --version | head -1)" && \
-    echo "[DEBUG] python3 version: $(python3 --version)" && \
-    echo "[DEBUG] file version: $(file --version 2>&1 || echo 'not found')" && \
+    TOOL_CHECK_FAILED=0 && \
+    if command -v gcc >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ gcc: $(gcc --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: gcc not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v g++ >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ g++: $(g++ --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: g++ not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v cmake >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ cmake: $(cmake --version | head -1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: cmake not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v python3 >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ python3: $(python3 --version)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: python3 not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
+    if command -v file >/dev/null 2>&1; then \
+        echo "[SUCCESS] ✓ file: $(file --version 2>&1)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: file not found!" && \
+        TOOL_CHECK_FAILED=1; \
+    fi && \
     rm -rf /var/lib/apt/lists/* && \
-    echo "[DEBUG] ✓ Development dependencies installed and verified"
+    if [ $TOOL_CHECK_FAILED -eq 0 ]; then \
+        echo "[SUCCESS] ✓ All development dependencies verified successfully"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: One or more required tools are missing!" && \
+        exit 1; \
+    fi
 
 # Install LLVM/Clang 17 (same as cpp-builder stage)
 RUN set -e && \
@@ -762,18 +800,46 @@ RUN set -e && \
                    clang-17 \
                    libclang-17-dev \
                    llvm-17-dev 2>&1; then \
-                echo "LLVM installation successful!" && \
+                echo "[SUCCESS] ✓ LLVM packages installed successfully" && \
+                echo "[DEBUG] ========== Verifying LLVM Installation (DEV STAGE) ==========" && \
+                LLVM_VERIFY_FAILED=0 && \
+                if command -v clang-17 >/dev/null 2>&1; then \
+                    echo "[SUCCESS] ✓ clang-17: $(clang-17 --version | head -1 2>&1)"; \
+                else \
+                    echo "[FAILURE] ✗ ERROR: clang-17 not found!" && \
+                    LLVM_VERIFY_FAILED=1; \
+                fi && \
+                if command -v clang++-17 >/dev/null 2>&1; then \
+                    echo "[SUCCESS] ✓ clang++-17: $(clang++-17 --version | head -1 2>&1)"; \
+                else \
+                    echo "[FAILURE] ✗ ERROR: clang++-17 not found!" && \
+                    LLVM_VERIFY_FAILED=1; \
+                fi && \
+                if [ -d /usr/lib/llvm-17/lib ]; then \
+                    echo "[SUCCESS] ✓ LLVM libraries directory exists"; \
+                else \
+                    echo "[FAILURE] ✗ ERROR: LLVM libraries directory not found!" && \
+                    LLVM_VERIFY_FAILED=1; \
+                fi && \
                 rm -f /tmp/llvm-snapshot.gpg.key && \
-                return 0; \
+                if [ $LLVM_VERIFY_FAILED -eq 0 ]; then \
+                    echo "[SUCCESS] ✓ LLVM installation verified successfully" && \
+                    return 0; \
+                else \
+                    echo "[FAILURE] ✗ ERROR: LLVM installation verification failed!" && \
+                    return 1; \
+                fi; \
             else \
-                echo "Package installation failed" && \
+                echo "[FAILURE] ✗ ERROR: Package installation failed" && \
                 retry_count=$((retry_count + 1)) && \
                 if [ $retry_count -lt $max_retries ]; then \
                     echo "Waiting ${delay}s before retry..." && sleep $delay && delay=$((delay * 2)) && apt-get clean; \
                 fi; \
             fi; \
         done && \
-        echo "ERROR: Failed to install LLVM after $max_retries attempts" && \
+        echo "[FAILURE] ✗ ERROR: Failed to install LLVM after $max_retries attempts" && \
+        echo "[DEBUG] This may be due to network connectivity issues with apt.llvm.org" && \
+        echo "[DEBUG] Please check your internet connection and try again." && \
         rm -f /tmp/llvm-snapshot.gpg.key && \
         return 1; \
     } && \
@@ -801,34 +867,51 @@ COPY --from=extension-builder /build/tsconfig.json ./
 COPY --from=extension-builder /build/.eslintrc.json ./
 RUN echo "[DEBUG] ========== Extension Files Validation Complete ==========" && \
     echo "[DEBUG] Verifying extension files..." && \
+    VALIDATION_FAILED=0 && \
     if [ -d out ]; then \
-        echo "[DEBUG] ✓ out directory exists" && \
-        echo "[DEBUG] out directory size: $(du -sh out 2>/dev/null | awk '{print $1}' || echo 'unknown')" && \
-        echo "[DEBUG] Compiled files count: $(find out -type f -name '*.js' 2>/dev/null | wc -l || echo '0')"; \
+        echo "[SUCCESS] ✓ out directory exists" && \
+        OUT_SIZE=$(du -sh out 2>/dev/null | awk '{print $1}' || echo 'unknown') && \
+        JS_COUNT=$(find out -type f -name '*.js' 2>/dev/null | wc -l || echo '0') && \
+        echo "[DEBUG] out directory size: $OUT_SIZE" && \
+        echo "[DEBUG] Compiled files count: $JS_COUNT" && \
+        if [ "$JS_COUNT" -gt 0 ]; then \
+            echo "[SUCCESS] ✓ Found $JS_COUNT compiled JavaScript files"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: No compiled JavaScript files found!" && \
+            VALIDATION_FAILED=1; \
+        fi; \
     else \
-        echo "[DEBUG] ✗ ERROR: out directory NOT found!" && \
-        exit 1; \
+        echo "[FAILURE] ✗ ERROR: out directory NOT found!" && \
+        VALIDATION_FAILED=1; \
     fi && \
     if [ -f out/extension.js ]; then \
-        echo "[DEBUG] ✓ Extension entry point exists"; \
+        echo "[SUCCESS] ✓ Extension entry point exists (out/extension.js)"; \
     else \
-        echo "[DEBUG] ✗ ERROR: Extension entry point NOT found!" && \
-        exit 1; \
+        echo "[FAILURE] ✗ ERROR: Extension entry point NOT found (out/extension.js missing)!" && \
+        echo "[DEBUG] Files in out directory:" && \
+        ls -la out/ 2>&1 || echo "[DEBUG] out directory does not exist" && \
+        VALIDATION_FAILED=1; \
     fi && \
     if [ -d node_modules ]; then \
-        echo "[DEBUG] ✓ node_modules exists" && \
-        echo "[DEBUG] node_modules size: $(du -sh node_modules 2>/dev/null | awk '{print $1}' || echo 'unknown')"; \
+        echo "[SUCCESS] ✓ node_modules exists" && \
+        NODE_MODULES_SIZE=$(du -sh node_modules 2>/dev/null | awk '{print $1}' || echo 'unknown') && \
+        echo "[DEBUG] node_modules size: $NODE_MODULES_SIZE"; \
     else \
-        echo "[DEBUG] ✗ ERROR: node_modules NOT found!" && \
-        exit 1; \
+        echo "[FAILURE] ✗ ERROR: node_modules NOT found!" && \
+        VALIDATION_FAILED=1; \
     fi && \
     if [ -f package.json ]; then \
-        echo "[DEBUG] ✓ package.json exists"; \
+        echo "[SUCCESS] ✓ package.json exists"; \
     else \
-        echo "[DEBUG] ✗ ERROR: package.json NOT found!" && \
-        exit 1; \
+        echo "[FAILURE] ✗ ERROR: package.json NOT found!" && \
+        VALIDATION_FAILED=1; \
     fi && \
-    echo "[DEBUG] ✓ All extension files copied and verified"
+    if [ $VALIDATION_FAILED -eq 0 ]; then \
+        echo "[SUCCESS] ✓ All extension files copied and verified successfully"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: Extension files validation failed!" && \
+        exit 1; \
+    fi
 
 # Copy built C++ binary with proper permissions and verification
 RUN echo "[DEBUG] ========== Copying C++ Binary from cpp-builder (DEV STAGE) ==========" && \
