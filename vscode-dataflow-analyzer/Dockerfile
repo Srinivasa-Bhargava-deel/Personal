@@ -442,7 +442,7 @@ RUN echo "[DEBUG] ========================================" && \
         grep -i "cfg-exporter\|cfg_exporter" build.ninja | head -5 || echo "[DEBUG] Could not find target in build.ninja" && \
         exit 1; \
     fi && \
-    echo "[DEBUG] ========== Step 4: Verifying binary ==========" && \
+    echo "[DEBUG] ========== Step 5: Verifying binary ==========" && \
     if [ -f cfg-exporter ]; then \
         echo "[DEBUG] ========== DRY RUN: Binary Verification ==========" && \
         echo "[DEBUG] Binary file info:" && \
@@ -534,7 +534,7 @@ RUN echo "[DEBUG] ========================================" && \
         echo "[DEBUG] Binary owner: $(ls -l cfg-exporter | awk '{print $3":"$4}')" && \
         echo "[DEBUG] Final binary size: $(ls -lh cfg-exporter | awk '{print $5}')" && \
         echo "[DEBUG] Binary location: $(pwd)/cfg-exporter" && \
-        echo "[DEBUG] ========== Step 5: Build Summary ==========" && \
+        echo "[DEBUG] ========== Step 6: Build Summary ==========" && \
         echo "[SUCCESS] ✓ ========================================" && \
         echo "[SUCCESS] ✓ CFG-EXPORTER BUILD COMPLETED SUCCESSFULLY" && \
         echo "[SUCCESS] ✓ ========================================" && \
@@ -597,7 +597,7 @@ RUN echo "============================================================" && \
 
 # Install build tools for native modules (if needed)
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr
-RUN     echo "[DEBUG] ========== Installing Build Tools ==========" && \
+RUN echo "[DEBUG] ========== Installing Build Tools ==========" && \
     echo "[DEBUG] Starting apt-get update..." && \
     if apt-get update; then \
         echo "[SUCCESS] ✓ apt-get update completed successfully"; \
@@ -1344,29 +1344,29 @@ RUN echo "[DEBUG] ========== Final Development Environment Verification ========
             else \
                 EXEC_ERROR=$? && \
                 echo "[FAILURE] ✗ ERROR: Binary execution FAILED (exit code: $EXEC_ERROR)" && \
-            echo "[DEBUG] ========== Comprehensive Error Diagnosis ==========" && \
-            echo "[DEBUG] Platform info:" && \
-            echo "[DEBUG]   Architecture: $(uname -m)" && \
-            echo "[DEBUG]   OS: $(uname -s)" && \
-            echo "[DEBUG]   Kernel: $(uname -r)" && \
-            echo "[DEBUG] Binary analysis:" && \
-            echo "[DEBUG]   Magic bytes: $(head -c 4 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 | tr -d ' \n')" && \
-            echo "[DEBUG]   File type: $(file /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 || echo 'file command not available')" && \
-            echo "[DEBUG]   Permissions: $(ls -l /app/cpp-tools/cfg-exporter/build/cfg-exporter | awk '{print $1}')" && \
-            echo "[DEBUG] Attempting to run with strace:" && \
-            (strace -e trace=execve,openat,open /app/cpp-tools/cfg-exporter/build/cfg-exporter --help 2>&1 | head -30 || echo "[DEBUG] strace not available or binary failed") && \
-            echo "[DEBUG] Checking library dependencies:" && \
-            LDD_OUT=$(ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1) && \
-            echo "$LDD_OUT" | head -15 && \
-            if echo "$LDD_OUT" | grep -q "not a dynamic executable"; then \
-                echo "[DEBUG] ✓ Binary is statically linked"; \
-            elif echo "$LDD_OUT" | grep -q "No such file"; then \
-                echo "[DEBUG] ✗ Missing libraries detected!"; \
+                echo "[DEBUG] ========== Comprehensive Error Diagnosis ==========" && \
+                echo "[DEBUG] Platform info:" && \
+                echo "[DEBUG]   Architecture: $(uname -m)" && \
+                echo "[DEBUG]   OS: $(uname -s)" && \
+                echo "[DEBUG]   Kernel: $(uname -r)" && \
+                echo "[DEBUG] Binary analysis:" && \
+                echo "[DEBUG]   Magic bytes: $(head -c 4 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 | tr -d ' \n')" && \
+                echo "[DEBUG]   File type: $(file /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 || echo 'file command not available')" && \
+                echo "[DEBUG]   Permissions: $(ls -l /app/cpp-tools/cfg-exporter/build/cfg-exporter | awk '{print $1}')" && \
+                echo "[DEBUG] Attempting to run with strace:" && \
+                (strace -e trace=execve,openat,open /app/cpp-tools/cfg-exporter/build/cfg-exporter --help 2>&1 | head -30 || echo "[DEBUG] strace not available or binary failed") && \
+                echo "[DEBUG] Checking library dependencies:" && \
+                LDD_OUT=$(ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1) && \
+                echo "$LDD_OUT" | head -15 && \
+                if echo "$LDD_OUT" | grep -q "not a dynamic executable"; then \
+                    echo "[DEBUG] ✓ Binary is statically linked"; \
+                elif echo "$LDD_OUT" | grep -q "No such file"; then \
+                    echo "[DEBUG] ✗ Missing libraries detected!"; \
+                fi && \
+                echo "[DEBUG] Checking readelf output:" && \
+                (readelf -h /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -15 || echo "[DEBUG] readelf not available") && \
+                exit 1; \
             fi && \
-            echo "[DEBUG] Checking readelf output:" && \
-            (readelf -h /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -15 || echo "[DEBUG] readelf not available") && \
-            exit 1; \
-        fi && \
             echo "[DEBUG] Checking library dependencies" && \
             LDD_CHECK=$(ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1) && \
             echo "$LDD_CHECK" | head -10 || echo "[DEBUG] ldd check completed (may show errors for statically linked binaries)" && \
