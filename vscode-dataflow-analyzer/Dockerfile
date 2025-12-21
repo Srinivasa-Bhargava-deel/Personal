@@ -975,7 +975,7 @@ RUN echo "[DEBUG] ========== Verifying Copied Binary (DEV STAGE) ==========" && 
         BINARY_MAGIC=$(head -c 4 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 | tr -d ' \n') && \
         echo "[DEBUG] Binary magic bytes: $BINARY_MAGIC" && \
         if [ "$BINARY_MAGIC" = "7f454c46" ]; then \
-            echo "✓ CRITICAL CHECK PASSED: Binary has valid ELF magic bytes (0x7f ELF)" && \
+            echo "[SUCCESS] ✓ CRITICAL CHECK PASSED: Binary has valid ELF magic bytes (0x7f ELF)" && \
             echo "[DEBUG] ELF format confirmed - this is a Linux binary" && \
             echo "[DEBUG] ========== Binary Execution Test ==========" && \
             echo "[DEBUG] Verifying binary is executable:" && \
