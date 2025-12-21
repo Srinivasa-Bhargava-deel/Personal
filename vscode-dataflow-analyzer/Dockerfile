@@ -1563,7 +1563,16 @@ RUN echo "[DEBUG] ========== Installing C Standard Library Headers (PRODUCTION S
     rm -rf /var/lib/apt/lists/*
 
 # Upgrade npm to latest version (11.7.0) to avoid version warnings
-RUN npm install -g npm@11.7.0
+RUN echo "[DEBUG] ========== Upgrading npm (PRODUCTION STAGE) ==========" && \
+    echo "[DEBUG] Current npm version: $(npm --version)" && \
+    if npm install -g npm@11.7.0; then \
+        echo "[SUCCESS] ✓ npm upgraded successfully" && \
+        echo "[SUCCESS] ✓ New npm version: $(npm --version)"; \
+    else \
+        NPM_UPGRADE_EXIT=$? && \
+        echo "[FAILURE] ✗ ERROR: npm upgrade failed with exit code: $NPM_UPGRADE_EXIT" && \
+        exit $NPM_UPGRADE_EXIT; \
+    fi
 
 WORKDIR /app
 
@@ -1576,6 +1585,45 @@ COPY --from=extension-builder /build/package-lock.json ./
 COPY --from=extension-builder /build/tsconfig.json ./
 # Copy .eslintrc.json for linting
 COPY --from=extension-builder /build/.eslintrc.json ./
+RUN echo "[DEBUG] ========== Verifying Copied Extension Files (PRODUCTION STAGE) ==========" && \
+    EXT_FILES_CHECK_FAILED=0 && \
+    if [ -d out ]; then \
+        echo "[SUCCESS] ✓ out directory exists" && \
+        JS_COUNT=$(find out -type f -name '*.js' 2>/dev/null | wc -l || echo "0") && \
+        if [ "$JS_COUNT" -gt 0 ]; then \
+            echo "[SUCCESS] ✓ Found $JS_COUNT compiled JavaScript files"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: No compiled JavaScript files found!" && \
+            EXT_FILES_CHECK_FAILED=1; \
+        fi; \
+    else \
+        echo "[FAILURE] ✗ ERROR: out directory NOT found!" && \
+        EXT_FILES_CHECK_FAILED=1; \
+    fi && \
+    if [ -f out/extension.js ]; then \
+        echo "[SUCCESS] ✓ Extension entry point exists (out/extension.js)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: Extension entry point NOT found (out/extension.js missing)!" && \
+        EXT_FILES_CHECK_FAILED=1; \
+    fi && \
+    if [ -d node_modules ]; then \
+        echo "[SUCCESS] ✓ node_modules exists"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: node_modules NOT found!" && \
+        EXT_FILES_CHECK_FAILED=1; \
+    fi && \
+    if [ -f package.json ]; then \
+        echo "[SUCCESS] ✓ package.json exists"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: package.json NOT found!" && \
+        EXT_FILES_CHECK_FAILED=1; \
+    fi && \
+    if [ $EXT_FILES_CHECK_FAILED -eq 0 ]; then \
+        echo "[SUCCESS] ✓ All extension files copied and verified successfully"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: Extension files validation failed!" && \
+        exit 1; \
+    fi
 
 # Copy built C++ binary with proper permissions and verification
 RUN echo "[DEBUG] ========== Preparing Binary Directory (PRODUCTION STAGE) ==========" && \
