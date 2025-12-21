@@ -41,8 +41,7 @@ RUN echo "[DEBUG] ========== Installing Build Dependencies ==========" && \
         exit $APT_UPDATE_EXIT; \
     fi && \
     echo "[DEBUG] Installing packages: build-essential, cmake, ninja-build, git, wget, curl, ca-certificates, gnupg, file" && \
-    set -o pipefail && \
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    if /bin/bash -c "set -o pipefail && DEBIAN_FRONTEND=noninteractive apt-get install -y \
         build-essential \
         cmake \
         ninja-build \
@@ -52,7 +51,7 @@ RUN echo "[DEBUG] ========== Installing Build Dependencies ==========" && \
         ca-certificates \
         gnupg \
         file \
-        2>&1 | (grep -v "update-alternatives: warning" || true); then \
+        2>&1 | (grep -v 'update-alternatives: warning' || true)"; then \
         echo "[SUCCESS] [OK] All packages installed successfully"; \
     else \
         APT_INSTALL_EXIT=$? && \
@@ -61,7 +60,6 @@ RUN echo "[DEBUG] ========== Installing Build Dependencies ==========" && \
         echo "[DEBUG] Attempting to retry failed packages..." && \
         exit $APT_INSTALL_EXIT; \
     fi && \
-    set +o pipefail && \
     echo "[DEBUG] ========== Verifying Installed Tools ==========" && \
     TOOL_CHECK_FAILED=0 && \
     if command -v gcc >/dev/null 2>&1; then \
@@ -611,12 +609,11 @@ RUN echo "[DEBUG] ========== Installing Build Tools ==========" && \
         exit $APT_UPDATE_EXIT; \
     fi && \
     echo "[DEBUG] Installing packages: python3, make, g++" && \
-    set -o pipefail && \
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    if /bin/bash -c "set -o pipefail && DEBIAN_FRONTEND=noninteractive apt-get install -y \
         python3 \
         make \
         g++ \
-        2>&1 | (grep -v "update-alternatives: warning" || true); then \
+        2>&1 | (grep -v 'update-alternatives: warning' || true)"; then \
         echo "[SUCCESS] [OK] All packages installed successfully"; \
     else \
         APT_INSTALL_EXIT=$? && \
@@ -624,7 +621,6 @@ RUN echo "[DEBUG] ========== Installing Build Tools ==========" && \
         echo "[DEBUG] Attempting to retry failed packages..." && \
         exit $APT_INSTALL_EXIT; \
     fi && \
-    set +o pipefail && \
     echo "[DEBUG] ========== Verifying Installed Tools ==========" && \
     TOOL_CHECK_FAILED=0 && \
     if command -v python3 >/dev/null 2>&1; then \
@@ -810,8 +806,7 @@ RUN echo "[DEBUG] ========== Installing Development Dependencies ==========" && 
         exit $APT_UPDATE_EXIT; \
     fi && \
     echo "[DEBUG] Installing packages: build-essential, cmake, ninja-build, git, wget, curl, ca-certificates, gnupg, python3, python3-pip, gcc, g++, make, file" && \
-    set -o pipefail && \
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    if /bin/bash -c "set -o pipefail && DEBIAN_FRONTEND=noninteractive apt-get install -y \
         build-essential \
         cmake \
         ninja-build \
@@ -826,7 +821,7 @@ RUN echo "[DEBUG] ========== Installing Development Dependencies ==========" && 
         g++ \
         make \
         file \
-        2>&1 | (grep -v "update-alternatives: warning" || true); then \
+        2>&1 | (grep -v 'update-alternatives: warning' || true)"; then \
         echo "[SUCCESS] [OK] All packages installed successfully"; \
     else \
         APT_INSTALL_EXIT=$? && \
@@ -834,7 +829,6 @@ RUN echo "[DEBUG] ========== Installing Development Dependencies ==========" && 
         echo "[DEBUG] Attempting to retry failed packages..." && \
         exit $APT_INSTALL_EXIT; \
     fi && \
-    set +o pipefail && \
     echo "[DEBUG] ========== Verifying Installed Tools ==========" && \
     TOOL_CHECK_FAILED=0 && \
     if command -v gcc >/dev/null 2>&1; then \
@@ -1510,13 +1504,12 @@ RUN echo "[DEBUG] ========== Installing Runtime Dependencies (PRODUCTION STAGE) 
         exit $APT_UPDATE_EXIT; \
     fi && \
     echo "[DEBUG] Installing packages: ca-certificates, wget, gnupg, file" && \
-    set -o pipefail && \
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    if /bin/bash -c "set -o pipefail && DEBIAN_FRONTEND=noninteractive apt-get install -y \
         ca-certificates \
         wget \
         gnupg \
         file \
-        2>&1 | (grep -v "update-alternatives: warning" || true); then \
+        2>&1 | (grep -v 'update-alternatives: warning' || true)"; then \
         echo "[SUCCESS] [OK] All runtime packages installed successfully"; \
     else \
         APT_INSTALL_EXIT=$? && \
@@ -1524,7 +1517,6 @@ RUN echo "[DEBUG] ========== Installing Runtime Dependencies (PRODUCTION STAGE) 
         echo "[DEBUG] Attempting to retry failed packages..." && \
         exit $APT_INSTALL_EXIT; \
     fi && \
-    set +o pipefail && \
     echo "[DEBUG] ========== Verifying Installed Runtime Tools ==========" && \
     RUNTIME_TOOL_CHECK_FAILED=0 && \
     if command -v wget >/dev/null 2>&1; then \
@@ -1652,10 +1644,9 @@ RUN echo "[DEBUG] ========== Installing C Standard Library Headers (PRODUCTION S
         exit $APT_UPDATE_EXIT; \
     fi && \
     echo "[DEBUG] Installing package: libc6-dev" && \
-    set -o pipefail && \
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    if /bin/bash -c "set -o pipefail && DEBIAN_FRONTEND=noninteractive apt-get install -y \
         libc6-dev \
-        2>&1 | (grep -v "update-alternatives: warning" || true); then \
+        2>&1 | (grep -v 'update-alternatives: warning' || true)"; then \
         echo "[SUCCESS] [OK] libc6-dev installed successfully"; \
     else \
         APT_INSTALL_EXIT=$? && \
@@ -1663,7 +1654,6 @@ RUN echo "[DEBUG] ========== Installing C Standard Library Headers (PRODUCTION S
         echo "[DEBUG] Attempting to retry failed packages..." && \
         exit $APT_INSTALL_EXIT; \
     fi && \
-    set +o pipefail && \
     if [ -d /usr/include ]; then \
         echo "[SUCCESS] [OK] C standard library headers directory exists"; \
     else \
