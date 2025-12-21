@@ -1003,13 +1003,13 @@ RUN echo "[DEBUG] ========== Verifying Copied Binary (DEV STAGE) ==========" && 
             fi && \
             echo "[DEBUG] Testing binary execution with --help:" && \
             if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
-                echo "✓ Binary executes successfully" && \
+                echo "[SUCCESS] ✓ Binary executes successfully" && \
                 echo "[DEBUG] Binary execution test passed" && \
                 echo "[DEBUG] Capturing --help output:" && \
                 /app/cpp-tools/cfg-exporter/build/cfg-exporter --help 2>&1 | head -10 || true; \
             else \
                 EXEC_ERROR=$? && \
-                echo "✗ ERROR: Binary execution test FAILED (exit code: $EXEC_ERROR)" && \
+                echo "[FAILURE] ✗ ERROR: Binary execution test FAILED (exit code: $EXEC_ERROR)" && \
                 echo "[DEBUG] ========== Detailed Error Analysis ==========" && \
                 echo "[DEBUG] Platform architecture: $(uname -m)" && \
                 echo "[DEBUG] Platform OS: $(uname -s)" && \
@@ -1750,32 +1750,80 @@ RUN echo "[DEBUG] ========== Final Binary Verification (PRODUCTION STAGE) ======
         echo "[DEBUG] ELF magic bytes already verified above" && \
         echo "[DEBUG] Binary size and permissions:" && \
         ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
-        echo "✓ Binary architecture verified: Linux x86_64/amd64 (ELF magic bytes confirmed)" && \
-        echo "[DRY RUN] Testing binary execution:" && \
-        chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
-        if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
-            echo "✓ Binary executes successfully"; \
+        echo "[SUCCESS] ✓ Binary architecture verified: Linux x86_64/amd64 (ELF magic bytes confirmed)" && \
+        echo "[DEBUG] Testing binary execution:" && \
+        if chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter; then \
+            echo "[SUCCESS] ✓ Binary permissions set successfully"; \
         else \
-            echo "⚠ WARNING: Binary exists but may have execution issues" && \
+            CHMOD_FINAL_EXIT=$? && \
+            echo "[FAILURE] ✗ ERROR: Failed to set executable permissions (exit code: $CHMOD_FINAL_EXIT)" && \
+            exit $CHMOD_FINAL_EXIT; \
+        fi && \
+        if /app/cpp-tools/cfg-exporter/build/cfg-exporter --help >/dev/null 2>&1; then \
+            echo "[SUCCESS] ✓ Binary executes successfully"; \
+        else \
+            EXEC_FINAL_EXIT=$? && \
+            echo "[FAILURE] ✗ ERROR: Binary execution test FAILED (exit code: $EXEC_FINAL_EXIT)" && \
             echo "[DEBUG] Testing with strace to see what's happening:" && \
-            (strace -e trace=execve /app/cpp-tools/cfg-exporter/build/cfg-exporter --help 2>&1 | head -10 || echo "[DEBUG] strace not available or binary failed"); \
+            (strace -e trace=execve,openat /app/cpp-tools/cfg-exporter/build/cfg-exporter --help 2>&1 | head -10 || echo "[DEBUG] strace not available or binary failed") && \
+            echo "[DEBUG] Checking library dependencies:" && \
+            LDD_FINAL_OUTPUT=$(ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1) && \
+            echo "$LDD_FINAL_OUTPUT" | head -10 && \
+            if echo "$LDD_FINAL_OUTPUT" | grep -q "not a dynamic executable"; then \
+                echo "[DEBUG] Binary is statically linked"; \
+            elif echo "$LDD_FINAL_OUTPUT" | grep -q "No such file"; then \
+                echo "[FAILURE] ✗ ERROR: Missing shared library dependencies!"; \
+            fi && \
+            exit 1; \
         fi && \
         echo "[DEBUG] Checking if binary is executable" && \
-        [ -x "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ] && echo "✓ Binary is executable" || (chmod +x /app/cpp-tools/cfg-exporter/build/cfg-exporter && echo "✓ Made binary executable") && \
-        echo "=== Checking LLVM library location ===" && \
-        find /usr/lib/llvm-17 -name "libLLVM*.so*" 2>/dev/null | head -5 || echo "⚠ WARNING: Could not find LLVM libraries" && \
-        echo "=== Testing cfg-exporter with ldd ===" && \
-        ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1 | head -10 || echo "ldd check completed (may show errors for statically linked binaries)" && \
+        if [ -x "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
+            echo "[SUCCESS] ✓ Binary is executable"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: Binary is not executable after chmod!" && \
+            exit 1; \
+        fi && \
+        echo "[DEBUG] === Checking LLVM library location ===" && \
+        LLVM_LIBS_FINAL=$(find /usr/lib/llvm-17 -name "libLLVM*.so*" 2>/dev/null | head -5 || echo "") && \
+        if [ -n "$LLVM_LIBS_FINAL" ]; then \
+            echo "[SUCCESS] ✓ LLVM libraries found:" && \
+            echo "$LLVM_LIBS_FINAL"; \
+        else \
+            echo "[WARNING] ⚠ WARNING: Could not find LLVM libraries"; \
+        fi && \
+        echo "[DEBUG] === Testing cfg-exporter with ldd ===" && \
+        LDD_FINAL_CHECK=$(ldd /app/cpp-tools/cfg-exporter/build/cfg-exporter 2>&1) && \
+        echo "$LDD_FINAL_CHECK" | head -10 && \
+        if echo "$LDD_FINAL_CHECK" | grep -q "not a dynamic executable"; then \
+            echo "[SUCCESS] ✓ Binary is statically linked (no dynamic dependencies)"; \
+        elif echo "$LDD_FINAL_CHECK" | grep -q "No such file"; then \
+            echo "[FAILURE] ✗ ERROR: Missing shared library dependencies detected!"; \
+        else \
+            echo "[SUCCESS] ✓ Library dependencies check completed"; \
+        fi && \
         echo "[DEBUG] Verifying environment variables" && \
-        echo "  LLVM_DIR: ${LLVM_DIR:-not set}" && \
-        echo "  Clang_DIR: ${Clang_DIR:-not set}"; \
+        echo "[DEBUG]   LLVM_DIR: ${LLVM_DIR:-not set}" && \
+        echo "[DEBUG]   Clang_DIR: ${Clang_DIR:-not set}" && \
+        echo "[SUCCESS] ✓ Final binary verification complete"; \
     else \
-        echo "✗ ERROR: cfg-exporter binary not found!" && \
+        echo "[FAILURE] ✗ ERROR: cfg-exporter binary not found!" && \
         echo "[DEBUG] Checking directory structure:" && \
-        ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1 || echo "[DEBUG] build directory does not exist" && \
-        find /app -name "cfg-exporter" -type f 2>/dev/null | head -5 || echo "[DEBUG] No cfg-exporter found anywhere in /app"; \
+        if [ -d /app/cpp-tools/cfg-exporter/build ]; then \
+            echo "[DEBUG] build directory exists, listing contents:" && \
+            ls -la /app/cpp-tools/cfg-exporter/build/ 2>&1; \
+        else \
+            echo "[FAILURE] ✗ ERROR: build directory does not exist"; \
+        fi && \
+        CFG_SEARCH_FINAL=$(find /app -name "cfg-exporter" -type f 2>/dev/null | head -5 || echo "") && \
+        if [ -n "$CFG_SEARCH_FINAL" ]; then \
+            echo "[DEBUG] Found cfg-exporter at:" && \
+            echo "$CFG_SEARCH_FINAL"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: No cfg-exporter found anywhere in /app"; \
+        fi && \
+        exit 1; \
     fi && \
-    echo "=== Verification complete ==="
+    echo "[SUCCESS] === Verification complete ==="
 
 # Default command - can be overridden
 CMD ["node", "--version"]
