@@ -299,24 +299,59 @@ RUN echo "[DEBUG] ========== Source Files Copied ==========" && \
 # Build cfg-exporter
 # Note: Ninja generator doesn't use --config flag (single-config generator)
 # Build type is set via -DCMAKE_BUILD_TYPE=Release
-RUN mkdir -p build && \
+RUN echo "[DEBUG] ========================================" && \
+    echo "[DEBUG] ========== CFG-EXPORTER BUILD START ==========" && \
+    echo "[DEBUG] ========================================" && \
+    echo "[DEBUG] Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" && \
+    echo "[DEBUG] Build stage: cpp-builder" && \
+    echo "[DEBUG] Platform: $(uname -m)" && \
+    echo "[DEBUG] ========================================" && \
+    mkdir -p build && \
     cd build && \
+    echo "[DEBUG] ========== Step 0: Build Directory Setup ==========" && \
+    echo "[DEBUG] Creating build directory..." && \
+    if [ -d "$(pwd)" ]; then \
+        echo "[SUCCESS] ✓ Build directory created: $(pwd)"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: Build directory creation failed!" && \
+        exit 1; \
+    fi && \
     echo "[DEBUG] ========== Step 1: CMake Configuration ==========" && \
     echo "[DEBUG] CMake arguments: -DCMAKE_BUILD_TYPE=Release -G Ninja" && \
     echo "[DEBUG] LLVM_DIR: ${LLVM_DIR:-not set}" && \
     echo "[DEBUG] Clang_DIR: ${Clang_DIR:-not set}" && \
+    echo "[DEBUG] PATH: $PATH" && \
+    echo "[DEBUG] Checking CMake availability..." && \
+    if command -v cmake >/dev/null 2>&1; then \
+        CMAKE_VERSION=$(cmake --version | head -1) && \
+        echo "[SUCCESS] ✓ CMake found: $CMAKE_VERSION"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: CMake not found in PATH!" && \
+        exit 1; \
+    fi && \
+    echo "[DEBUG] Checking Ninja availability..." && \
+    if command -v ninja >/dev/null 2>&1; then \
+        NINJA_VERSION=$(ninja --version) && \
+        echo "[SUCCESS] ✓ Ninja found: version $NINJA_VERSION"; \
+    else \
+        echo "[FAILURE] ✗ ERROR: Ninja not found in PATH!" && \
+        exit 1; \
+    fi && \
     echo "[DEBUG] Running cmake configuration..." && \
     if cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja 2>&1 | tee cmake_output.log; then \
         echo "[SUCCESS] ✓ CMake configuration completed successfully"; \
     else \
         CMAKE_EXIT_CODE=$? && \
         echo "[FAILURE] ✗ ERROR: CMake configuration failed with exit code: $CMAKE_EXIT_CODE" && \
-        echo "[DEBUG] CMake output:" && \
-        cat cmake_output.log 2>&1 | tail -50 && \
+        echo "[DEBUG] CMake output (last 100 lines):" && \
+        tail -100 cmake_output.log 2>&1 && \
+        echo "[DEBUG] Full CMake output saved to: cmake_output.log" && \
         exit $CMAKE_EXIT_CODE; \
     fi && \
+    echo "[DEBUG] Verifying CMake configuration artifacts..." && \
     if [ -f CMakeCache.txt ]; then \
-        echo "[SUCCESS] ✓ CMake cache file exists"; \
+        echo "[SUCCESS] ✓ CMake cache file exists" && \
+        echo "[DEBUG] CMakeCache.txt size: $(ls -lh CMakeCache.txt | awk '{print $5}')"; \
     else \
         echo "[FAILURE] ✗ ERROR: CMake cache file NOT found!" && \
         echo "[DEBUG] Current directory: $(pwd)" && \
@@ -325,7 +360,8 @@ RUN mkdir -p build && \
         exit 1; \
     fi && \
     if [ -f build.ninja ]; then \
-        echo "[SUCCESS] ✓ Build files generated (build.ninja exists)"; \
+        echo "[SUCCESS] ✓ Build files generated (build.ninja exists)" && \
+        echo "[DEBUG] build.ninja size: $(ls -lh build.ninja | awk '{print $5}')"; \
     else \
         echo "[FAILURE] ✗ ERROR: Build files NOT generated (build.ninja missing)!" && \
         echo "[DEBUG] Current directory: $(pwd)" && \
@@ -334,38 +370,76 @@ RUN mkdir -p build && \
         exit 1; \
     fi && \
     echo "[DEBUG] ========== Step 2: Verifying JSON header download ==========" && \
+    echo "[DEBUG] Checking for JSON header file..." && \
     if [ -f json_include/nlohmann/json.hpp ]; then \
+        JSON_SIZE=$(ls -lh json_include/nlohmann/json.hpp | awk '{print $5}') && \
         echo "[SUCCESS] ✓ JSON header found at: json_include/nlohmann/json.hpp" && \
-        ls -lh json_include/nlohmann/json.hpp; \
+        echo "[SUCCESS] ✓ JSON header size: $JSON_SIZE" && \
+        ls -lh json_include/nlohmann/json.hpp && \
+        echo "[DEBUG] Verifying JSON header is not empty..." && \
+        if [ -s json_include/nlohmann/json.hpp ]; then \
+            echo "[SUCCESS] ✓ JSON header file is not empty"; \
+        else \
+            echo "[FAILURE] ✗ ERROR: JSON header file is empty!" && \
+            exit 1; \
+        fi; \
     else \
         echo "[FAILURE] ✗ ERROR: JSON header NOT found!" && \
         echo "[DEBUG] Searching for json.hpp:" && \
         find . -name "json.hpp" 2>/dev/null || echo "[DEBUG] No json.hpp found anywhere" && \
         echo "[DEBUG] Contents of json_include:" && \
         ls -la json_include/ 2>/dev/null || echo "[DEBUG] json_include directory does not exist" && \
+        echo "[DEBUG] Current directory structure:" && \
+        find . -type d -maxdepth 2 2>/dev/null | head -20 && \
         exit 1; \
     fi && \
-    echo "[DEBUG] ========== Step 3: Building ==========" && \
+    echo "[DEBUG] ========== Step 3: Compiling cfg-exporter ==========" && \
     echo "[DEBUG] Starting build with cmake --build ." && \
     echo "[DEBUG] Build type: Release" && \
+    echo "[DEBUG] Build generator: Ninja" && \
+    echo "[DEBUG] Starting compilation..." && \
+    BUILD_START_TIME=$(date +%s) && \
     if cmake --build . 2>&1 | tee build_output.log; then \
-        echo "[SUCCESS] ✓ Build completed successfully"; \
+        BUILD_END_TIME=$(date +%s) && \
+        BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME)) && \
+        echo "[SUCCESS] ✓ Build completed successfully" && \
+        echo "[SUCCESS] ✓ Build duration: ${BUILD_DURATION} seconds" && \
+        echo "[DEBUG] Build output summary:" && \
+        echo "[DEBUG] - Total lines in build log: $(wc -l < build_output.log)" && \
+        echo "[DEBUG] - Warnings: $(grep -i warning build_output.log | wc -l || echo 0)" && \
+        echo "[DEBUG] - Errors: $(grep -i error build_output.log | wc -l || echo 0)"; \
     else \
         BUILD_EXIT_CODE=$? && \
+        BUILD_END_TIME=$(date +%s) && \
+        BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME)) && \
         echo "[FAILURE] ✗ ERROR: Build failed with exit code: $BUILD_EXIT_CODE" && \
-        echo "[DEBUG] Build output (last 50 lines):" && \
-        tail -50 build_output.log 2>&1 || true && \
+        echo "[FAILURE] ✗ Build duration before failure: ${BUILD_DURATION} seconds" && \
+        echo "[DEBUG] Build output (last 100 lines):" && \
+        tail -100 build_output.log 2>&1 || true && \
+        echo "[DEBUG] Searching for error patterns in build log..." && \
+        grep -i "error\|failed\|fatal" build_output.log | tail -20 || echo "[DEBUG] No specific error patterns found" && \
+        echo "[DEBUG] Full build output saved to: build_output.log" && \
         exit $BUILD_EXIT_CODE; \
     fi && \
+    echo "[DEBUG] ========== Step 4: Verifying Binary Creation ==========" && \
     echo "[DEBUG] Checking for binary..." && \
     if [ -f cfg-exporter ]; then \
+        BINARY_SIZE=$(ls -lh cfg-exporter | awk '{print $5}') && \
+        BINARY_BYTES=$(stat -c%s cfg-exporter 2>/dev/null || stat -f%z cfg-exporter 2>/dev/null || echo "unknown") && \
         echo "[SUCCESS] ✓ Binary exists after build" && \
-        echo "[DEBUG] Binary size before verification: $(ls -lh cfg-exporter | awk '{print $5}')"; \
+        echo "[SUCCESS] ✓ Binary size: $BINARY_SIZE ($BINARY_BYTES bytes)" && \
+        echo "[DEBUG] Binary location: $(pwd)/cfg-exporter" && \
+        echo "[DEBUG] Binary permissions: $(ls -l cfg-exporter | awk '{print $1}')" && \
+        echo "[DEBUG] Binary owner: $(ls -l cfg-exporter | awk '{print $3":"$4}')"; \
     else \
         echo "[FAILURE] ✗ ERROR: Binary not found after build!" && \
         echo "[DEBUG] Current directory: $(pwd)" && \
         echo "[DEBUG] Files in build directory:" && \
         ls -la . && \
+        echo "[DEBUG] Searching for any executable files:" && \
+        find . -type f -executable 2>/dev/null | head -10 || echo "[DEBUG] No executable files found" && \
+        echo "[DEBUG] Checking build.ninja for target name..." && \
+        grep -i "cfg-exporter\|cfg_exporter" build.ninja | head -5 || echo "[DEBUG] Could not find target in build.ninja" && \
         exit 1; \
     fi && \
     echo "[DEBUG] ========== Step 4: Verifying binary ==========" && \
@@ -460,21 +534,41 @@ RUN mkdir -p build && \
         echo "[DEBUG] Binary owner: $(ls -l cfg-exporter | awk '{print $3":"$4}')" && \
         echo "[DEBUG] Final binary size: $(ls -lh cfg-exporter | awk '{print $5}')" && \
         echo "[DEBUG] Binary location: $(pwd)/cfg-exporter" && \
-        echo "[DEBUG] ========== Summary ==========" && \
+        echo "[DEBUG] ========== Step 5: Build Summary ==========" && \
+        echo "[SUCCESS] ✓ ========================================" && \
+        echo "[SUCCESS] ✓ CFG-EXPORTER BUILD COMPLETED SUCCESSFULLY" && \
+        echo "[SUCCESS] ✓ ========================================" && \
         echo "[SUCCESS] ✓ Binary built successfully" && \
         echo "[SUCCESS] ✓ ELF format verified (magic bytes: 7f454c46)" && \
         echo "[SUCCESS] ✓ Architecture verified: Linux x86_64/amd64" && \
         echo "[SUCCESS] ✓ Binary is executable" && \
         echo "[SUCCESS] ✓ Execution test passed" && \
+        echo "[SUCCESS] ✓ Binary stripped and optimized" && \
         echo "[SUCCESS] ✓ Ready for copy to dev stage" && \
-        echo "[SUCCESS] ✓ Binary verification complete - ready for copy"; \
+        echo "[SUCCESS] ✓ Binary verification complete - ready for copy" && \
+        echo "[DEBUG] Final binary details:" && \
+        echo "[DEBUG] - Location: $(pwd)/cfg-exporter" && \
+        echo "[DEBUG] - Size: $(ls -lh cfg-exporter | awk '{print $5}')" && \
+        echo "[DEBUG] - Permissions: $(ls -l cfg-exporter | awk '{print $1}')" && \
+        echo "[DEBUG] - Owner: $(ls -l cfg-exporter | awk '{print $3":"$4}')" && \
+        echo "[DEBUG] - Architecture: Linux x86_64/amd64" && \
+        echo "[DEBUG] - Format: ELF 64-bit LSB executable" && \
+        echo "[SUCCESS] ✓ ========================================" && \
+        echo "[SUCCESS] ✓ BUILD PROCESS COMPLETE" && \
+        echo "[SUCCESS] ✓ ========================================"; \
     else \
+        echo "[FAILURE] ✗ ========================================" && \
+        echo "[FAILURE] ✗ CFG-EXPORTER BUILD FAILED" && \
+        echo "[FAILURE] ✗ ========================================" && \
         echo "[FAILURE] ✗ ERROR: Binary not found!" && \
         echo "[DEBUG] Current directory: $(pwd)" && \
         echo "[DEBUG] Listing build directory:" && \
         ls -la . && \
         echo "[DEBUG] Searching for cfg-exporter:" && \
         find . -name "cfg-exporter" -type f 2>/dev/null || echo "[DEBUG] cfg-exporter not found anywhere" && \
+        echo "[DEBUG] Checking for build artifacts:" && \
+        find . -type f -name "*.o" -o -name "*.a" 2>/dev/null | head -10 || echo "[DEBUG] No object files found" && \
+        echo "[FAILURE] ✗ ========================================" && \
         exit 1; \
     fi
 

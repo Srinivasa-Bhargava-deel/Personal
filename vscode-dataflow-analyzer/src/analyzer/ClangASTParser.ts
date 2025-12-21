@@ -448,7 +448,11 @@ export class ClangASTParser {
    * Uses the libclang-based exporter for clean, structured CFG output
    */
   private async parseFileStreaming(filePath: string, clangArgs: string[]): Promise<ASTNode | null> {
+    console.log('[ClangASTParser] [DEBUG] parseFileStreaming called');
+    console.log('[ClangASTParser] [DEBUG] filePath:', filePath);
+    console.log('[ClangASTParser] [DEBUG] clangArgs:', clangArgs);
     return new Promise((resolve, reject) => {
+      console.log('[ClangASTParser] [DEBUG] Promise callback started');
       // Build path to cfg-exporter binary
       // Relative path: from src/analyzer -> src -> . (root) -> cpp-tools/cfg-exporter/build/cfg-exporter
       // Windows: build/Release/cfg-exporter.exe
@@ -678,8 +682,10 @@ export class ClangASTParser {
         ...(this.cachedIncludePaths || [])
       ];
 
-      console.log(`[ClangASTParser] Spawning cfg-exporter with args: ${exporArgs.join(' ')}`);
+      console.log(`[ClangASTParser] [DEBUG] Spawning cfg-exporter with args: ${exporArgs.join(' ')}`);
+      console.log(`[ClangASTParser] [DEBUG] exporterPath: ${exporterPath}`);
       const child = child_process.spawn(exporterPath, exporArgs);
+      console.log(`[ClangASTParser] [DEBUG] Child process spawned, PID: ${child.pid}`);
       let output = '';
       let errorOutput = '';
       const maxBufferSize = 1000 * 1024 * 1024; // 1GB max
@@ -735,6 +741,8 @@ export class ClangASTParser {
       });
 
       child.on('close', (code) => {
+        console.log(`[ClangASTParser] [DEBUG] Child process closed with code: ${code}`);
+        console.log(`[ClangASTParser] [DEBUG] Output length: ${output.length}, Error output length: ${errorOutput.length}`);
         // Log execution details for debugging
         if (code !== 0 || errorOutput) {
           console.warn(`[ClangASTParser] cfg-exporter exited with code ${code}`);
@@ -788,9 +796,13 @@ export class ClangASTParser {
           LoggingConfig.detail('Parser', `cfg-exporter output length: ${output.length} bytes`);
           LoggingConfig.verbose('Parser', `cfg-exporter output preview: ${output.substring(0, 300)}`);
           
+          console.log('[ClangASTParser] [DEBUG] Parsing JSON output...');
           const jsonOutput = JSON.parse(output);
+          console.log('[ClangASTParser] [DEBUG] JSON parsing successful');
           LoggingConfig.detail('Parser', 'JSON parsing successful, converting to AST structure');
+          console.log('[ClangASTParser] [DEBUG] Converting JSON to AST structure...');
           const cfgData = this.parseCFGExporterJSON(jsonOutput, filePath);
+          console.log('[ClangASTParser] [DEBUG] AST conversion complete');
           const funcCount = cfgData ? Object.keys(cfgData.inner || {}).length : 0;
           LoggingConfig.log('Parser', `Parsed CFG with ${funcCount} functions`);
           resolve(cfgData);
@@ -798,10 +810,6 @@ export class ClangASTParser {
           LoggingConfig.error('Parser', `Failed to parse cfg-exporter JSON output: ${parseError.message}`, parseError);
           reject(new Error(`Failed to parse cfg-exporter JSON output: ${parseError.message}`));
         }
-      });
-
-      child.on('error', (error) => {
-        reject(new Error(`Failed to spawn cfg-exporter: ${error.message}`));
       });
     });
   }
