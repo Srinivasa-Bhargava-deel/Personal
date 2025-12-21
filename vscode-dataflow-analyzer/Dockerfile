@@ -9,8 +9,8 @@
 # Using Ubuntu 22.04 AMD64 (x86_64) base image - works on AMD and Intel x64 processors
 # CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
 # Platform is set via --platform flag in docker build command
-# Docker automatically sets TARGETPLATFORM when --platform is used, so we use it directly
-FROM --platform=linux/amd64 ubuntu:22.04 AS cpp-builder
+ARG TARGETPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} ubuntu:22.04 AS cpp-builder
 
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -580,7 +580,8 @@ RUN echo "[DEBUG] ========================================" && \
 # Node.js 20 AMD64 image - compatible with AMD and Intel x64 processors
 # CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
 # Platform is set via --platform flag in docker build command
-FROM --platform=linux/amd64 node:20-slim AS extension-builder
+ARG TARGETPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} node:20-slim AS extension-builder
 
 # ============================================================================
 # STAGE INITIALIZATION AND VALIDATION
@@ -774,7 +775,8 @@ RUN echo "[DEBUG] ========== Building TypeScript ==========" && \
 # Development image with all build tools for testing and development
 # CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
 # Platform is set via --platform flag in docker build command
-FROM --platform=linux/amd64 node:20-slim AS dev
+ARG TARGETPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} node:20-slim AS dev
 
 # ============================================================================
 # STAGE INITIALIZATION AND VALIDATION
@@ -1490,7 +1492,8 @@ CMD ["tail", "-f", "/dev/null"]
 # Final AMD64 image - compatible with AMD and Intel x64 processors
 # CRITICAL: Explicitly set platform to linux/amd64 to prevent macOS/ARM builds
 # Platform is set via --platform flag in docker build command
-FROM --platform=linux/amd64 node:20-slim
+ARG TARGETPLATFORM=linux/amd64
+FROM --platform=${TARGETPLATFORM} node:20-slim
 
 # Install runtime dependencies including LLVM libraries for cfg-exporter
 # Suppress update-alternatives warnings (harmless but noisy) by filtering stderr
