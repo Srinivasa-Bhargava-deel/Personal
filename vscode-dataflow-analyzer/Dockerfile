@@ -1727,25 +1727,26 @@ ENV PATH=/app/cpp-tools/cfg-exporter/build:$PATH
 ENV LD_LIBRARY_PATH=/usr/lib/llvm-17/lib
 
 # Verify cfg-exporter binary and its dependencies
-RUN echo "=== Verifying cfg-exporter binary ===" && \
+RUN echo "[DEBUG] ========== Final Binary Verification (PRODUCTION STAGE) ==========" && \
     echo "[DEBUG] Current working directory: $(pwd)" && \
     echo "[DEBUG] PATH: $PATH" && \
     echo "[DEBUG] LD_LIBRARY_PATH: $LD_LIBRARY_PATH" && \
     echo "[DEBUG] Checking for cfg-exporter at /app/cpp-tools/cfg-exporter/build/cfg-exporter" && \
     if [ -f "/app/cpp-tools/cfg-exporter/build/cfg-exporter" ]; then \
-        echo "✓ cfg-exporter binary exists" && \
+        echo "[SUCCESS] ✓ cfg-exporter binary exists" && \
         ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
         echo "[DEBUG] Verifying ELF magic bytes:" && \
         BINARY_MAGIC=$(head -c 4 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 | tr -d ' \n') && \
         if [ "$BINARY_MAGIC" = "7f454c46" ]; then \
-            echo "✓ Binary has valid ELF magic bytes (0x7f ELF)"; \
+            echo "[SUCCESS] ✓ Binary has valid ELF magic bytes (0x7f ELF)"; \
         else \
-            echo "✗ ERROR: Binary does not have ELF magic bytes! Got: $BINARY_MAGIC" && \
+            echo "[FAILURE] ✗ ERROR: Binary does not have ELF magic bytes! Got: $BINARY_MAGIC" && \
+            echo "[DEBUG] Expected: 7f454c46 (ELF Linux)" && \
             echo "[DEBUG] First 20 bytes:" && \
             head -c 20 /app/cpp-tools/cfg-exporter/build/cfg-exporter | od -An -tx1 && \
             exit 1; \
         fi && \
-        echo "[DRY RUN] Verifying binary architecture:" && \
+        echo "[DEBUG] Verifying binary architecture:" && \
         echo "[DEBUG] ELF magic bytes already verified above" && \
         echo "[DEBUG] Binary size and permissions:" && \
         ls -lh /app/cpp-tools/cfg-exporter/build/cfg-exporter && \
