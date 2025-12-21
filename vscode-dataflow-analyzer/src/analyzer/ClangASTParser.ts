@@ -664,53 +664,6 @@ export class ClangASTParser {
         console.log(`[ClangASTParser] Platform: ${process.platform}, Architecture: ${process.arch}`);
         console.log(`[ClangASTParser] Current working directory: ${process.cwd()}`);
         console.log(`[ClangASTParser] PATH: ${process.env.PATH || 'not set'}`);
-        
-        // Note: Binary validation was already done above, so we proceed directly to execution {
-              const testResult = child_process.spawnSync(exporterPath, ['--help'], {
-                timeout: 5000,
-                encoding: 'utf-8',
-                stdio: ['ignore', 'pipe', 'pipe']
-              });
-              
-              if (testResult.error) {
-                const errorMsg = testResult.error.message || String(testResult.error);
-                if (errorMsg.includes('ENOENT')) {
-                  reject(new Error(`cfg-exporter binary not found or not executable at ${exporterPath}. Error: ${errorMsg}`));
-                  return;
-                } else if (errorMsg.includes('EACCES')) {
-                  reject(new Error(`cfg-exporter binary at ${exporterPath} is not executable. Please check permissions.`));
-                  return;
-                } else if (errorMsg.includes('Exec format error') || errorMsg.includes('cannot execute')) {
-                  console.error(`[ClangASTParser] CRITICAL: Binary architecture mismatch!`);
-                  console.error(`[ClangASTParser] Platform: ${process.platform}, Arch: ${process.arch}`);
-                  console.error(`[ClangASTParser] Binary path: ${exporterPath}`);
-                  reject(new Error(`cfg-exporter binary architecture mismatch. Platform: ${process.platform}, Arch: ${process.arch}. The binary may be built for a different architecture. Please rebuild the Docker image.`));
-                  return;
-                } else {
-                  console.warn(`[ClangASTParser] Pre-execution test failed: ${errorMsg}`);
-                  // Continue anyway - might be a different issue
-                }
-              }
-              
-              // Check for shell script errors (Syntax error)
-              if (testResult.stderr && (testResult.stderr.includes('Syntax error') || testResult.stderr.includes('unexpected'))) {
-                console.error(`[ClangASTParser] CRITICAL: Binary appears to be a shell script or corrupted!`);
-                console.error(`[ClangASTParser] stderr: ${testResult.stderr.substring(0, 200)}`);
-                reject(new Error(`cfg-exporter at ${exporterPath} appears corrupted or is being interpreted as a script. Error: ${testResult.stderr.substring(0, 200)}. Please rebuild the Docker image.`));
-                return;
-              }
-              
-              console.log(`[ClangASTParser] Pre-execution validation passed`);
-            } catch (testErr: any) {
-              console.warn(`[ClangASTParser] Pre-execution test failed: ${testErr.message || testErr}`);
-              // Continue anyway - might be a timeout or other non-critical issue
-            }
-          } catch (preExecErr: any) {
-            console.error(`[ClangASTParser] Pre-execution validation failed: ${preExecErr.message || preExecErr}`);
-            reject(new Error(`Failed to validate cfg-exporter binary before execution: ${preExecErr.message || preExecErr}`));
-            return;
-          }
-        }
       } catch (err) {
         reject(new Error(`Failed to check cfg-exporter path: ${err}`));
         return;
